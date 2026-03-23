@@ -1,0 +1,249 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout 
+  title="Curriculum Vitae - Loonan Chauvette"
+  description="Academic CV of Loonan Chauvette, PhD Candidate in Rehabilitation Sciences at Université Laval."
+>
+  <!-- CV Header with Download Button -->
+  <section class="py-12 bg-surface-container-low border-b border-surface-container">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div>
+          <h1 class="font-serif text-display-md text-on-surface mb-2">
+            Curriculum Vitae
+          </h1>
+          <p class="font-sans text-body-lg text-on-surface-variant">
+            Loonan Chauvette, PhD Candidate
+          </p>
+        </div>
+        <a 
+          href="/cv.pdf" 
+          download
+          class="inline-flex items-center gap-2 px-8 py-4 bg-primary text-surface-container-lowest font-serif text-body-lg hover:bg-primary/90 transition-all"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Download PDF
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- CV Content with Asymmetric Layout -->
+  <div class="max-w-7xl mx-auto px-6 py-16">
+    <!-- Education -->
+    <section class="grid md:grid-cols-12 gap-8 mb-20">
+      <div class="md:col-span-3">
+        <p class="font-sans text-label-md text-on-surface-variant uppercase tracking-wider">
+          Education
+        </p>
+      </div>
+      <div class="md:col-span-9 space-y-8">
+        <div>
+          <h3 class="font-serif text-title-lg text-on-surface mb-1">PhD in Rehabilitation Sciences</h3>
+          <p class="font-sans text-body-lg text-on-surface-variant mb-2">Université Laval, École de réadaptation, Québec, QC, Canada</p>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase">2023 – Present</p>
+          <p class="font-sans text-body-md text-on-surface mt-3 italic">Fast-tracked from Master's program</p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-title-lg text-on-surface mb-1">MSc in Rehabilitation Sciences</h3>
+          <p class="font-sans text-body-lg text-on-surface-variant mb-2">Université Laval, École de réadaptation, Québec, QC, Canada</p>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase">2022 – 2023</p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-title-lg text-on-surface mb-1">MPAud in Audiology (Professional)</h3>
+          <p class="font-sans text-body-lg text-on-surface-variant mb-2">Université Laval, École de réadaptation, Québec, QC, Canada</p>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase">2020 – 2022</p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-title-lg text-on-surface mb-1">BA in Language Sciences</h3>
+          <p class="font-sans text-body-lg text-on-surface-variant mb-2">Université Laval, Faculté des lettres et des sciences humaines, Québec, QC, Canada</p>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase">2016 – 2019</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Research Scholarships -->
+    <section class="grid md:grid-cols-12 gap-8 mb-20">
+      <div class="md:col-span-3">
+        <p class="font-sans text-label-md text-on-surface-variant uppercase tracking-wider">
+          Scholarships
+        </p>
+      </div>
+      <div class="md:col-span-9 space-y-8">
+        <div>
+          <h3 class="font-serif text-title-lg text-on-surface mb-1">Doctoral Training Fellowship for Professional Degree Holders</h3>
+          <p class="font-sans text-body-lg text-on-surface-variant mb-2">Fonds de recherche du Québec – Santé (FRQS)</p>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase mb-3">2024 – 2028 | $135,000</p>
+          <p class="font-sans text-body-md text-on-surface italic">Tactile Compensatory Aid to Address Hearing Aid Limitations for Timbre Perception in Older Adults with Hearing Loss</p>
+          <p class="font-sans text-body-sm text-on-surface-variant mt-2">Supervisor: Professor Andréanne Sharp, PhD</p>
+          <p class="font-sans text-body-sm text-on-surface-variant">DOI: <a href="https://doi.org/10.69777/348570" target="_blank" rel="noopener noreferrer" class="link-primary">10.69777/348570</a></p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-title-lg text-on-surface mb-1">Canada Graduate Scholarships – Doctoral (CGS D)</h3>
+          <p class="font-sans text-body-lg text-on-surface-variant mb-2">Natural Sciences and Engineering Research Council of Canada (NSERC)</p>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase mb-3">2024 – 2027 | $63,000</p>
+          <p class="font-sans text-body-md text-on-surface italic">Timbre Perception in Tactile and Auditory-Tactile Modalities in the Context of Cross-Modal Brain Plasticity</p>
+          <p class="font-sans text-body-sm text-on-surface-variant mt-2">Supervisor: Professor Andréanne Sharp, PhD</p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-title-lg text-on-surface mb-1">Master's Training Fellowship</h3>
+          <p class="font-sans text-body-lg text-on-surface-variant mb-2">Fonds de recherche du Québec – Santé (FRQS)</p>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase mb-3">2022 – 2024 | $35,000</p>
+          <p class="font-sans text-body-md text-on-surface italic">Aging and Hearing Loss - Improving Timbre Perception Using Vibrotactile Support</p>
+          <p class="font-sans text-body-sm text-on-surface-variant mt-2">Supervisor: Professor Andréanne Sharp, PhD</p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-title-lg text-on-surface mb-1">Canada Graduate Scholarships – Master's (CGS M)</h3>
+          <p class="font-sans text-body-lg text-on-surface-variant mb-2">Natural Sciences and Engineering Research Council of Canada (NSERC)</p>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase mb-3">2022 – 2023 | $17,500</p>
+          <p class="font-sans text-body-md text-on-surface italic">Auditory and Tactile Timbre Perception in the Context of Prolonged Auditory Deprivation Related to Normal Aging</p>
+          <p class="font-sans text-body-sm text-on-surface-variant mt-2">Supervisor: Professor Andréanne Sharp, PhD</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Awards & Honors -->
+    <section class="grid md:grid-cols-12 gap-8 mb-20">
+      <div class="md:col-span-3">
+        <p class="font-sans text-label-md text-on-surface-variant uppercase tracking-wider">
+          Awards
+        </p>
+      </div>
+      <div class="md:col-span-9 space-y-6">
+        <div class="flex justify-between items-start gap-4">
+          <div class="flex-grow">
+            <h3 class="font-serif text-title-md text-on-surface">Supervision Engagement Award</h3>
+            <p class="font-sans text-body-md text-on-surface-variant">École de réadaptation, Université Laval</p>
+          </div>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase whitespace-nowrap">2024 – 2025</p>
+        </div>
+
+        <div class="flex justify-between items-start gap-4">
+          <div class="flex-grow">
+            <h3 class="font-serif text-title-md text-on-surface">ISA Student Scholarship ($2,000)</h3>
+            <p class="font-sans text-body-md text-on-surface-variant">International Society of Audiology</p>
+          </div>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase whitespace-nowrap">Sept 2024</p>
+        </div>
+
+        <div class="flex justify-between items-start gap-4">
+          <div class="flex-grow">
+            <h3 class="font-serif text-title-md text-on-surface">Student Poster Outstanding Research Award Winner</h3>
+            <p class="font-sans text-body-md text-on-surface-variant">Canadian Academy of Audiology</p>
+          </div>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase whitespace-nowrap">Oct 2023</p>
+        </div>
+
+        <div class="flex justify-between items-start gap-4">
+          <div class="flex-grow">
+            <h3 class="font-serif text-title-md text-on-surface">Student Poster Outstanding Research Award Winner</h3>
+            <p class="font-sans text-body-md text-on-surface-variant">Canadian Academy of Audiology</p>
+          </div>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase whitespace-nowrap">Oct 2022</p>
+        </div>
+
+        <div class="flex justify-between items-start gap-4">
+          <div class="flex-grow">
+            <h3 class="font-serif text-title-md text-on-surface">CAA Student Award</h3>
+            <p class="font-sans text-body-md text-on-surface-variant">Canadian Academy of Audiology</p>
+          </div>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase whitespace-nowrap">Oct 2022</p>
+        </div>
+
+        <div class="flex justify-between items-start gap-4">
+          <div class="flex-grow">
+            <h3 class="font-serif text-title-md text-on-surface">Dean's Honour List</h3>
+            <p class="font-sans text-body-md text-on-surface-variant">Faculté des études supérieures et postdoctorales, Université Laval</p>
+          </div>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase whitespace-nowrap">Aug 2022</p>
+        </div>
+
+        <div class="flex justify-between items-start gap-4">
+          <div class="flex-grow">
+            <h3 class="font-serif text-title-md text-on-surface">CIRRIS Award ($1,000)</h3>
+            <p class="font-sans text-body-md text-on-surface-variant">Centre interdisciplinaire de recherche en réadaptation et intégration sociale</p>
+          </div>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase whitespace-nowrap">May 2022</p>
+        </div>
+
+        <div class="flex justify-between items-start gap-4">
+          <div class="flex-grow">
+            <h3 class="font-serif text-title-md text-on-surface">Audiology Excellence Scholarship ($1,500)</h3>
+            <p class="font-sans text-body-md text-on-surface-variant">Fondation Groupe Forget</p>
+          </div>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase whitespace-nowrap">Mar 2022</p>
+        </div>
+
+        <div class="flex justify-between items-start gap-4">
+          <div class="flex-grow">
+            <h3 class="font-serif text-title-md text-on-surface">Dean's Honour List</h3>
+            <p class="font-sans text-body-md text-on-surface-variant">Faculté des lettres et des sciences humaines, Université Laval</p>
+          </div>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase whitespace-nowrap">Aug 2019</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Academic Employment -->
+    <section class="grid md:grid-cols-12 gap-8">
+      <div class="md:col-span-3">
+        <p class="font-sans text-label-md text-on-surface-variant uppercase tracking-wider">
+          Teaching
+        </p>
+      </div>
+      <div class="md:col-span-9 space-y-8">
+        <div>
+          <h3 class="font-serif text-title-lg text-on-surface mb-1">Lecturer</h3>
+          <p class="font-sans text-body-lg text-on-surface-variant mb-2">Psychoacoustics (AUD 6001), Université Laval</p>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase mb-3">2025 – Present</p>
+          <ul class="list-disc list-inside font-sans text-body-md text-on-surface space-y-1 ml-4">
+            <li>Teaching graduate-level audiology course</li>
+            <li>Developing exams and pedagogical materials</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-title-lg text-on-surface mb-1">Teaching Assistant</h3>
+          <p class="font-sans text-body-lg text-on-surface-variant mb-2">Electrophysiological Assessment (AUD 6006), Université Laval</p>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase mb-3">2022 – Present</p>
+          <p class="font-sans text-body-sm text-on-surface-variant mb-3">Professor: Andréanne Sharp, PhD</p>
+          <ul class="list-disc list-inside font-sans text-body-md text-on-surface space-y-1 ml-4">
+            <li>Supervising students in electrophysiology laboratories</li>
+            <li>Teaching fundamentals of electrophysiology and specific tests (ABR, OAE, FFR)</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-title-lg text-on-surface mb-1">Teaching Assistant</h3>
+          <p class="font-sans text-body-lg text-on-surface-variant mb-2">Master's in Audiology Program, Université Laval</p>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase mb-3">2024</p>
+          <p class="font-sans text-body-sm text-on-surface-variant mb-3">Project Lead: Nadine Tougas</p>
+          <ul class="list-disc list-inside font-sans text-body-md text-on-surface space-y-1 ml-4">
+            <li>Writing fictional clinical cases for educational purposes</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-title-lg text-on-surface mb-1">Teaching Assistant</h3>
+          <p class="font-sans text-body-lg text-on-surface-variant mb-2">Introduction to Linguistics (LNG 1000), Morphology (LNG 2100), Université Laval</p>
+          <p class="font-sans text-label-lg text-on-surface-variant uppercase mb-3">2021 – 2022</p>
+          <p class="font-sans text-body-sm text-on-surface-variant mb-3">Professor: Manuel Español Echevarría, PhD</p>
+          <ul class="list-disc list-inside font-sans text-body-md text-on-surface space-y-1 ml-4">
+            <li>Creating didactic materials and questionnaires</li>
+            <li>Developing exam questions and grading exams</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+</BaseLayout>

@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Import fonts */
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  /* Base typography */
+  html {
+    @apply font-sans text-on-surface bg-surface;
+  }
+
+  body {
+    @apply antialiased;
+  }
+
+  /* Headings use serif font */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif;
+  }
+}
+
+@layer components {
+  /* Ink Bleed hover effect for links */
+  .ink-bleed {
+    @apply relative transition-all duration-300;
+  }
+
+  .ink-bleed::before {
+    content: '';
+    @apply absolute inset-0 bg-primary-container opacity-0 -z-10 transition-opacity duration-300;
+  }
+
+  .ink-bleed:hover::before {
+    @apply opacity-10;
+  }
+
+  /* Ghost border for buttons/inputs */
+  .ghost-border {
+    @apply border border-outline-variant border-opacity-30;
+  }
+
+  /* Primary link styling */
+  .link-primary {
+    @apply text-primary underline underline-offset-2 decoration-1 ink-bleed;
+  }
+}

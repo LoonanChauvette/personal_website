@@ -1,0 +1,172 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout 
+  title="Loonan Chauvette - PhD Candidate in Rehabilitation Sciences"
+  description="PhD candidate researching auditory-tactile perception, timbre processing, and sensory substitution technologies for hearing rehabilitation at Université Laval."
+>
+  <!-- Hero Section with Asymmetric Layout -->
+  <section class="py-20 bg-surface">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="flex flex-col md:flex-row gap-16 items-start">
+        <!-- Headshot and Social Links Column -->
+        <div class="flex-shrink-0 flex flex-col items-center gap-4">
+          <img 
+            src="/headshot.jpg" 
+            alt="Loonan Chauvette" 
+            class="w-48 h-48 rounded-full object-cover shadow-whisper bg-surface-container-lowest"
+          />
+          
+          <!-- Social Media Icon Links -->
+          <div class="flex gap-3">
+            <a 
+              href="https://linkedin.com/in/loonan-chauvette" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              class="w-10 h-10 flex items-center justify-center bg-surface-container-low hover:bg-surface-container transition-all shadow-whisper rounded"
+              aria-label="LinkedIn"
+            >
+              <svg class="w-5 h-5 text-on-surface" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+              </svg>
+            </a>
+            <a 
+              href="mailto:loonan.chauvette@cervo.ulaval.ca"
+              class="w-10 h-10 flex items-center justify-center bg-surface-container-low hover:bg-surface-container transition-all shadow-whisper rounded"
+              aria-label="Email"
+            >
+              <svg class="w-5 h-5 text-on-surface" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+              </svg>
+            </a>
+            <a 
+              href="https://github.com/LoonanChauvette" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              class="w-10 h-10 flex items-center justify-center bg-surface-container-low hover:bg-surface-container transition-all shadow-whisper rounded"
+              aria-label="GitHub"
+            >
+              <svg class="w-5 h-5 text-on-surface" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+              </svg>
+            </a>
+          </div>
+
+          <!-- CV Download Button with Text -->
+          <a 
+            href="/cv.pdf" 
+            download
+            class="inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary/90 transition-all shadow-whisper rounded font-sans text-body-md text-surface-container-lowest"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            Download CV
+          </a>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 space-y-8">
+          <div>
+            <h1 class="font-serif text-display-lg text-on-surface mb-6">
+              Loonan Chauvette
+            </h1>
+            <div class="space-y-6">
+              <!-- PhD Candidate Section -->
+              <div>
+                <p class="font-sans text-title-lg text-on-surface-variant">
+                  PhD Candidate in Rehabilitation Sciences
+                </p>
+                <p class="font-sans text-body-lg text-on-surface-variant mt-2">
+                  Université Laval, Québec, Canada
+                </p>
+                <p class="font-sans text-body-lg text-on-surface leading-relaxed mt-3">
+                  I am a doctoral researcher at the <span class="font-semibold">École de réadaptation</span> at Université Laval, 
+                  working under the supervision of Professor Andréanne Sharp, PhD. My research explores the intersection of 
+                  auditory and tactile perception, with a focus on developing innovative sensory substitution technologies 
+                  to enhance auditory rehabilitation for individuals with hearing loss.
+                </p>
+              </div>
+
+              <!-- Audiologist Section -->
+              <div>
+                <p class="font-sans text-title-lg text-on-surface-variant">
+                  Audiologist
+                </p>
+                <p class="font-sans text-body-lg text-on-surface-variant mt-2">
+                  Clinique MultiSens, Lévis, Canada
+                </p>
+                <p class="font-sans text-body-lg text-on-surface leading-relaxed mt-3">
+                  Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+                </p>
+              </div>
+            </div>
+          </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Research Interests -->
+  <section class="py-20 bg-surface-container-low">
+    <div class="max-w-7xl mx-auto px-6">
+      <!-- Section Header -->
+      <div class="mb-12">
+        <h2 class="font-serif text-headline-lg text-on-surface">
+          Research Interests
+        </h2>
+      </div>
+
+      <!-- Research Areas -->
+      <div class="space-y-8">
+          <div>
+            <h3 class="font-serif text-title-lg text-on-surface mb-3">
+              Multisensory Integration & Cross-Modal Plasticity
+            </h3>
+            <p class="font-sans text-body-lg text-on-surface leading-relaxed">
+              Investigating how the brain integrates information from auditory and tactile sensory channels, and how 
+              prolonged auditory deprivation (such as age-related hearing loss) induces neuroplastic changes that 
+              alter cross-modal processing.
+            </p>
+          </div>
+
+          <div>
+            <h3 class="font-serif text-title-lg text-on-surface mb-3">
+              Timbre Perception Across Modalities
+            </h3>
+            <p class="font-sans text-body-lg text-on-surface leading-relaxed">
+              Examining the perception of timbre—the quality that distinguishes different sound sources—in both auditory 
+              and vibrotactile contexts. This includes understanding which acoustic features can be effectively translated 
+              to tactile sensations and how musical training influences these perceptual abilities.
+            </p>
+          </div>
+
+          <div>
+            <h3 class="font-serif text-title-lg text-on-surface mb-3">
+              Assistive Technology Development
+            </h3>
+            <p class="font-sans text-body-lg text-on-surface leading-relaxed">
+              Designing and validating novel sensory substitution devices, including the multichannel vibrotactile glove, 
+              to provide tactile representations of complex auditory information. The goal is to develop clinically viable 
+              tools that can enhance music perception, speech understanding, and overall quality of life for individuals 
+              with hearing impairments.
+            </p>
+          </div>
+
+          <div>
+            <h3 class="font-serif text-title-lg text-on-surface mb-3">
+              Psychoacoustics & Auditory Scene Analysis
+            </h3>
+            <p class="font-sans text-body-lg text-on-surface leading-relaxed">
+              Utilizing psychophysical methods and electrophysiological techniques (including frequency-following responses) 
+              to understand how older adults with hearing loss process spectral and temporal acoustic cues, particularly in 
+              complex listening environments.
+            </p>
+          </div>
+        </div>
+    </div>
+  </section>
+</BaseLayout>

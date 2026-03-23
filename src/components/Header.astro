@@ -1,0 +1,38 @@
+---
+const currentPath = Astro.url.pathname;
+
+const navItems = [
+  { href: '/', label: 'Home' },
+  { href: '/cv', label: 'CV' },
+  { href: '/publications', label: 'Publications' },
+];
+---
+
+<header class="sticky top-0 z-50 backdrop-blur-nav bg-surface/80 border-b border-surface-container-low">
+  <nav class="max-w-7xl mx-auto px-6 py-6">
+    <div class="flex items-center justify-between">
+      <!-- Name/Brand -->
+      <a href="/" class="font-serif text-headline-md font-semibold text-on-surface hover:text-primary transition-colors">
+        Loonan Chauvette
+      </a>
+
+      <!-- Navigation Links -->
+      <ul class="flex items-center gap-8">
+        {navItems.map((item) => (
+          <li>
+            <a
+              href={item.href}
+              class={`font-sans text-body-lg uppercase tracking-wide transition-colors ${
+                currentPath === item.href || (currentPath.startsWith(item.href) && item.href !== '/')
+                  ? 'text-primary font-semibold'
+                  : 'text-on-surface hover:text-primary'
+              }`}
+            >
+              {item.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </nav>
+</header>
