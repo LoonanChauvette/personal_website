@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "astro dev",
-    "build": "npm run build:cv && astro build",
+    "build": "astro build",
     "build:cv": "typst compile Assets/cv.typ public/cv.pdf",
     "preview": "astro preview"
   },
