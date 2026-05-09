@@ -240,12 +240,22 @@ import type { CitationResponse, CitationError } from '../types/citation';
     if (!citationData) return;
     
     try {
-      // Get text content - either from textarea (BibTeX) or div (formatted)
-      const textToCopy = currentFormat === 'bibtex' 
-        ? citationText.value 
-        : citationDisplay.innerText;
-      
-      await navigator.clipboard.writeText(textToCopy);
+      if (currentFormat === 'bibtex') {
+        // For BibTeX, copy plain text
+        await navigator.clipboard.writeText(citationText.value);
+      } else {
+        // For formatted citations (APA, MLA, Chicago), copy with HTML formatting
+        const htmlContent = citationDisplay.innerHTML;
+        const plainText = citationDisplay.innerText;
+        
+        // Create a ClipboardItem with both HTML and plain text
+        const clipboardItem = new ClipboardItem({
+          'text/html': new Blob([htmlContent], { type: 'text/html' }),
+          'text/plain': new Blob([plainText], { type: 'text/plain' })
+        });
+        
+        await navigator.clipboard.write([clipboardItem]);
+      }
       
       // Show success feedback
       const originalText = copyButton.textContent;
@@ -258,6 +268,24 @@ import type { CitationResponse, CitationError } from '../types/citation';
       }, 2000);
     } catch (error) {
       console.error('Failed to copy:', error);
+      // Fallback to plain text if rich copy fails
+      try {
+        const plainText = currentFormat === 'bibtex' 
+          ? citationText.value 
+          : citationDisplay.innerText;
+        await navigator.clipboard.writeText(plainText);
+        
+        const originalText = copyButton.textContent;
+        copyButton.textContent = 'Copied!';
+        copyButton.classList.add('text-green-600');
+        
+        setTimeout(() => {
+          copyButton.textContent = originalText;
+          copyButton.classList.remove('text-green-600');
+        }, 2000);
+      } catch (fallbackError) {
+        console.error('Fallback copy also failed:', fallbackError);
+      }
     }
   }
 
