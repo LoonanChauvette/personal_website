@@ -45,4 +45,40 @@
   .link-primary {
     @apply text-primary underline underline-offset-2 decoration-1 ink-bleed;
   }
+
+  /* Citation Modal Styles */
+  
+  /* Citation textarea */
+  .citation-text {
+    @apply w-full min-h-32 p-4 bg-surface-container-low border border-outline-variant border-opacity-30 
+           font-sans text-body-md resize-none focus:border-primary focus:border-opacity-100 
+           transition-colors outline-none;
+  }
+
+  /* BibTeX gets monospace */
+  .citation-text.bibtex {
+    @apply font-mono text-body-sm;
+  }
+
+  /* Format selector tabs */
+  .format-tab {
+    @apply px-4 py-2 text-label-md uppercase tracking-wide border border-outline-variant 
+           border-opacity-30 transition-all cursor-pointer bg-surface-container-lowest;
+  }
+
+  .format-tab.active {
+    @apply bg-primary text-white border-primary border-opacity-100;
+  }
+
+  .format-tab:hover:not(.active) {
+    @apply bg-primary-container bg-opacity-10;
+  }
+
+  .format-tab:first-child {
+    @apply border-r-0;
+  }
+
+  .format-tab:not(:first-child):not(:last-child) {
+    @apply border-r-0;
+  }
 }

@@ -1,0 +1,323 @@
+---
+import type { CitationResponse, CitationError } from '../types/citation';
+---
+
+<!-- Modal backdrop and container (hidden by default) -->
+<div id="citation-modal" class="fixed inset-0 z-50 hidden opacity-0 transition-opacity duration-200">
+  <!-- Backdrop -->
+  <div class="backdrop absolute inset-0 bg-on-surface/40" id="modal-backdrop"></div>
+  
+  <!-- Modal container -->
+  <div class="absolute inset-0 flex items-center justify-center p-6">
+    <div 
+      class="modal-content relative bg-surface-container-lowest shadow-whisper max-w-2xl w-full p-8"
+      role="dialog"
+      aria-labelledby="modal-title"
+      aria-modal="true"
+    >
+      <!-- Close button -->
+      <button
+        id="modal-close"
+        class="absolute top-6 right-6 text-on-surface hover:text-primary transition-colors text-4xl leading-none"
+        aria-label="Close citation modal"
+      >
+        ×
+      </button>
+
+      <!-- Header -->
+      <h2 id="modal-title" class="font-serif text-headline-sm text-on-surface mb-6">
+        Cite this publication
+      </h2>
+
+      <!-- Loading state -->
+      <div id="loading-state" class="text-center py-12">
+        <p class="font-sans text-body-lg text-on-surface-variant animate-pulse">
+          Loading citation...
+        </p>
+      </div>
+
+      <!-- Error state -->
+      <div id="error-state" class="hidden">
+        <div class="bg-surface-container-low p-6 mb-6">
+          <p class="font-sans text-body-lg text-on-surface mb-4" id="error-message">
+            <!-- Error message will be inserted here -->
+          </p>
+          <div class="flex gap-4">
+            <a 
+              id="error-doi-link" 
+              href="#" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              class="link-primary font-sans text-body-md"
+            >
+              View DOI directly
+            </a>
+            <button
+              id="retry-button"
+              class="ghost-border px-4 py-2 text-label-md uppercase tracking-wide text-primary ink-bleed transition-all"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Citation content (hidden until loaded) -->
+      <div id="citation-content" class="hidden">
+        <!-- Format selector tabs -->
+        <div class="flex gap-0 mb-6">
+          <button class="format-tab active" data-format="apa">APA</button>
+          <button class="format-tab" data-format="mla">MLA</button>
+          <button class="format-tab" data-format="chicago">Chicago</button>
+          <button class="format-tab" data-format="bibtex">BibTeX</button>
+        </div>
+
+        <!-- Citation display (div for formatted text, textarea for BibTeX) -->
+        <div
+          id="citation-display"
+          class="citation-text"
+        ></div>
+        <textarea
+          id="citation-text"
+          class="citation-text hidden"
+          readonly
+          rows="6"
+        ></textarea>
+
+        <!-- Action buttons -->
+        <div class="flex gap-4 mt-6">
+          <button
+            id="copy-button"
+            class="ghost-border px-6 py-3 text-label-md uppercase tracking-wide text-primary ink-bleed transition-all flex-1"
+          >
+            Copy Citation
+          </button>
+          <button
+            id="download-button"
+            class="ghost-border px-6 py-3 text-label-md uppercase tracking-wide text-primary ink-bleed transition-all flex-1"
+          >
+            Download .bib
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import type { CitationResponse, CitationError } from '../types/citation';
+
+  // Modal state
+  let currentDoi: string = '';
+  let citationData: CitationResponse | null = null;
+  let currentFormat: 'apa' | 'mla' | 'chicago' | 'bibtex' = 'apa';
+
+  // DOM elements
+  const modal = document.getElementById('citation-modal')!;
+  const backdrop = document.getElementById('modal-backdrop')!;
+  const closeButton = document.getElementById('modal-close')!;
+  const loadingState = document.getElementById('loading-state')!;
+  const errorState = document.getElementById('error-state')!;
+  const citationContent = document.getElementById('citation-content')!;
+  const citationDisplay = document.getElementById('citation-display')!;
+  const citationText = document.getElementById('citation-text') as HTMLTextAreaElement;
+  const copyButton = document.getElementById('copy-button')!;
+  const downloadButton = document.getElementById('download-button')!;
+  const errorMessage = document.getElementById('error-message')!;
+  const errorDoiLink = document.getElementById('error-doi-link') as HTMLAnchorElement;
+  const retryButton = document.getElementById('retry-button')!;
+  const formatTabs = document.querySelectorAll('.format-tab');
+
+  // Open modal
+  async function openModal(doi: string) {
+    currentDoi = doi;
+    modal.classList.remove('hidden');
+    // Trigger reflow for transition
+    modal.offsetHeight;
+    modal.classList.remove('opacity-0');
+    
+    // Show loading state
+    showLoadingState();
+    
+    // Fetch citation
+    await fetchCitation(doi);
+  }
+
+  // Close modal
+  function closeModal() {
+    modal.classList.add('opacity-0');
+    setTimeout(() => {
+      modal.classList.add('hidden');
+      resetModal();
+    }, 200);
+  }
+
+  // Reset modal to initial state
+  function resetModal() {
+    loadingState.classList.remove('hidden');
+    errorState.classList.add('hidden');
+    citationContent.classList.add('hidden');
+    citationData = null;
+    currentFormat = 'apa';
+    
+    // Reset format tabs
+    formatTabs.forEach(tab => {
+      tab.classList.remove('active');
+      if (tab.getAttribute('data-format') === 'apa') {
+        tab.classList.add('active');
+      }
+    });
+  }
+
+  // Show loading state
+  function showLoadingState() {
+    loadingState.classList.remove('hidden');
+    errorState.classList.add('hidden');
+    citationContent.classList.add('hidden');
+  }
+
+  // Show error state
+  function showErrorState(message: string, doi: string) {
+    loadingState.classList.add('hidden');
+    citationContent.classList.add('hidden');
+    errorState.classList.remove('hidden');
+    
+    errorMessage.textContent = message;
+    errorDoiLink.href = `https://doi.org/${doi}`;
+  }
+
+  // Show citation content
+  function showCitationContent() {
+    loadingState.classList.add('hidden');
+    errorState.classList.add('hidden');
+    citationContent.classList.remove('hidden');
+    
+    updateCitationText();
+  }
+
+  // Fetch citation from API
+  async function fetchCitation(doi: string) {
+    const apiUrl = `/api/citation?doi=${encodeURIComponent(doi)}`;
+    try {
+      const response = await fetch(apiUrl);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        const error = data as CitationError;
+        showErrorState(error.message, doi);
+        return;
+      }
+      
+      citationData = data as CitationResponse;
+      showCitationContent();
+    } catch (error) {
+      console.error('Failed to fetch citation:', error);
+      showErrorState('Failed to connect to citation service. Please try again.', doi);
+    }
+  }
+
+  // Update citation text based on selected format
+  function updateCitationText() {
+    if (!citationData) return;
+    
+    const text = citationData.formatted[currentFormat];
+    
+    // BibTeX uses textarea (plain text), others use div (formatted HTML)
+    if (currentFormat === 'bibtex') {
+      citationDisplay.classList.add('hidden');
+      citationText.classList.remove('hidden');
+      citationText.classList.add('bibtex');
+      citationText.value = text;
+    } else {
+      citationText.classList.add('hidden');
+      citationDisplay.classList.remove('hidden');
+      citationDisplay.innerHTML = text;
+    }
+  }
+
+  // Copy citation to clipboard
+  async function copyCitation() {
+    if (!citationData) return;
+    
+    try {
+      // Get text content - either from textarea (BibTeX) or div (formatted)
+      const textToCopy = currentFormat === 'bibtex' 
+        ? citationText.value 
+        : citationDisplay.innerText;
+      
+      await navigator.clipboard.writeText(textToCopy);
+      
+      // Show success feedback
+      const originalText = copyButton.textContent;
+      copyButton.textContent = 'Copied!';
+      copyButton.classList.add('text-green-600');
+      
+      setTimeout(() => {
+        copyButton.textContent = originalText;
+        copyButton.classList.remove('text-green-600');
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  }
+
+  // Download citation as .bib file
+  function downloadCitation() {
+    if (!citationData) return;
+    
+    // Generate filename from first author and year
+    const firstAuthor = citationData.csl.author[0];
+    const authorName = firstAuthor.family || firstAuthor.literal || 'citation';
+    const year = citationData.csl.issued?.['date-parts']?.[0]?.[0] || 'unknown';
+    const filename = `${authorName.toLowerCase().replace(/\s+/g, '')}-${year}-citation.bib`;
+    
+    // Get text content - either from textarea (BibTeX) or div (formatted)
+    const textToDownload = currentFormat === 'bibtex' 
+      ? citationText.value 
+      : citationDisplay.innerText;
+    
+    // Create blob and download
+    const blob = new Blob([textToDownload], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Event listeners
+  closeButton.addEventListener('click', closeModal);
+  backdrop.addEventListener('click', closeModal);
+  copyButton.addEventListener('click', copyCitation);
+  downloadButton.addEventListener('click', downloadCitation);
+  retryButton.addEventListener('click', () => fetchCitation(currentDoi));
+
+  // Format tab switching
+  formatTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Update active tab
+      formatTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      
+      // Update format
+      currentFormat = tab.getAttribute('data-format') as any;
+      updateCitationText();
+    });
+  });
+
+  // ESC key to close
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+      closeModal();
+    }
+  });
+
+  // Listen for custom event to open modal
+  window.addEventListener('open-citation-modal', ((e: CustomEvent) => {
+    const { doi } = e.detail;
+    openModal(doi);
+  }) as EventListener);
+</script>

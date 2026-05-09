@@ -1,0 +1,16 @@
+---
+interface Props {
+  doi: string;
+}
+
+const { doi } = Astro.props;
+---
+
+<button
+  class="cite-button ghost-border px-3 py-1 text-label-md uppercase tracking-wide text-primary ink-bleed transition-all ml-3 inline-block"
+  data-doi={doi}
+  aria-label="Cite this publication"
+  onclick={`window.dispatchEvent(new CustomEvent('open-citation-modal', { detail: { doi: '${doi}' } }))`}
+>
+  Cite
+</button>
