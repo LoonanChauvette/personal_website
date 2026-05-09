@@ -1,7 +1,12 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": "dist",
+  "outputDirectory": ".vercel/output",
   "installCommand": "npm install",
   "framework": "astro",
-  "devCommand": "npm run dev"
+  "devCommand": "npm run dev",
+  "functions": {
+    "**/*.func/**": {
+      "runtime": "nodejs20.x"
+    }
+  }
 }
