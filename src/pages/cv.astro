@@ -3,9 +3,31 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
 <BaseLayout 
-  title="Curriculum Vitae - Loonan Chauvette"
+  title="CV - Loonan Chauvette | Audiology Researcher & PhD Candidate"
   description="Academic CV of Loonan Chauvette, PhD Candidate in Rehabilitation Sciences at Université Laval."
 >
+  <!-- Breadcrumb Schema -->
+  <Fragment slot="head">
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://loonanchauvette.com"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "CV",
+          "item": "https://loonanchauvette.com/cv"
+        }
+      ]
+    })} />
+  </Fragment>
+  
   <!-- CV Header with Download Button -->
   <section class="py-12 bg-surface-container-low border-b border-surface-container">
     <div class="max-w-7xl mx-auto px-6">

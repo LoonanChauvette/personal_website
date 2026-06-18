@@ -124,11 +124,31 @@ function formatAuthors(authors: string): string {
 ---
 
 <BaseLayout 
-  title="Publications - Loonan Chauvette"
+  title="Publications - Loonan Chauvette | Audiology & Psychoacoustics Research"
   description="Peer-reviewed publications by Loonan Chauvette on auditory-tactile perception, timbre processing, and hearing rehabilitation."
 >
   <!-- SEO: JSON-LD Structured Data for Google Scholar and search engines -->
   <Fragment slot="head">
+    <!-- Breadcrumb Schema -->
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://loonanchauvette.com"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Publications",
+          "item": "https://loonanchauvette.com/publications"
+        }
+      ]
+    })} />
+    
     <script type="application/ld+json" set:html={JSON.stringify({
       "@context": "https://schema.org",
       "@type": "CollectionPage",
