@@ -1,7 +1,17 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import CitationButton from '../components/CitationButton.astro';
+import PdfButton from '../components/PdfButton.astro';
 import CitationModal from '../components/CitationModal.astro';
+
+// Helper function to extract author surnames for meta tags
+function extractAuthors(authorString: string): string[] {
+  // Split by commas and ampersands, then clean up
+  return authorString
+    .split(/,\s*(?=[A-Z])|&/)
+    .map(author => author.trim())
+    .filter(author => author.length > 0);
+}
 
 // Peer-reviewed journal publications only (extracted from cv.typ)
 const publications = [
@@ -13,6 +23,7 @@ const publications = [
     volume: "15(1)",
     pages: "38055",
     doi: "10.1038/s41598-025-21908-4",
+    pdfFile: "Chauvette_2025_Auditory_Vibrotactile_Interactions.pdf",
   },
   {
     year: 2025,
@@ -22,6 +33,7 @@ const publications = [
     volume: "2",
     pages: "1520014",
     doi: "10.3389/fauot.2024.1520014",
+    pdfFile: "Hotton_2025_Inestigating_Implementation_New_Protocol.pdf",
   },
   {
     year: 2025,
@@ -31,6 +43,7 @@ const publications = [
     volume: "88(78)",
     pages: "1-13",
     doi: "10.1007/s00426-025-02112-5",
+    pdfFile: "Chauvette_2025_Musicianship_Modulates_Octave_Illusion.pdf",
   },
   {
     year: 2024,
@@ -40,15 +53,7 @@ const publications = [
     volume: "17(4)",
     pages: "913-923",
     doi: "10.1109/TOH.2024.3475740",
-  },
-  {
-    year: 2024,
-    authors: "Sharp, A., Carbajal Chavez, A. B., Chauvette, L., Zatorre, R., & Coffey, E.",
-    title: "Feel sounds with your hands: Exploring tactile frequency-following response.",
-    journal: "The Journal of the Acoustical Society of America",
-    volume: "155(3 Suppl.)",
-    pages: "A37–A37",
-    doi: "10.1121/10.0026714",
+    pdfFile: "Chauvette_2024_Multichannel_Vibrotactile_Glove.pdf",
   },
   {
     year: 2024,
@@ -58,6 +63,7 @@ const publications = [
     volume: "46(3)",
     pages: "707–718",
     doi: "10.1097/AUD.0000000000001615",
+    pdfFile: "Whittom_2024_Music_Perception_Older_Adults_Hearing_Loss.pdf",
   },
   {
     year: 2023,
@@ -67,6 +73,7 @@ const publications = [
     volume: "66(12)",
     pages: "5109–5128",
     doi: "10.1044/2023_JSLHR-23-00163",
+    pdfFile: "Chauvette_2023_Perception_Adults_Hearing_Loss.pdf",
   },
   {
     year: 2023,
@@ -76,6 +83,7 @@ const publications = [
     volume: "63(10)",
     pages: "827–835",
     doi: "10.1080/14992027.2023.2211737",
+    pdfFile: "Hotton_2023_Pilot_Evaluation_Protocol_Clinical_Tool.pdf",
   },
   {
     year: 2023,
@@ -85,6 +93,7 @@ const publications = [
     volume: "87",
     pages: "2183-2191",
     doi: "10.1007/s00426-023-01805-z",
+    pdfFile: "Whittom_2023_Octave_Illusion_Stimulation_Frequency_Modulate_Perception.pdf",
   },
   {
     year: 2022,
@@ -94,6 +103,7 @@ const publications = [
     volume: "418",
     pages: "108486",
     doi: "10.1016/j.heares.2022.108486",
+    pdfFile: "Chauvette_2022_FFR_Assess_Neural_Representation_Spectral.pdf",
   },
   {
     year: 2022,
@@ -103,6 +113,7 @@ const publications = [
     volume: "62(12)",
     pages: "1155–1165",
     doi: "10.1080/14992027.2022.2120552",
+    pdfFile: "Pinsonnault_2022_Communication_COVID_Hearing_Impaired_Perspective.pdf",
   },
 ];
 
@@ -116,6 +127,61 @@ function formatAuthors(authors: string): string {
   title="Publications - Loonan Chauvette"
   description="Peer-reviewed publications by Loonan Chauvette on auditory-tactile perception, timbre processing, and hearing rehabilitation."
 >
+  <!-- SEO: JSON-LD Structured Data for Google Scholar and search engines -->
+  <Fragment slot="head">
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": "Publications - Loonan Chauvette",
+      "description": "Peer-reviewed publications by Loonan Chauvette on auditory-tactile perception, timbre processing, and hearing rehabilitation.",
+      "author": {
+        "@type": "Person",
+        "name": "Loonan Chauvette",
+        "jobTitle": "PhD Candidate",
+        "affiliation": {
+          "@type": "Organization",
+          "name": "Université Laval"
+        }
+      },
+      "hasPart": publications.map((pub) => ({
+        "@type": "ScholarlyArticle",
+        "headline": pub.title,
+        "author": extractAuthors(pub.authors).map(name => ({
+          "@type": "Person",
+          "name": name
+        })),
+        "datePublished": `${pub.year}`,
+        "isPartOf": {
+          "@type": "PublicationIssue",
+          "isPartOf": {
+            "@type": "PublicationVolume",
+            "volumeNumber": pub.volume,
+            "isPartOf": {
+              "@type": "Periodical",
+              "name": pub.journal
+            }
+          }
+        },
+        "pageStart": pub.pages?.split(/–|-/)?.[0],
+        "pageEnd": pub.pages?.split(/–|-/)?.[1] || pub.pages?.split(/–|-/)?.[0],
+        ...(pub.doi && { 
+          "identifier": {
+            "@type": "PropertyValue",
+            "propertyID": "DOI",
+            "value": pub.doi
+          },
+          "url": `https://doi.org/${pub.doi}`
+        }),
+        ...(pub.pdfFile && { 
+          "encoding": {
+            "@type": "MediaObject",
+            "contentUrl": `${Astro.site}${pub.pdfFile}`,
+            "encodingFormat": "application/pdf"
+          }
+        })
+      }))
+    })} />
+  </Fragment>
   <!-- Publications Header -->
   <section class="py-12 bg-surface-container-low border-b border-surface-container">
     <div class="max-w-7xl mx-auto px-6">
@@ -158,7 +224,7 @@ function formatAuthors(authors: string): string {
               {pub.journal}, <span class="not-italic">{pub.volume}</span>{pub.pages ? `, ${pub.pages}` : ''}.
             </p>
 
-            <!-- DOI Link and Cite Button -->
+            <!-- DOI Link, PDF Button, and Cite Button -->
             {pub.doi && (
               <p class="font-sans text-body-md text-on-surface-variant mt-2">
                 DOI: <a 
@@ -170,6 +236,7 @@ function formatAuthors(authors: string): string {
                   {pub.doi}
                 </a>
                 <CitationButton doi={pub.doi} />
+                {pub.pdfFile && <PdfButton pdfFile={pub.pdfFile} />}
               </p>
             )}
           </article>
@@ -190,7 +257,7 @@ function formatAuthors(authors: string): string {
             international and national conferences through oral presentations and poster sessions. 
             For a complete list of conference contributions, please refer to my full 
             <a href="/cv" class="link-primary">curriculum vitae</a> or 
-            <a href="/cv.pdf" download class="link-primary">download the PDF version</a>.
+            <a href="/LoonanChauvette_CV.pdf" download class="link-primary">download the PDF version</a>.
           </p>
         </div>
       </div>
