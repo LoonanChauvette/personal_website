@@ -1,0 +1,185 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { publications } from '../../data/publications';
+import type { Publication } from '../../data/publications';
+
+// Generate static paths for all publications
+export function getStaticPaths() {
+  return publications.map(pub => ({
+    params: { slug: pub.slug },
+    props: { publication: pub }
+  }));
+}
+
+const { publication } = Astro.props as { publication: Publication };
+
+// Parse authors into array for Google Scholar meta tags
+function parseAuthors(authorString: string): string[] {
+  return authorString
+    .split(/,\s*(?=[A-Z])|&/)
+    .map(author => author.trim())
+    .filter(author => author.length > 0);
+}
+
+const authorsList = parseAuthors(publication.authors);
+
+// Helper to extract journal issue if available
+function extractIssue(volume: string): string | null {
+  const match = volume.match(/\((\d+)\)/);
+  return match ? match[1] : null;
+}
+
+// Helper to extract clean volume number
+function extractVolume(volume: string): string {
+  return volume.replace(/\(\d+\)/, '').trim();
+}
+
+const volumeNumber = extractVolume(publication.volume);
+const issueNumber = extractIssue(publication.volume);
+
+// Generate page title
+const pageTitle = `${publication.title} - Loonan Chauvette`;
+---
+
+<BaseLayout 
+  title={pageTitle}
+  description={`Publication: ${publication.title} - ${publication.journal}, ${publication.year}`}
+>
+  <!-- Google Scholar Meta Tags & Schemas -->
+  <Fragment slot="head">
+    <!-- Google Scholar Meta Tags (Highwire Press format) -->
+    <meta name="citation_title" content={publication.title} />
+    {authorsList.map(author => (
+      <meta name="citation_author" content={author} />
+    ))}
+    <meta name="citation_publication_date" content={publication.year.toString()} />
+    <meta name="citation_journal_title" content={publication.journal} />
+    <meta name="citation_volume" content={volumeNumber} />
+    {issueNumber && <meta name="citation_issue" content={issueNumber} />}
+    {publication.pages && <meta name="citation_firstpage" content={publication.pages.split(/–|-/)[0]} />}
+    {publication.pages && publication.pages.includes('-') && (
+      <meta name="citation_lastpage" content={publication.pages.split(/–|-/)[1] || publication.pages.split(/–|-/)[0]} />
+    )}
+    <meta name="citation_doi" content={publication.doi} />
+    <meta name="citation_pdf_url" content={`https://loonanchauvette.com/${publication.pdfFile}`} />
+    
+    <!-- ScholarlyArticle Schema -->
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "ScholarlyArticle",
+      "headline": publication.title,
+      "author": authorsList.map(name => ({
+        "@type": "Person",
+        "name": name
+      })),
+      "datePublished": publication.year.toString(),
+      "isPartOf": {
+        "@type": "PublicationIssue",
+        ...(issueNumber && { "issueNumber": issueNumber }),
+        "isPartOf": {
+          "@type": "PublicationVolume",
+          "volumeNumber": volumeNumber,
+          "isPartOf": {
+            "@type": "Periodical",
+            "name": publication.journal
+          }
+        }
+      },
+      "pageStart": publication.pages?.split(/–|-/)?.[0],
+      "pageEnd": publication.pages?.split(/–|-/)?.[1] || publication.pages?.split(/–|-/)?.[0],
+      "identifier": {
+        "@type": "PropertyValue",
+        "propertyID": "DOI",
+        "value": publication.doi
+      },
+      "url": `https://doi.org/${publication.doi}`,
+      "encoding": {
+        "@type": "MediaObject",
+        "contentUrl": `https://loonanchauvette.com/${publication.pdfFile}`,
+        "encodingFormat": "application/pdf"
+      }
+    })} />
+    
+    <!-- Breadcrumb Schema -->
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://loonanchauvette.com"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Publications",
+          "item": "https://loonanchauvette.com/publications"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": publication.title,
+          "item": `https://loonanchauvette.com/publications/${publication.slug}`
+        }
+      ]
+    })} />
+    
+    <!-- Canonical points to main publications page (content is duplicate) -->
+    <link rel="canonical" href="https://loonanchauvette.com/publications" />
+  </Fragment>
+
+  <!-- Page Content (Simple display for SEO, not meant for user navigation) -->
+  <section class="py-12 bg-surface-container-low border-b border-surface-container">
+    <div class="max-w-4xl mx-auto px-6">
+      <p class="font-sans text-label-md text-on-surface-variant uppercase mb-3">
+        {publication.year}
+      </p>
+      
+      <h1 class="font-serif text-display-sm text-on-surface mb-6">
+        {publication.title}
+      </h1>
+      
+      <p class="font-sans text-body-lg text-on-surface mb-4">
+        {publication.authors}
+      </p>
+      
+      <p class="font-sans text-body-md text-on-surface-variant italic mb-6">
+        {publication.journal}, <span class="not-italic">{publication.volume}</span>{publication.pages ? `, ${publication.pages}` : ''}.
+      </p>
+      
+      <div class="flex flex-wrap gap-4">
+        <a 
+          href={`https://doi.org/${publication.doi}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center px-6 py-3 bg-primary text-surface-container-lowest font-sans text-body-md hover:bg-primary/90 transition-all shadow-whisper"
+        >
+          View on Publisher Site
+        </a>
+        
+        <a 
+          href={`/${publication.pdfFile}`}
+          target="_blank"
+          class="inline-flex items-center px-6 py-3 bg-surface-container text-on-surface font-sans text-body-md hover:bg-surface-container-high transition-all shadow-whisper"
+        >
+          Download PDF
+        </a>
+      </div>
+      
+      <!-- Link back to main publications -->
+      <div class="mt-12 pt-8 border-t border-surface-container">
+        <a 
+          href="/publications"
+          class="font-sans text-body-md text-primary hover:underline flex items-center gap-2"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to all publications
+        </a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
