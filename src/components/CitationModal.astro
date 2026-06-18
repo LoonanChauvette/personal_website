@@ -216,6 +216,13 @@ import type { CitationResponse, CitationError } from '../types/citation';
     }
   }
 
+  // Decode HTML entities helper (fixes &amp; appearing as &amp; instead of &)
+  function decodeHtmlEntities(str: string): string {
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = str;
+    return textarea.value;
+  }
+
   // Update citation text based on selected format
   function updateCitationText() {
     if (!citationData) return;
@@ -227,11 +234,11 @@ import type { CitationResponse, CitationError } from '../types/citation';
       citationDisplay.classList.add('hidden');
       citationText.classList.remove('hidden');
       citationText.classList.add('bibtex');
-      citationText.value = text;
+      citationText.value = decodeHtmlEntities(text);
     } else {
       citationText.classList.add('hidden');
       citationDisplay.classList.remove('hidden');
-      citationDisplay.innerHTML = text;
+      citationDisplay.innerHTML = decodeHtmlEntities(text);
     }
   }
 
