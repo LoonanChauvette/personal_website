@@ -33,6 +33,21 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <meta name="description" content={description} />
     <link rel="canonical" href={canonicalURL} />
     
+    <!-- Keywords & Author -->
+    <meta name="keywords" content="Loonan Chauvette, audiology research, auditory neuroscience, psychoacoustics research, assistive device, hearing rehabilitation, sensory substitution, timbre perception, multisensory integration, vibrotactile perception, Université Laval" />
+    <meta name="author" content="Loonan Chauvette" />
+    <meta name="copyright" content="Loonan Chauvette" />
+    
+    <!-- Dublin Core Metadata -->
+    <meta name="dc.creator" content="Loonan Chauvette" />
+    <meta name="dc.type" content="Text" />
+    <meta name="dc.format" content="text/html" />
+    <meta name="dc.language" content="en" />
+    
+    <!-- Identity Verification -->
+    <link rel="me" href="https://orcid.org/0000-0003-0950-761X" />
+    <link rel="author" href="https://loonanchauvette.com/" />
+    
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content={canonicalURL} />
@@ -46,6 +61,64 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <meta property="twitter:title" content={title} />
     <meta property="twitter:description" content={description} />
     <meta property="twitter:image" content={new URL(image, Astro.site)} />
+    
+    <!-- Person Schema (JSON-LD) -->
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Person",
+      "@id": "https://loonanchauvette.com/#person",
+      "name": "Loonan Chauvette",
+      "givenName": "Loonan",
+      "familyName": "Chauvette",
+      "url": "https://loonanchauvette.com",
+      "image": "https://loonanchauvette.com/headshot.jpg",
+      "jobTitle": "PhD Candidate in Rehabilitation Sciences",
+      "description": "PhD candidate researching auditory-tactile perception, timbre processing, and sensory substitution technologies for hearing rehabilitation at Université Laval.",
+      "sameAs": [
+        "https://orcid.org/0000-0003-0950-761X",
+        "https://scholar.google.ca/citations?user=XvN-yIIAAAAJ",
+        "https://www.researchgate.net/profile/Loonan-Chauvette-2",
+        "https://www.linkedin.com/in/loonan-chauvette/"
+      ],
+      "knowsAbout": [
+        "Auditory-tactile perception",
+        "Timbre perception",
+        "Sensory substitution",
+        "Psychoacoustics",
+        "Hearing rehabilitation",
+        "Audiology",
+        "Auditory neuroscience",
+        "Multisensory integration",
+        "Assistive technology",
+        "Vibrotactile perception"
+      ],
+      "worksFor": {
+        "@type": "EducationalOrganization",
+        "name": "Université Laval",
+        "sameAs": "https://www.ulaval.ca"
+      },
+      "affiliation": {
+        "@type": "EducationalOrganization",
+        "name": "École de réadaptation, Université Laval"
+      },
+      "alumniOf": {
+        "@type": "EducationalOrganization",
+        "name": "Université Laval"
+      },
+      "hasCredential": {
+        "@type": "EducationalOccupationalCredential",
+        "name": "Master of Audiology (M. Aud.)",
+        "credentialCategory": "degree",
+        "recognizedBy": {
+          "@type": "Organization",
+          "name": "Université Laval"
+        }
+      },
+      "memberOf": {
+        "@type": "Organization",
+        "name": "Clinique MultiSens"
+      }
+    })} />
     
     <!-- Additional head content from pages -->
     <slot name="head" />
