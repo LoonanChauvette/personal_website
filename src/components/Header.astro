@@ -10,14 +10,14 @@ const navItems = [
 
 <header class="sticky top-0 z-50 backdrop-blur-nav bg-surface/80 border-b border-surface-container-low">
   <nav class="max-w-7xl mx-auto px-6 py-6">
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
       <!-- Name/Brand -->
       <a href="/" class="font-serif text-headline-md font-semibold text-on-surface hover:text-primary transition-colors">
         Loonan Chauvette
       </a>
 
       <!-- Navigation Links -->
-      <ul class="flex items-center gap-8">
+      <ul class="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-start sm:gap-8">
         {navItems.map((item) => (
           <li>
             <a
@@ -32,6 +32,29 @@ const navItems = [
             </a>
           </li>
         ))}
+        <li class="relative">
+          <details>
+            <summary
+              class={`cursor-pointer list-none font-sans text-body-lg uppercase tracking-wide transition-colors [&::-webkit-details-marker]:hidden ${
+                currentPath.startsWith('/demo/')
+                  ? 'text-primary font-semibold'
+                  : 'text-on-surface hover:text-primary'
+              }`}
+            >
+              Demo
+            </summary>
+            <ul class="absolute right-0 mt-3 min-w-40 bg-surface-container-lowest py-2">
+              <li>
+                <a
+                  href="/demo/splatter.html"
+                  class="block whitespace-nowrap px-4 py-2 font-sans text-body-md normal-case tracking-normal text-on-surface hover:bg-primary-container hover:text-primary"
+                >
+                  Splatter
+                </a>
+              </li>
+            </ul>
+          </details>
+        </li>
       </ul>
     </div>
   </nav>
