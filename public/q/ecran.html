@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="data:," />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sondage — écran de projection</title>
+    <style>
+      :root {
+        --encre: #16181d;
+        --marine: #1a3556;
+        --filet: #d7dae0;
+        --vert: #1c5233;
+        --fond: #ffffff;
+        --police: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--fond);
+        color: var(--encre);
+        font-family: var(--police);
+        height: 100%;
+      }
+      body {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+      }
+      #scene {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2.5vh 4vw;
+        min-height: 0;
+      }
+      .vue {
+        display: none;
+        width: 100%;
+      }
+      .vue.actif {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3vh;
+        width: 100%;
+      }
+      .pied {
+        border-top: 1px solid var(--filet);
+        padding: 1.4vh 4vw;
+        text-align: center;
+        font-size: clamp(18px, 1.3vw, 26px);
+      }
+      /* ─── Au repos ─── */
+      .qr-cadre {
+        width: min(52vh, 34vw);
+        max-width: 520px;
+        min-width: 220px;
+        border: 2px solid var(--filet);
+        padding: 1.6vh;
+      }
+      #qr svg {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      .adresse {
+        margin: 0;
+        font-size: clamp(30px, 3vw, 60px);
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+      .appareils {
+        margin: 0;
+        font-size: clamp(22px, 1.7vw, 36px);
+      }
+      /* ─── Question ouverte ─── */
+      .texte-question {
+        margin: 0;
+        text-align: center;
+        font-size: clamp(30px, 3vw, 58px);
+        font-weight: 600;
+        max-width: 34ch;
+        line-height: 1.2;
+      }
+      .compteur {
+        margin: 0;
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: 2vw;
+        line-height: 0.9;
+      }
+      .compteur .nombre {
+        font-size: clamp(110px, 19vw, 340px);
+        font-weight: 700;
+        color: var(--marine);
+        font-variant-numeric: tabular-nums;
+      }
+      .compteur .unite {
+        font-size: clamp(32px, 4vw, 80px);
+        font-weight: 600;
+      }
+      .minuteur {
+        margin: 0;
+        font-size: clamp(24px, 2vw, 40px);
+        font-variant-numeric: tabular-nums;
+        color: var(--encre);
+      }
+      .etat-question {
+        margin: 0;
+        font-size: clamp(26px, 2.2vw, 44px);
+        font-weight: 600;
+      }
+      .qr-coin {
+        position: fixed;
+        right: 2vw;
+        bottom: 3vh;
+        width: min(15vh, 10vw);
+        min-width: 90px;
+      }
+      .qr-coin svg {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      /* ─── Résultats ─── */
+      .resultats .texte-resultats {
+        margin: 0;
+        text-align: center;
+        font-size: clamp(26px, 2.2vw, 44px);
+        font-weight: 600;
+      }
+      #graphique {
+        width: 100%;
+        max-width: 1600px;
+        margin: 0 auto;
+      }
+      #graphique svg {
+        width: 100%;
+        height: auto;
+        max-height: 72vh;
+      }
+      .pied-resultats {
+        margin: 0;
+        font-size: clamp(24px, 1.8vw, 36px);
+        font-variant-numeric: tabular-nums;
+      }
+      /* ─── Aide et messages ─── */
+      .aide {
+        position: fixed;
+        inset: 0;
+        background: var(--fond);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4vh 4vw;
+        z-index: 20;
+      }
+      .aide[hidden] {
+        display: none;
+      }
+      .aide-panneau {
+        width: min(1100px, 92vw);
+        border: 2px solid var(--filet);
+        padding: 3vh 3vw;
+      }
+      .aide h2 {
+        margin: 0 0 2vh;
+        font-size: clamp(28px, 2.4vw, 48px);
+      }
+      .aide dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 1.2vh 2vw;
+        font-size: clamp(22px, 1.7vw, 34px);
+      }
+      .aide dt {
+        font-weight: 700;
+        color: var(--marine);
+        white-space: nowrap;
+      }
+      .aide dd {
+        margin: 0;
+      }
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 4vh;
+        transform: translateX(-50%);
+        margin: 0;
+        padding: 1.2vh 1.6vw;
+        border: 2px solid var(--encre);
+        background: var(--fond);
+        font-size: clamp(20px, 1.5vw, 30px);
+        max-width: 80vw;
+        z-index: 30;
+      }
+      .toast[hidden] {
+        display: none;
+      }
+      /* ─── Mode intégré (iframe) ─── */
+      html.integre body {
+        background: transparent;
+      }
+      html.integre .pied,
+      html.integre .qr-coin,
+      html.integre .repos {
+        display: none;
+      }
+      html.integre #scene {
+        padding: 1vh 1vw;
+      }
+      #scene.vide {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="scene">
+      <section id="vue-repos" class="vue repos">
+        <div class="qr-cadre"><div id="qr"></div></div>
+        <p class="adresse" id="adresse">loonanchauvette.com/q</p>
+        <p class="appareils" id="appareils" hidden></p>
+      </section>
+
+      <section id="vue-question" class="vue question">
+        <p class="texte-question" id="texte-question"></p>
+        <p class="compteur">
+          <span class="nombre" id="nb-reponses">0</span>
+          <span class="unite" id="unite-reponses">réponses</span>
+        </p>
+        <p class="etat-question" id="etat-question" hidden></p>
+        <p class="minuteur" id="minuteur"></p>
+      </section>
+
+      <section id="vue-resultats" class="vue resultats">
+        <p class="texte-resultats" id="texte-resultats"></p>
+        <div id="graphique"></div>
+        <p class="pied-resultats" id="pied-resultats"></p>
+      </section>
+
+      <div class="qr-coin" id="qr-coin" aria-hidden="true"></div>
+    </div>
+
+    <footer class="pied">© Loonan Chauvette, 2026</footer>
+
+    <div id="aide" class="aide" role="dialog" aria-modal="true" aria-labelledby="aide-titre" hidden>
+      <div class="aide-panneau">
+        <h2 id="aide-titre">Raccourcis de l’écran</h2>
+        <dl>
+          <dt>A / B</dt><dd>choix A–D / choix A–B</dd>
+          <dt>V</dt><dd>vrai ou faux</dd>
+          <dt>E</dt><dd>échelle 1–5</dd>
+          <dt>C</dt><dd>curseur 0–100</dd>
+          <dt>N</dt><dd>nombre</dd>
+          <dt>M</dt><dd>nuage de mots</dd>
+          <dt>T</dt><dd>texte libre</dd>
+          <dt>1–6</dt><dd>nombre de lettres (choix)</dd>
+          <dt>Entrée</dt><dd>fermer, puis révéler</dd>
+          <dt>Échap</dt><dd>retour au QR code</dd>
+          <dt>R</dt><dd>relancer la question</dd>
+          <dt>← →</dt><dd>question précédente / suivante de la banque</dd>
+          <dt>F</dt><dd>plein écran</dd>
+          <dt>K</dt><dd>saisir la clé enseignant</dd>
+          <dt>?</dt><dd>cette aide</dd>
+        </dl>
+      </div>
+    </div>
+
+    <p id="toast" class="toast" role="status" aria-live="polite" hidden></p>
+
+    <script src="vendor/qrcode.js"></script>
+    <script type="module" src="ecran.js"></script>
+  </body>
+</html>

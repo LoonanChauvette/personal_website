@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="data:," />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Sondage — télécommande</title>
+    <style>
+      :root {
+        --encre: #16181d;
+        --marine: #1a3556;
+        --filet: #d7dae0;
+        --vert: #1c5233;
+        --fond: #ffffff;
+        --police: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--fond);
+        color: var(--encre);
+        font-family: var(--police);
+        font-size: 17px;
+        line-height: 1.35;
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+      }
+      .entete {
+        padding: 18px 16px 10px;
+        border-bottom: 1px solid var(--filet);
+      }
+      .entete h1 {
+        margin: 0;
+        font-size: 21px;
+      }
+      .salle {
+        margin: 4px 0 0;
+        font-size: 14px;
+      }
+      main {
+        flex: 1;
+        width: 100%;
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 14px 14px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .carte {
+        border: 1px solid var(--filet);
+        border-radius: 12px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .carte h2 {
+        margin: 0;
+        font-size: 15px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--encre);
+      }
+      .resume {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .chiffres {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .grand-chiffre {
+        margin: 0;
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .grand-chiffre span:first-child {
+        font-size: 52px;
+        font-weight: 700;
+        color: var(--marine);
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+      }
+      .grand-chiffre .unite {
+        font-size: 17px;
+        font-weight: 600;
+      }
+      .chrono {
+        margin: 0;
+        font-size: 22px;
+        font-variant-numeric: tabular-nums;
+      }
+      .note {
+        margin: 0;
+        font-size: 14px;
+      }
+      .alerte {
+        margin: 0;
+        padding: 8px 10px;
+        border-left: 4px solid var(--encre);
+        font-size: 15px;
+      }
+      .grille-lancements {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+      .grille-actions {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+      .bouton {
+        min-height: 54px;
+        padding: 10px 12px;
+        border: 2px solid var(--marine);
+        border-radius: 10px;
+        background: var(--marine);
+        color: #fff;
+        font: inherit;
+        font-size: 17px;
+        font-weight: 600;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+      .bouton.secondaire {
+        background: var(--fond);
+        color: var(--marine);
+      }
+      .bouton.danger {
+        background: var(--fond);
+        color: var(--encre);
+        border-color: var(--encre);
+      }
+      .bouton:disabled {
+        border-color: var(--filet);
+        background: var(--fond);
+        color: var(--filet);
+      }
+      .ligne {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .ligne label {
+        flex: 1 1 100%;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      input[type="password"] {
+        flex: 1;
+        min-width: 180px;
+        min-height: 48px;
+        padding: 10px 12px;
+        border: 2px solid var(--marine);
+        border-radius: 10px;
+        font: inherit;
+        font-size: 17px;
+      }
+      textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 2px solid var(--marine);
+        border-radius: 10px;
+        font: inherit;
+        font-size: 15px;
+        resize: vertical;
+      }
+      input[type="file"] {
+        font-size: 14px;
+      }
+      .lien {
+        border: 0;
+        background: none;
+        padding: 0;
+        font: inherit;
+        color: var(--marine);
+        text-decoration: underline;
+        cursor: pointer;
+      }
+      .liste-banque {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .liste-banque li {
+        border-top: 1px solid var(--filet);
+        padding-top: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .liste-banque .entree-titre {
+        font-weight: 700;
+      }
+      .liste-banque .entree-texte {
+        font-size: 14px;
+      }
+      .liste-banque .entree-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .liste-banque .bouton {
+        min-height: 44px;
+        font-size: 15px;
+        padding: 8px 12px;
+      }
+      .liste-banque a.bouton {
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+      }
+      .moderation-liste {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .moderation-liste li {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        border-top: 1px solid var(--filet);
+        padding-top: 10px;
+      }
+      .moderation-liste .texte {
+        flex: 1;
+        font-size: 16px;
+      }
+      .moderation-liste .bouton {
+        min-height: 44px;
+        font-size: 14px;
+        padding: 6px 10px;
+        white-space: nowrap;
+      }
+      .moderation-liste .masquee .texte {
+        text-decoration: line-through;
+      }
+      .pied {
+        border-top: 1px solid var(--filet);
+        padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+        text-align: center;
+        font-size: 13px;
+      }
+      @media (min-width: 620px) {
+        .grille-lancements {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="entete">
+      <h1>Télécommande — sondage</h1>
+      <p class="salle" id="salle">—</p>
+    </header>
+
+    <main>
+      <section class="carte">
+        <h2>Clé enseignant</h2>
+        <form id="form-cle" class="ligne" hidden>
+          <label for="champ-cle">Clé (elle reste dans ce navigateur)</label>
+          <input id="champ-cle" type="password" autocomplete="off" spellcheck="false" placeholder="POLL_…" />
+          <button type="submit" class="bouton">Enregistrer</button>
+        </form>
+        <p id="cle-ok" class="note" hidden>
+          Clé enregistrée.
+          <button type="button" id="changer-cle" class="lien">Changer</button>
+        </p>
+        <p id="erreur-cle" class="note" hidden></p>
+      </section>
+
+      <section class="carte">
+        <h2>État</h2>
+        <p id="resume" class="resume">—</p>
+        <div class="chiffres">
+          <p class="grand-chiffre"><span id="compteur">0</span><span class="unite" id="unite">réponses</span></p>
+          <p class="chrono" id="chrono"></p>
+        </div>
+        <p id="appareils" class="note" hidden></p>
+        <p id="alerte" class="alerte" role="status" aria-live="polite" hidden></p>
+      </section>
+
+      <section class="carte">
+        <h2>Lancer</h2>
+        <div class="grille-lancements">
+          <button type="button" class="bouton" data-lancer="choix:4">Choix A–D</button>
+          <button type="button" class="bouton" data-lancer="choix:2">Choix A–B</button>
+          <button type="button" class="bouton" data-lancer="multiple:4">Choix multiple</button>
+          <button type="button" class="bouton" data-lancer="vraifaux">Vrai / Faux</button>
+          <button type="button" class="bouton" data-lancer="echelle:1..5">Échelle 1–5</button>
+          <button type="button" class="bouton" data-lancer="echelle:1..7">Échelle 1–7</button>
+          <button type="button" class="bouton" data-lancer="curseur">Curseur 0–100</button>
+          <button type="button" class="bouton" data-lancer="nombre">Nombre</button>
+          <button type="button" class="bouton" data-lancer="nuage">Nuage de mots</button>
+          <button type="button" class="bouton" data-lancer="texte">Texte libre</button>
+        </div>
+      </section>
+
+      <section class="carte">
+        <h2>Pendant la question</h2>
+        <div class="grille-actions">
+          <button type="button" id="btn-fermer" class="bouton">Fermer</button>
+          <button type="button" id="btn-reveler" class="bouton">Révéler</button>
+          <button type="button" id="btn-relancer" class="bouton">Relancer</button>
+          <button type="button" id="btn-publier" class="bouton secondaire">Publier sur les téléphones</button>
+          <button type="button" id="btn-masquer" class="bouton secondaire">Masquer sur les téléphones</button>
+        </div>
+      </section>
+
+      <section class="carte" id="carte-moderation" hidden>
+        <h2>Modération</h2>
+        <div id="moderation"></div>
+      </section>
+
+      <section class="carte">
+        <h2>Banque de questions</h2>
+        <div class="ligne">
+          <input type="file" id="fichier-banque" accept=".md,.txt,text/markdown,text/plain" />
+          <button type="button" id="btn-analyser" class="bouton secondaire">Analyser et garder</button>
+        </div>
+        <textarea id="champ-banque" rows="6" spellcheck="false" placeholder="# Cours 7 – Timbre&#10;&#10;## q18 · choix&#10;Pourquoi …&#10;- [x] …&#10;- [ ] …"></textarea>
+        <p id="banque-message" class="note" aria-live="polite"></p>
+        <ul id="liste-banque" class="liste-banque"></ul>
+      </section>
+
+      <section class="carte">
+        <h2>Séance</h2>
+        <button type="button" id="btn-exporter" class="bouton secondaire">Exporter les résultats (CSV)</button>
+        <button type="button" id="btn-nouvelle" class="bouton danger">Nouvelle séance…</button>
+        <p class="note">Les séances précédentes deviennent inaccessibles (effacement après 36 h).</p>
+      </section>
+
+      <p class="note">
+        Écran de projection :
+        <a id="lien-ecran" href="ecran.html">ecran.html</a> ·
+        Page étudiante :
+        <a id="lien-etudiants" href="./">/q/</a>
+      </p>
+    </main>
+
+    <footer class="pied">© Loonan Chauvette, 2026</footer>
+    <script type="module" src="prof.js"></script>
+  </body>
+</html>
