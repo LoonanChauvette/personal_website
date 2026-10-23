@@ -26,3 +26,5 @@ pnpm-debug.log*
 *.tmp
 *.log
 .vercel/
+.vercel
+.env*
