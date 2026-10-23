@@ -98,7 +98,8 @@ function consigne(type) {
 function grilleLettres(q, multiple) {
   const options = optionsDe(q.type, q.gabarit);
   const avecTextes = !(q.gabarit && q.gabarit.masquer_texte);
-  const grille = element('div', 'grille');
+  // Liste verticale : lettres alignées, libellé éventuel à droite de la lettre.
+  const grille = element('div', 'liste-options');
   if (avecTextes && options.some((o) => o.texte)) grille.classList.add('avec-libelles');
 
   const selection = new Set();
@@ -117,13 +118,15 @@ function grilleLettres(q, multiple) {
 
   for (const option of options) {
     const libelle = avecTextes ? option.texte : '';
-    const bouton = element('button', 'touche');
+    const bouton = element('button', multiple ? 'touche case' : 'touche');
     bouton.type = 'button';
     bouton.dataset.cle = option.cle;
     bouton.setAttribute('aria-pressed', selection.has(option.cle) ? 'true' : 'false');
+    const nomOption = option.cle === 'V' && q.type === 'vraifaux' ? 'Vrai' : option.cle === 'F' && q.type === 'vraifaux' ? 'Faux' : option.cle;
     bouton.innerHTML =
-      `<span class="lettre">${echapper(option.cle)}</span>` +
-      (libelle ? `<span class="libelle">${echapper(libelle)}</span>` : '');
+      (multiple ? '<span class="coche" aria-hidden="true"></span>' : '') +
+      `<span class="lettre">${echapper(nomOption)}</span>` +
+      (libelle && q.type !== 'vraifaux' ? `<span class="libelle">${echapper(libelle)}</span>` : '');
     bouton.addEventListener('click', () => {
       if (!estOuverte()) return;
       if (multiple) {
@@ -205,7 +208,7 @@ function controleCurseur(q) {
   const max = Number.isFinite(Number(g.max)) ? Number(g.max) : 100;
 
   const conteneur = element('div', 'curseur');
-  const valeur = element('div', 'valeur-curseur attente', 'Touchez la piste pour répondre');
+  const valeur = element('div', 'valeur-curseur attente', 'Pas encore de réponse');
   const piste = element('input', 'piste-curseur sans-valeur');
   piste.type = 'range';
   piste.min = String(min);
@@ -337,13 +340,9 @@ function controleNuage(q) {
   entree.autocomplete = 'off';
   entree.setAttribute('aria-label', 'Vos mots');
   entree.placeholder = 'deux mots';
-  if (reponseLocale && reponseLocale.reponse !== null && reponseLocale.reponse !== undefined) {
-    const r = reponseLocale.reponse;
-    entree.value = Array.isArray(r) ? r.join(' ') : String(r);
-  }
   champ.appendChild(entree);
   conteneur.appendChild(champ);
-  conteneur.appendChild(element('p', 'aide', `Jusqu’à ${maxMots} mots, 40 caractères.`));
+  conteneur.appendChild(element('p', 'aide', `Jusqu’à ${maxMots} mots, 40 caractères. Un nouvel envoi remplace le précédent.`));
 
   const bouton = element('button', 'bouton-envoyer', 'Envoyer');
   bouton.type = 'button';
@@ -362,7 +361,9 @@ function controleNuage(q) {
       signalerErreur('Un mot fait plus de 40 caractères.');
       return;
     }
-    envoyer(mots);
+    envoyer(mots).then((ok) => {
+      if (ok) entree.value = '';
+    });
   });
   entree.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter') {
@@ -532,18 +533,26 @@ function construire(q) {
   ui.zone.appendChild(construireControles(q).element);
 }
 
+// La ligne « Votre réponse » garde sa place pendant toute la question : rien ne saute.
 function majMaReponse() {
-  if (!question || !reponseLocale || !reponseLocale.envoye) {
+  if (!question) {
     ui.maReponse.hidden = true;
     ui.maReponse.textContent = '';
     return;
   }
-  ui.maReponse.textContent = `Votre réponse : ${formaterReponse(question.type, question.gabarit, reponseLocale.reponse)}`;
   ui.maReponse.hidden = false;
+  if (!reponseLocale || !reponseLocale.envoye) {
+    ui.maReponse.textContent = question.statut === 'ouverte' ? 'Modifiable jusqu’à la fermeture.' : 'Aucune réponse envoyée.';
+    ui.maReponse.classList.add('vide');
+    return;
+  }
+  ui.maReponse.classList.remove('vide');
+  const etiquette = question.type === 'nuage' ? 'Vos mots' : 'Votre réponse';
+  ui.maReponse.textContent = `${etiquette} : ${formaterReponse(question.type, question.gabarit, reponseLocale.reponse)}`;
 }
 
 function majResultats() {
-  if (!question || question.statut !== 'revelee' || !question.resultats) {
+  if (!question || question.statut !== 'revelee' || !question.resultats || !question.publie) {
     ui.resultats.replaceChildren();
     ui.resultats.hidden = true;
     signatureResultats = null;
@@ -580,7 +589,7 @@ function majStatut() {
   }
   if (question.statut === 'ouverte') {
     if (messageLocal) ecrireEtat(messageLocal);
-    else if (reponseLocale && reponseLocale.envoye) ecrireEtat('Réponse envoyée ✓ (modifiable jusqu’à la fermeture)');
+    else if (reponseLocale && reponseLocale.envoye) ecrireEtat('Réponse envoyée ✓');
     else ecrireEtat(consigne(question.type));
     return;
   }
@@ -588,7 +597,7 @@ function majStatut() {
     ecrireEtat('Question fermée');
     return;
   }
-  if (question.resultats) ecrireEtat('Question fermée');
+  if (question.resultats && question.publie) ecrireEtat('Question fermée');
   else ecrireEtat('Question fermée — les résultats sont à l’écran.');
 }
 
@@ -647,7 +656,7 @@ function appliquer(etat) {
 
 // ─── Envoi ───
 async function envoyer(reponse) {
-  if (!question || !estOuverte() || envoiEnCours) return;
+  if (!question || !estOuverte() || envoiEnCours) return false;
   envoiEnCours = true;
   essaiEnvoi = { reponse };
   messageLocal = 'Envoi…';
@@ -663,12 +672,13 @@ async function envoyer(reponse) {
       reponse,
     });
     essaiEnvoi = null;
-    messageLocal = 'Réponse envoyée ✓ (modifiable jusqu’à la fermeture)';
+    messageLocal = 'Réponse envoyée ✓';
     reponseLocale = { reponse, envoye: true, quand: Date.now() };
     garderReponseLocale(seance, question.id, question.tour, reponse, true);
     ui.reessai.hidden = true;
     majStatut();
     majMaReponse();
+    return true;
   } catch (err) {
     if (err && err.statut === 409) {
       messageLocal = 'Question fermée';
@@ -692,6 +702,7 @@ async function envoyer(reponse) {
   } finally {
     envoiEnCours = false;
   }
+  return false;
 }
 
 ui.boutonReessai.addEventListener('click', () => {

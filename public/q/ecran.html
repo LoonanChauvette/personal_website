@@ -124,7 +124,8 @@
       .qr-coin {
         position: fixed;
         right: 2vw;
-        bottom: 3vh;
+        /* au-dessus du filet du pied de page (hauteur du pied + marge) */
+        bottom: calc(clamp(18px, 1.3vw, 26px) * 1.5 + 2.8vh + 2.5vh);
         width: min(15vh, 10vw);
         min-width: 90px;
       }

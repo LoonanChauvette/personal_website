@@ -193,8 +193,12 @@ function questionPublique(question, nbReponses, enseignant = false) {
     revision: question.revision,
     nb_reponses: nbReponses,
   };
-  const visible = enseignant ? question.statut === "revelee" : question.statut === "revelee" && question.publie;
-  if (visible && question.resultats) vue.resultats = question.resultats;
+  // Révéler = projeter : l'agrégat est public dès la révélation (l'écran n'a pas
+  // besoin de la clé). « publie » dit seulement si les téléphones l'affichent aussi.
+  if (question.statut === "revelee" && question.resultats) {
+    vue.resultats = question.resultats;
+    vue.publie = !!question.publie;
+  }
   return vue;
 }
 

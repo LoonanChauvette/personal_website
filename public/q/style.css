@@ -70,6 +70,10 @@ body {
   margin: 0;
   font-size: 19px;
   font-weight: 600;
+  line-height: 1.3;
+  /* Deux lignes réservées : passer de la consigne à « Envoi… » puis à
+     « Réponse envoyée ✓ » ne déplace rien. */
+  min-height: calc(2 * 1.3em);
 }
 
 .etat.erreur {
@@ -82,6 +86,12 @@ body {
   padding-top: 8px;
   border-top: 1px solid var(--filet);
   font-size: 16px;
+  line-height: 1.35;
+  min-height: calc(2 * 1.35em + 8px);
+}
+
+.ma-reponse.vide {
+  color: #767676;
 }
 
 .reessai .bouton-envoyer {
@@ -92,6 +102,51 @@ body {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+/* Blocs de saisie : même espacement partout, bouton Envoyer compris. */
+.zone-controles,
+.curseur {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.zone-controles > .bouton-envoyer,
+.curseur > .bouton-envoyer {
+  margin-top: 8px;
+}
+
+/* Choix, choix multiples, vrai/faux : liste verticale alignée. */
+.liste-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.liste-options .touche {
+  width: 100%;
+}
+
+.touche.case .coche {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 2px solid currentColor;
+  border-radius: 5px;
+  position: relative;
+}
+
+.touche.case[aria-pressed="true"] .coche::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 1px;
+  width: 7px;
+  height: 13px;
+  border: solid currentColor;
+  border-width: 0 3px 3px 0;
+  transform: rotate(45deg);
 }
 
 .grille {
@@ -178,17 +233,14 @@ textarea:focus-visible {
 }
 
 /* Curseur */
-.curseur {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
 
 .valeur-curseur {
   font-size: 30px;
   font-weight: 700;
   color: var(--marine);
-  min-height: 40px;
+  height: 44px;
+  display: flex;
+  align-items: flex-end;
 }
 
 .valeur-curseur.attente {
@@ -238,13 +290,16 @@ textarea:focus-visible {
   background: var(--marine);
 }
 
-/* Curseur non touché : aucune poignée, donc aucune réponse. */
+/* Curseur non touché : poignée creuse et pointillée au milieu — visible,
+   mais clairement « pas encore une réponse ». */
 .piste-curseur.sans-valeur::-webkit-slider-thumb {
-  opacity: 0;
+  background: var(--fond);
+  border: 3px dashed var(--marine);
 }
 
 .piste-curseur.sans-valeur::-moz-range-thumb {
-  opacity: 0;
+  background: var(--fond);
+  border: 3px dashed var(--marine);
 }
 
 .ancres {
