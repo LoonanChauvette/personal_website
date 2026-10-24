@@ -40,6 +40,13 @@ const ui = {
 
 const params = new URLSearchParams(location.search);
 let integre = params.get('integre') === '1';
+// Mode diapositive : l'iframe est liée à UNE question de la banque (?question=q18).
+// Elle affiche « prête » tant que cette question n'est pas en cours, puis son
+// compteur et son graphique. Elle ne lance rien seule : le clic, Entrée ou un
+// message de la planche Excalidraw la lance.
+const questionCible = integre ? (params.get('question') || '').trim() || null : null;
+const sansTexte = params.get('texte') === '0';
+let visible = true;
 let cle = lireCleEnseignant();
 let etat = null;
 let banque = { titre: '', questions: [] };
@@ -56,6 +63,7 @@ let intervalleAppareils = null;
 let minuterieToast = null;
 
 if (integre) document.documentElement.classList.add('integre');
+if (questionCible) document.documentElement.classList.add('diapo');
 
 // ─────────────────────────────────────────────────────────────
 // QR code et adresse
@@ -88,10 +96,16 @@ function texteDans(conteneur, message) {
   conteneur.appendChild(p);
 }
 
-function rendreVue() {
+function questionAffichee() {
   const q = etat && etat.question ? etat.question : null;
+  if (questionCible && q && q.id !== questionCible) return null;
+  return q;
+}
+
+function rendreVue() {
+  const q = questionAffichee();
   signatureGraphique = null;
-  vide = !q && integre;
+  vide = !q && integre && !questionCible;
   ui.scene.classList.toggle('vide', vide);
 
   if (!q) {
@@ -108,7 +122,7 @@ function rendreVue() {
 
   if (q.statut === 'revelee') {
     afficherVue('resultats');
-    ui.texteResultats.textContent = !g.masquer_texte && g.texte ? String(g.texte) : '';
+    ui.texteResultats.textContent = !sansTexte && !g.masquer_texte && g.texte ? String(g.texte) : '';
     ui.texteResultats.hidden = !ui.texteResultats.textContent;
     ui.graphique.replaceChildren();
     ui.piedResultats.textContent = `${nombreEntier(q.nb_reponses || 0)} réponse${Number(q.nb_reponses) === 1 ? '' : 's'}`;
@@ -119,7 +133,7 @@ function rendreVue() {
   }
 
   afficherVue('question');
-  if (!g.masquer_texte && g.texte) {
+  if (!sansTexte && !g.masquer_texte && g.texte) {
     ui.texteQuestion.textContent = String(g.texte);
     ui.texteQuestion.hidden = false;
   } else {
@@ -134,7 +148,7 @@ function rendreVue() {
 }
 
 function majCompteur() {
-  const q = etat && etat.question;
+  const q = questionAffichee();
   if (!q) return;
   const n = Number(q.nb_reponses) || 0;
   ui.nb.textContent = nombreEntier(n);
@@ -175,7 +189,7 @@ function appliquer(nouvelEtat) {
 // Résultats
 // ─────────────────────────────────────────────────────────────
 function dessinerGraphique(resultats, masques) {
-  const q = etat && etat.question;
+  const q = questionAffichee();
   if (!q || !resultats) {
     if (q) texteDans(ui.graphique, 'Aucune réponse');
     return;
@@ -183,10 +197,16 @@ function dessinerGraphique(resultats, masques) {
   const sig = [q.id, q.tour, JSON.stringify(resultats), JSON.stringify(masques || [])].join('|');
   if (sig === signatureGraphique) return;
   signatureGraphique = sig;
-  dessinerResultats(ui.graphique, q.type, q.gabarit, resultats, {
+  // En diapositive, le cadre est petit : tracé compact, et sans le libellé des
+  // options (il est déjà écrit sur la diapositive, à côté).
+  const gabarit = questionCible && Array.isArray(q.gabarit?.options)
+    ? { ...q.gabarit, options: q.gabarit.options.map((o) => ({ ...o, texte: '' })) }
+    : q.gabarit;
+  dessinerResultats(ui.graphique, q.type, gabarit, resultats, {
     bonnes: q.statut === 'revelee' ? (q.gabarit && q.gabarit.bonnes) || [] : [],
     masques: masques || [],
     etiquette: 'Résultats de la question',
+    compact: !!questionCible,
   });
   const n = Number(resultats.n);
   if (Number.isFinite(n)) {
@@ -254,6 +274,11 @@ function planifierEtat() {
 }
 
 async function rafraichir() {
+  // Iframe hors écran (autre diapositive) : on n'interroge pas le serveur.
+  if (!visible) {
+    planifierEtat();
+    return;
+  }
   if (enCours) return;
   enCours = true;
   try {
@@ -373,6 +398,10 @@ async function lancerBanque(entree) {
 }
 
 async function entree() {
+  if (questionCible && !questionAffichee()) {
+    await declencherCible(questionCible);
+    return;
+  }
   const q = etat && etat.question;
   if (!q) return;
   if (q.statut === 'ouverte') {
@@ -562,9 +591,54 @@ document.addEventListener('keydown', (ev) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// Intégration dans une planche (Excalidraw, page HTML)
+// ─────────────────────────────────────────────────────────────
+// Messages acceptés du parent : {poll: 'entree' | 'echap' | 'lancer', cible?}.
+// Seule la page parente peut en envoyer, et toute action exige toujours la clé.
+// Les touches de navigation sont renvoyées au parent pour que le diaporama
+// avance même quand l'iframe a le focus.
+const TOUCHES_PARENT = new Set(['ArrowRight', 'ArrowLeft', 'PageDown', 'PageUp', ' ']);
+
+function installerIntegration() {
+  if (!integre) return;
+  window.addEventListener('message', (ev) => {
+    if (ev.source !== window.parent || !ev.data || typeof ev.data !== 'object') return;
+    const { poll, cible } = ev.data;
+    if (poll === 'cle') {
+      cle = lireCleEnseignant();
+      lireEtatMaintenant();
+    } else if (poll === 'entree') entree();
+    else if (poll === 'echap') retourQr();
+    else if (poll === 'lancer' && typeof cible === 'string') declencherCible(cible);
+  });
+  document.addEventListener(
+    'keydown',
+    (ev) => {
+      if (window.parent === window || !TOUCHES_PARENT.has(ev.key)) return;
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      window.parent.postMessage({ poll: 'touche', touche: ev.key }, '*');
+    },
+    true,
+  );
+  if (questionCible) {
+    ui.scene.addEventListener('click', () => {
+      if (!questionAffichee()) declencherCible(questionCible);
+    });
+  }
+  const observateur = new IntersectionObserver((entrees) => {
+    const avant = visible;
+    visible = entrees.some((e) => e.isIntersecting);
+    if (visible && !avant) rafraichir();
+  });
+  observateur.observe(document.documentElement);
+}
+
+// ─────────────────────────────────────────────────────────────
 // Démarrage
 // ─────────────────────────────────────────────────────────────
 async function demarrer() {
+  installerIntegration();
   preparerQr();
 
   document.addEventListener('visibilitychange', () => {

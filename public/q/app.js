@@ -42,6 +42,26 @@ let minuterie = null;
 let echecs = 0;
 let signatureResultats = null;
 
+// Intégrée dans une planche (?integre=1) : sans pied de page, fond transparent.
+// Avec ?question=q18, le cadre ne répond qu'à cette question : un étudiant resté
+// sur une ancienne diapositive ne répond pas par erreur à la question en cours.
+const parametres = new URLSearchParams(location.search);
+const integre = parametres.get('integre') === '1';
+const questionCible = integre ? (parametres.get('question') || '').trim() || null : null;
+if (integre) document.documentElement.classList.add('integre');
+// Cadre hors écran (autre diapositive) : on n'interroge pas le serveur.
+let visible = true;
+if (integre && 'IntersectionObserver' in window) {
+  new IntersectionObserver((entrees) => {
+    const avant = visible;
+    visible = entrees.some((e) => e.isIntersecting);
+    if (visible && !avant) {
+      clearTimeout(minuterie);
+      interroger();
+    }
+  }).observe(document.documentElement);
+}
+
 // ─── Petites fabriques DOM ───
 function element(tag, classe, contenu) {
   const e = document.createElement(tag);
@@ -97,7 +117,7 @@ function consigne(type) {
 // ─── Contrôles par type ───
 function grilleLettres(q, multiple) {
   const options = optionsDe(q.type, q.gabarit);
-  const avecTextes = !(q.gabarit && q.gabarit.masquer_texte);
+  const avecTextes = !(q.gabarit && q.gabarit.masquer_texte) && !questionCible;
   // Liste verticale : lettres alignées, libellé éventuel à droite de la lettre.
   const grille = element('div', 'liste-options');
   if (avecTextes && options.some((o) => o.texte)) grille.classList.add('avec-libelles');
@@ -519,7 +539,11 @@ function construire(q) {
   ui.reessai.hidden = true;
 
   const gab = q.gabarit || {};
-  if (gab.masquer_texte) {
+  if (questionCible) {
+    // La question est écrite sur la diapositive, juste à côté.
+    ui.texte.textContent = '';
+    ui.texte.hidden = true;
+  } else if (gab.masquer_texte) {
     ui.texte.textContent = 'Regardez la diapositive';
     ui.texte.hidden = false;
   } else if (gab.texte) {
@@ -612,7 +636,9 @@ function appliquer(etat) {
     essaiEnvoi = null;
   }
 
-  const q = etat.question || null;
+  let q = etat.question || null;
+  const autreQuestion = !!(q && questionCible && q.id !== questionCible);
+  if (autreQuestion) q = null;
   if (!q) {
     question = null;
     signature = null;
@@ -625,7 +651,13 @@ function appliquer(etat) {
     ui.texte.hidden = true;
     ui.maReponse.hidden = true;
     ui.reessai.hidden = true;
-    ecrireEtat('En attente de la prochaine question');
+    ecrireEtat(
+      questionCible
+        ? autreQuestion
+          ? 'Une autre question est en cours : répondez sur sa diapositive.'
+          : 'Cette question s’ouvrira ici quand elle sera lancée.'
+        : 'En attente de la prochaine question',
+    );
     return;
   }
 
@@ -718,6 +750,10 @@ function planifier() {
 }
 
 async function interroger() {
+  if (!visible) {
+    planifier();
+    return;
+  }
   try {
     const etat = await apiEtat();
     signalerPresence();

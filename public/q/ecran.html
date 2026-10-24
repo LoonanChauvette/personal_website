@@ -225,6 +225,55 @@
       #scene.vide {
         display: none;
       }
+      /* ─── Mode diapositive (?integre=1&question=…) ───
+         Les tailles suivent le cadre de l'iframe, pas l'écran entier. */
+      html.diapo body {
+        min-height: 100%;
+      }
+      html.diapo .repos.actif {
+        display: flex;
+      }
+      html.diapo #scene {
+        cursor: pointer;
+      }
+      html.diapo .qr-cadre {
+        width: min(62vh, 44vw);
+        min-width: 0;
+        padding: 1.2vh;
+      }
+      html.diapo .adresse {
+        font-size: min(7vh, 5vw);
+      }
+      html.diapo .appareils {
+        display: none !important;
+      }
+      html.diapo .indice {
+        display: block;
+        margin: 0;
+        font-size: min(4.2vh, 3vw);
+        color: #767676;
+      }
+      html.diapo .texte-question {
+        font-size: min(7vh, 4.6vw);
+      }
+      html.diapo .compteur .nombre {
+        font-size: min(40vh, 26vw);
+      }
+      html.diapo .compteur .unite {
+        font-size: min(9vh, 6vw);
+      }
+      html.diapo .minuteur,
+      html.diapo .etat-question,
+      html.diapo .pied-resultats,
+      html.diapo .texte-resultats {
+        font-size: min(5vh, 3.4vw);
+      }
+      html.diapo #graphique svg {
+        max-height: 78vh;
+      }
+      .indice {
+        display: none;
+      }
     </style>
   </head>
   <body>
@@ -233,6 +282,7 @@
         <div class="qr-cadre"><div id="qr"></div></div>
         <p class="adresse" id="adresse">loonanchauvette.com/q</p>
         <p class="appareils" id="appareils" hidden></p>
+        <p class="indice">Cliquez ou appuyez sur Entrée pour lancer la question</p>
       </section>
 
       <section id="vue-question" class="vue question">

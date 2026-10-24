@@ -445,3 +445,39 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+/* Intégrée dans une planche (?integre=1) */
+html.integre,
+html.integre body {
+  background: transparent;
+  font-size: 17px;
+}
+
+html.integre body {
+  min-height: 0;
+}
+
+html.integre .ecran {
+  max-width: none;
+  padding: 10px 14px;
+  gap: 10px;
+}
+
+html.integre .pied,
+html.integre .mentions {
+  display: none;
+}
+
+/* Cadre de diapositive : lettres seules, sur deux colonnes si possible. */
+html.integre .liste-options:not(.avec-libelles) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+html.integre .touche {
+  min-height: 52px;
+}
+
+html.integre .etat {
+  font-size: 17px;
+}
