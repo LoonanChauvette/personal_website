@@ -30,7 +30,9 @@ import {
 
 const conf = JSON.parse(document.getElementById('question').textContent);
 const Q = { id: String(conf.id), type: conf.type, gabarit: conf.gabarit || {} };
-const ROLE = conf.role === 'resultats' ? 'resultats' : 'question';
+// « unique » : une seule diapositive par question. Elle ouvre la question à
+// l'affichage ; le bouton Révéler la ferme et trace le graphique à la même place.
+const ROLE = ['resultats', 'unique'].includes(conf.role) ? conf.role : 'question';
 const jeton = conf.jeton;
 // Sans jeton (deck des étudiants) : lecture seule. La diapositive n'ouvre, ne
 // ferme et ne révèle rien ; elle affiche le graphique une fois révélé.
@@ -111,7 +113,25 @@ function rendreVue() {
   ui.corps.replaceChildren();
   bouton(null);
 
-  if (ROLE === 'question') {
+  if (ROLE === 'unique') {
+    racine.classList.toggle('revele', p.nom === 'revelee');
+    if (p.nom === 'ouverte' || p.nom === 'fermee') {
+      const bloc = el('div', 'compteur');
+      bloc.append(el('span', 'nombre', '0'), el('span', 'unite', 'réponses'));
+      ui.corps.append(bloc, el('p', 'chrono', ''));
+      ui.statut.textContent = blocage || (p.nom === 'ouverte' ? '' : 'Question fermée');
+      bouton('Révéler', 'reveler');
+    } else if (p.nom === 'revelee') {
+      tracerGraphique(q);
+      const n = Number(q.nb_reponses) || 0;
+      ui.statut.textContent = `${nombreEntier(n)} réponse${n === 1 ? '' : 's'}`;
+      bouton('Relancer', 'relancer', true);
+    } else {
+      ui.corps.append(el('p', 'grand', 'Question prête'));
+      ui.statut.textContent = blocage || '';
+      bouton('Lancer', 'lancer');
+    }
+  } else if (ROLE === 'question') {
     if (p.nom === 'ouverte' || p.nom === 'fermee') {
       const bloc = el('div', 'compteur');
       bloc.append(el('span', 'nombre', '0'), el('span', 'unite', 'réponses'));
@@ -127,20 +147,7 @@ function rendreVue() {
       bouton('Lancer', 'lancer');
     }
   } else if (p.nom === 'revelee') {
-    const zone = el('div', 'graphique');
-    ui.corps.appendChild(zone);
-    if (q.resultats) {
-      // Les libellés des options sont sur la diapositive « question » ; ici, les
-      // lettres suffisent et le graphique garde des barres lisibles.
-      const gabarit = Array.isArray(q.gabarit?.options)
-        ? { ...q.gabarit, options: q.gabarit.options.map((o) => ({ ...o, texte: '' })) }
-        : q.gabarit;
-      dessinerResultats(zone, q.type, gabarit, q.resultats, {
-        compact: true,
-        bonnes: (q.gabarit && q.gabarit.bonnes) || [],
-        etiquette: 'Résultats de la question',
-      });
-    }
+    tracerGraphique(q);
     const n = Number(q.nb_reponses) || 0;
     ui.statut.textContent = `${nombreEntier(n)} réponse${n === 1 ? '' : 's'}`;
   } else if (p.nom === 'ouverte' || p.nom === 'fermee') {
@@ -153,6 +160,21 @@ function rendreVue() {
       blocage || (LECTURE ? '' : p.autre ? 'Une autre question est en cours.' : 'Cette question n’a pas été posée.');
   }
   majDynamique();
+}
+
+function tracerGraphique(q) {
+  const zone = el('div', 'graphique');
+  ui.corps.appendChild(zone);
+  if (!q.resultats) return;
+  // Les libellés des options sont sur la diapositive : les lettres suffisent.
+  const gabarit = Array.isArray(q.gabarit?.options)
+    ? { ...q.gabarit, options: q.gabarit.options.map((o) => ({ ...o, texte: '' })) }
+    : q.gabarit;
+  dessinerResultats(zone, q.type, gabarit, q.resultats, {
+    compact: true,
+    bonnes: (q.gabarit && q.gabarit.bonnes) || [],
+    etiquette: 'Résultats de la question',
+  });
 }
 
 function majDynamique() {
@@ -172,8 +194,9 @@ function majDynamique() {
 }
 
 // Bouton de secours : cliquable dans l'éditeur (et en présentation si Excalidraw+ le permet).
-function bouton(texte, op) {
+function bouton(texte, op, discret = false) {
   if (LECTURE) texte = null;
+  ui.action.classList.toggle('discret', discret);
   ui.action.hidden = !texte;
   ui.action.textContent = texte || '';
   ui.action.dataset.op = op || '';
@@ -251,7 +274,7 @@ async function agirAutomatiquement() {
   try {
     if (!etat) appliquer(await apiEtat());
     const p = phase();
-    if (ROLE === 'question') {
+    if (ROLE === 'question' || ROLE === 'unique') {
       if (p.nom === 'repos') await envoyer('lancer', { id: Q.id, type: Q.type, gabarit: Q.gabarit, si_nouveau: true });
     } else if (p.nom === 'ouverte') {
       if (await envoyer('fermer')) await envoyer('reveler');

@@ -568,7 +568,13 @@ function majMaReponse() {
 }
 
 function majResultats() {
-  if (!question || question.statut !== 'revelee' || !question.resultats || !question.publie) {
+  // Diapositive étudiante : révéler = projeter, le graphique y remplace la zone de réponse.
+  const visibles = !!(question && question.statut === 'revelee' && question.resultats && (question.publie || DIAPO));
+  if (DIAPO) {
+    ui.zone.hidden = visibles || !question;
+    document.documentElement.classList.toggle('revele', visibles);
+  }
+  if (!visibles) {
     ui.resultats.replaceChildren();
     ui.resultats.hidden = true;
     signatureResultats = null;
@@ -581,12 +587,16 @@ function majResultats() {
   }
   signatureResultats = sig;
   ui.resultats.replaceChildren();
-  dessinerResultats(ui.resultats, question.type, question.gabarit, question.resultats, {
+  // Sur la diapositive, les libellés des options sont déjà imprimés : lettres seules.
+  const gabarit = DIAPO && Array.isArray(question.gabarit?.options)
+    ? { ...question.gabarit, options: question.gabarit.options.map((o) => ({ ...o, texte: '' })) }
+    : question.gabarit;
+  dessinerResultats(ui.resultats, question.type, gabarit, question.resultats, {
     compact: true,
+    bonnes: DIAPO ? (question.gabarit && question.gabarit.bonnes) || [] : undefined,
     etiquette: 'Résultats de la question',
   });
-  const titre = element('p', 'titre-resultats', 'Résultats');
-  ui.resultats.prepend(titre);
+  if (!DIAPO) ui.resultats.prepend(element('p', 'titre-resultats', 'Résultats'));
   ui.resultats.hidden = false;
 }
 

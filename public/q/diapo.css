@@ -105,8 +105,14 @@ body {
   border-right: 3px solid var(--encre);
   padding-right: 0.5em;
 }
-.role-resultats .pied .qr {
+.role-resultats .pied .qr,
+.role-unique.revele .pied .qr {
   display: none;
+}
+/* Le graphique prend la place du compteur et du QR : la hauteur va au graphique. */
+.role-unique.revele {
+  padding-top: 1.5vh;
+  gap: 1vh;
 }
 button {
   font: inherit;
@@ -117,6 +123,13 @@ button {
   background: #fff;
   color: var(--marine);
   cursor: pointer;
+}
+button.discret {
+  font-weight: 400;
+  font-size: 0.75em;
+  border-width: 1px;
+  border-color: var(--filet);
+  color: var(--gris);
 }
 button:disabled {
   opacity: 0.5;

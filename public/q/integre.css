@@ -73,3 +73,19 @@ html.integre .bouton-fleche {
   width: 7vh;
   height: 7vh;
 }
+/* Révélé : le graphique remplace la zone de réponse et prend la place libre. */
+html.integre.revele .etat,
+html.integre.revele .ma-reponse {
+  display: none;
+}
+html.integre .resultats {
+  border-top: 0;
+  padding-top: 0;
+  flex: 1;
+  min-height: 0;
+}
+html.integre .resultats svg {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+}
