@@ -84,6 +84,28 @@ const cleRep = (salle, seance, id, tour) => `poll:${salle}:${seance}:${id}:${tou
 const cleN = (salle, seance, id, tour) => `poll:${salle}:${seance}:${id}:${tour}:n`;
 const cleMasques = (salle, seance, id, tour) => `poll:${salle}:${seance}:${id}:${tour}:masques`;
 const clePresence = (salle) => `poll:${salle}:presence`;
+// Résultats gardés : le dernier résultat révélé de chaque question, affiché par
+// sa diapositive même après le cours. Effacé seulement à la main (diapositive
+// pendant le cours, ou /admin). Agrégats anonymes uniquement.
+const cleGardes = (salle) => `poll:${salle}:gardes`;
+const TTL_GARDES = 400 * 24 * 3600;
+
+async function garder(store, salle, question) {
+  if (!question?.resultats) return;
+  const garde = { id: question.id, type: question.type, gabarit: question.gabarit, resultats: question.resultats, revele_a: Date.now() };
+  await store.hset(cleGardes(salle), question.id, JSON.stringify(garde), TTL_GARDES);
+}
+
+async function lireGarde(store, salle, id) {
+  const tout = await store.hgetall(cleGardes(salle));
+  const brut = tout?.[id];
+  if (!brut) return null;
+  try {
+    return JSON.parse(brut);
+  } catch {
+    return null;
+  }
+}
 
 async function lireEtat(store, salle) {
   const brut = await store.get(cleEtat(salle));
@@ -458,7 +480,8 @@ async function operationLancer(req, res) {
     const enCours = etat.question?.id === id ? etat.question : null;
     const revelees = Array.isArray(etat.revelees) ? etat.revelees : [];
     const reponses = await store.hlen(cleRep(salle, etat.seance, id, enCours ? enCours.tour : 1));
-    if ((enCours && enCours.statut === "ouverte") || revelees.includes(id) || reponses > 0) {
+    const garde = await lireGarde(store, salle, id);
+    if ((enCours && enCours.statut === "ouverte") || revelees.includes(id) || reponses > 0 || garde) {
       return envoyer(res, 200, { ...(await reponseEnseignant(store, salle, etat)), deja: true });
     }
   }
@@ -542,6 +565,7 @@ async function operationMutation(req, res, op) {
       question.revision += 1;
       const { valeurs } = await lireReponses(store, salle, etat.seance, question);
       question.resultats = agregerPublic(question.type, question.gabarit, valeurs);
+      await garder(store, salle, question);
       break;
     }
 
@@ -587,6 +611,7 @@ async function operationMutation(req, res, op) {
       if (question.statut === "revelee") {
         const { valeurs } = await lireReponses(store, salle, etat.seance, question);
         question.resultats = agregerPublic(question.type, question.gabarit, valeurs);
+        await garder(store, salle, question);
       }
       break;
     }
@@ -740,6 +765,57 @@ async function operationJetons(req, res) {
   return envoyer(res, 200, { salle: salleCourante(), jetons });
 }
 
+// Résultat gardé d'une question (public : seulement l'agrégat déjà révélé).
+async function operationGarde(req, res) {
+  if (!["GET", "HEAD"].includes(methode(req))) {
+    return erreur(res, 405, "Méthode non permise : utilisez GET.", { Allow: "GET" });
+  }
+  const id = String(premier(req.query?.id) ?? "").trim();
+  if (!/^[A-Za-z0-9_.-]{1,40}$/.test(id)) return erreur(res, 400, "Identifiant de question invalide.");
+  const garde = await lireGarde(_stockageCourant(), salleCourante(), id);
+  return envoyer(res, 200, { id, garde }, { "Cache-Control": CACHE_ETAT });
+}
+
+// Effacer un résultat gardé (« id ») ou tous (« tous: true », session seulement).
+// La diapositive de la question peut effacer le sien pendant le cours. Si la
+// question est à l'écran, elle est retirée : la diapositive redevient prête.
+async function operationEffacerGarde(req, res) {
+  if (methode(req) !== "POST") return erreur(res, 405, "Méthode non permise : utilisez POST.", { Allow: "POST" });
+  const acces = await verifierAcces(req, res);
+  if (!acces) return res;
+  const corps = lireCorps(req);
+  const store = _stockageCourant();
+  const salle = salleCourante();
+  const etat = await lireEtat(store, salle);
+  if (corps.tous === true) {
+    if (acces.niveau === "diapo") return erreur(res, 403, "Jeton de diapositive : seulement sa propre question.");
+    await store.del(cleGardes(salle));
+    if (etat) {
+      etat.revelees = [];
+      if (etat.question?.statut === "revelee") etat.question = null;
+      await ecrireEtat(store, salle, etat);
+    }
+    return envoyer(res, 200, { ok: true, efface: "tous" });
+  }
+  const id = String(corps.id ?? "").trim();
+  if (!/^[A-Za-z0-9_.-]{1,40}$/.test(id)) return erreur(res, 400, "Identifiant de question invalide.");
+  if (!accesDiapoPermis(acces, "garde_effacer", id)) return erreur(res, 403, "Jeton de diapositive : seulement sa propre question.");
+  await store.hdel(cleGardes(salle), id);
+  if (etat) {
+    // Repartir de zéro : les réponses de la séance pour cette question aussi.
+    const tour = etat.question?.id === id ? etat.question.tour : 1;
+    const cles = [];
+    for (let t = 1; t <= Math.max(1, tour); t += 1) {
+      cles.push(cleRep(salle, etat.seance, id, t), cleN(salle, etat.seance, id, t), cleMasques(salle, etat.seance, id, t));
+    }
+    if (etat.seance) await store.del(...cles);
+    etat.revelees = (Array.isArray(etat.revelees) ? etat.revelees : []).filter((x) => x !== id);
+    if (etat.question?.id === id) etat.question = null;
+    await ecrireEtat(store, salle, etat);
+  }
+  return envoyer(res, 200, { ok: true, efface: id, ...(etat ? await reponseEnseignant(store, salle, etat) : {}) });
+}
+
 // ---------------------------------------------------------------------------
 // Point d'entrée
 // ---------------------------------------------------------------------------
@@ -782,6 +858,10 @@ export default async function handler(req, res) {
 
       case "etat":
         return await operationEtat(req, res);
+      case "garde":
+        return await operationGarde(req, res);
+      case "garde_effacer":
+        return await operationEffacerGarde(req, res);
 
       case "repondre":
         return await operationRepondre(req, res);

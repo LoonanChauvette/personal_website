@@ -334,6 +334,23 @@ async function demarrer() {
     approuver($('champ-code').value);
   });
   $('form-diapos').addEventListener('submit', produireDiapositives);
+  let confirmer = false;
+  $('btn-effacer-gardes').addEventListener('click', async () => {
+    if (!confirmer) {
+      confirmer = true;
+      $('btn-effacer-gardes').textContent = 'Confirmer : tout effacer';
+      $('gardes-message').textContent = 'Les graphiques de toutes les diapositives disparaîtront.';
+      return;
+    }
+    confirmer = false;
+    $('btn-effacer-gardes').textContent = 'Effacer tous les résultats gardés';
+    try {
+      await api('garde_effacer', { methode: 'POST', corps: { tous: true } });
+      $('gardes-message').textContent = 'Résultats gardés effacés.';
+    } catch (err) {
+      $('gardes-message').textContent = err.message;
+    }
+  });
 
   // Lien du QR code de l'écran : #approuver=ABC234 (page neuve, ou déjà ouverte).
   const lireLien = () => {

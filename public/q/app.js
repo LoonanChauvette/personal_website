@@ -1,6 +1,7 @@
 // Page étudiante : un seul écran, un seul gabarit à la fois, états écrits en clair.
 import {
   apiEtat,
+  apiGarde,
   apiPresence,
   apiRepondre,
   appareil,
@@ -40,6 +41,10 @@ const DIAPO = (() => {
   }
 })();
 if (DIAPO) document.documentElement.classList.add('integre');
+if (DIAPO) {
+  window.addEventListener('focus', () => document.documentElement.classList.add('focus'));
+  window.addEventListener('blur', () => document.documentElement.classList.remove('focus'));
+}
 
 let seance = null;
 let question = null;
@@ -639,8 +644,12 @@ function appliquer(etat) {
   }
 
   const enCours = etat.question || null;
-  // Sur une diapositive, une autre question en cours équivaut à « pas encore ouverte ».
-  const q = DIAPO && enCours && enCours.id !== DIAPO.id ? null : enCours;
+  // Sur une diapositive, une autre question en cours équivaut à « pas encore ouverte »,
+  // sauf si cette question a déjà été révélée : son résultat gardé s'affiche.
+  let q = DIAPO && enCours && enCours.id !== DIAPO.id ? null : enCours;
+  if (DIAPO && !q && garde && garde.resultats) {
+    q = { id: garde.id, tour: 0, type: garde.type, gabarit: garde.gabarit, statut: 'revelee', resultats: garde.resultats, publie: true };
+  }
   if (!q) {
     question = null;
     signature = null;
@@ -760,9 +769,20 @@ if (DIAPO) {
   });
 }
 
+let garde = null; // diapositive étudiante : dernier résultat révélé de sa question
+async function lireGarde() {
+  if (!DIAPO) return;
+  try {
+    const r = await apiGarde(DIAPO.id);
+    garde = r && r.garde ? r.garde : null;
+  } catch {
+    /* sans résultat gardé, rien ne change */
+  }
+}
+
 async function interroger() {
   try {
-    const etat = await apiEtat();
+    const [etat] = await Promise.all([apiEtat(), lireGarde()]);
     signalerPresence();
     echecs = 0;
     ui.connexion.hidden = true;

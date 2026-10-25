@@ -184,6 +184,15 @@ export function apiEtat() {
   return appel('etat');
 }
 
+// Résultat gardé d'une question (dernière révélation), visible après le cours.
+export function apiGarde(id) {
+  return appel('garde', { parametres: { id } });
+}
+
+export function apiEffacerGarde(corps, cle) {
+  return appel('garde_effacer', { methode: 'POST', corps, cle });
+}
+
 export function apiPresence(idAppareil) {
   return appel('presence', { methode: 'POST', corps: { appareil: idAppareil } });
 }

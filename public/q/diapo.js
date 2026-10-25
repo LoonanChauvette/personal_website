@@ -19,6 +19,8 @@
 import {
   apiEtat,
   apiEnseignant,
+  apiGarde,
+  apiEffacerGarde,
   messageErreur,
   dessinerResultats,
   nombreEntier,
@@ -47,6 +49,7 @@ racine.innerHTML = `
     <span class="qr" id="qr" aria-hidden="true"></span>
     <span class="adresse" id="adresse"></span>
     <p class="statut" id="statut" role="status"></p>
+    <button type="button" id="effacer" class="discret" hidden>Effacer</button>
     <button type="button" id="action" hidden></button>
   </footer>`;
 
@@ -54,6 +57,7 @@ const ui = {
   corps: document.getElementById('corps'),
   statut: document.getElementById('statut'),
   action: document.getElementById('action'),
+  effacer: document.getElementById('effacer'),
 };
 document.getElementById('adresse').textContent = adresseCourte();
 const qr = qrSvg(urlSalle(), { cellSize: 3, margin: 1 });
@@ -69,6 +73,8 @@ let affichee = false;
 let minuterieAffichage = null;
 let dejaAgi = false; // une action automatique par apparition de la diapositive
 let blocage = null; // message d'un refus (cours non démarré…)
+let garde = null; // dernier résultat révélé de cette question, gardé par le serveur
+let confirmerEffacer = false;
 
 // ─── Visibilité ────────────────────────────────────────────────────────────
 function estAffichee() {
@@ -100,21 +106,36 @@ function el(nom, classe, texte) {
 
 function phase() {
   const q = etat && etat.question;
-  if (!q || q.id !== Q.id) return { nom: 'repos', autre: q ? q.id : null };
+  if (!q || q.id !== Q.id) {
+    // Rien en direct pour cette question : son dernier résultat révélé, s'il existe.
+    if (garde && garde.resultats) return { nom: 'gardee', q: { ...garde, statut: 'revelee', nb_reponses: garde.resultats.n }, autre: q ? q.id : null };
+    return { nom: 'repos', autre: q ? q.id : null };
+  }
   return { nom: q.statut, q };
 }
 
 function rendreVue() {
   const p = phase();
   const q = p.q;
-  const sig = [ROLE, p.nom, p.autre, q?.tour, q?.statut === 'revelee' ? JSON.stringify(q.resultats) : '', blocage].join('|');
+  const sig = [ROLE, p.nom, p.autre, q?.tour, q?.statut === 'revelee' ? JSON.stringify(q.resultats) : '', blocage, confirmerEffacer].join('|');
   if (sig === signature) return majDynamique();
   signature = sig;
   ui.corps.replaceChildren();
   bouton(null);
+  // « Effacer » : seulement sur la diapositive enseignant, quand un résultat est affiché.
+  ui.effacer.hidden = LECTURE || !(p.nom === 'revelee' || p.nom === 'gardee');
+  ui.effacer.textContent = confirmerEffacer ? 'Confirmer l’effacement' : 'Effacer';
+  ui.effacer.classList.toggle('confirmer', confirmerEffacer);
 
   if (ROLE === 'unique') {
-    racine.classList.toggle('revele', p.nom === 'revelee');
+    racine.classList.toggle('revele', p.nom === 'revelee' || p.nom === 'gardee');
+    if (p.nom === 'gardee') {
+      tracerGraphique(q);
+      const n = Number(q.nb_reponses) || 0;
+      ui.statut.textContent = blocage || `${nombreEntier(n)} réponse${n === 1 ? '' : 's'} · ${dateCourte(garde.revele_a)}`;
+      majDynamique();
+      return;
+    }
     if (p.nom === 'ouverte' || p.nom === 'fermee') {
       const bloc = el('div', 'compteur');
       bloc.append(el('span', 'nombre', '0'), el('span', 'unite', 'réponses'));
@@ -146,7 +167,7 @@ function rendreVue() {
       ui.statut.textContent = blocage || 'Elle s’ouvre à l’affichage de la diapositive';
       bouton('Lancer', 'lancer');
     }
-  } else if (p.nom === 'revelee') {
+  } else if (p.nom === 'revelee' || p.nom === 'gardee') {
     tracerGraphique(q);
     const n = Number(q.nb_reponses) || 0;
     ui.statut.textContent = `${nombreEntier(n)} réponse${n === 1 ? '' : 's'}`;
@@ -160,6 +181,11 @@ function rendreVue() {
       blocage || (LECTURE ? '' : p.autre ? 'Une autre question est en cours.' : 'Cette question n’a pas été posée.');
   }
   majDynamique();
+}
+
+function dateCourte(ms) {
+  const d = new Date(Number(ms));
+  return Number.isFinite(d.getTime()) ? d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long' }) : '';
 }
 
 function tracerGraphique(q) {
@@ -219,10 +245,20 @@ function delai() {
   return Math.min(15000, (n === 'ouverte' || n === 'fermee' ? 2000 : 5000) * 2 ** echecs);
 }
 
+async function lireGarde() {
+  try {
+    const r = await apiGarde(Q.id);
+    garde = r && r.garde ? r.garde : null;
+  } catch {
+    /* sans résultat gardé, la diapositive reste utilisable */
+  }
+}
+
 async function interroger() {
   clearTimeout(minuterie);
   try {
-    appliquer(await apiEtat());
+    const [e] = await Promise.all([apiEtat(), lireGarde()]);
+    appliquer(e);
     echecs = 0;
   } catch {
     echecs = Math.min(echecs + 1, 3);
@@ -275,7 +311,7 @@ async function agirAutomatiquement() {
     if (!etat) appliquer(await apiEtat());
     const p = phase();
     if (ROLE === 'question' || ROLE === 'unique') {
-      if (p.nom === 'repos') await envoyer('lancer', { id: Q.id, type: Q.type, gabarit: Q.gabarit, si_nouveau: true });
+      if (p.nom === 'repos' && !garde) await envoyer('lancer', { id: Q.id, type: Q.type, gabarit: Q.gabarit, si_nouveau: true });
     } else if (p.nom === 'ouverte') {
       if (await envoyer('fermer')) await envoyer('reveler');
     } else if (p.nom === 'fermee') {
@@ -289,6 +325,39 @@ async function agirAutomatiquement() {
 }
 
 ui.action.addEventListener('click', () => agir(ui.action.dataset.op));
+// Effacer en deux clics : le résultat gardé disparaît, la diapositive redevient prête.
+ui.effacer.addEventListener('click', async () => {
+  if (!confirmerEffacer) {
+    confirmerEffacer = true;
+    signature = null;
+    rendreVue();
+    setTimeout(() => {
+      if (confirmerEffacer) {
+        confirmerEffacer = false;
+        signature = null;
+        rendreVue();
+      }
+    }, 4000);
+    return;
+  }
+  confirmerEffacer = false;
+  try {
+    const r = await apiEffacerGarde({ id: Q.id }, jeton);
+    garde = null;
+    blocage = null;
+    if (r && 'question' in r) appliquer(r);
+    else interroger();
+  } catch (err) {
+    blocage = err && err.statut === 423 ? 'Cours non démarré : /admin' : messageErreur(err);
+  }
+  signature = null;
+  rendreVue();
+});
+
+// Repère discret quand la diapositive a le focus (clic dedans) : le clavier ne
+// change plus de diapositive tant qu'on n'a pas cliqué à côté.
+window.addEventListener('focus', () => document.documentElement.classList.add('focus'));
+window.addEventListener('blur', () => document.documentElement.classList.remove('focus'));
 document.addEventListener('visibilitychange', surVisibilite);
 window.addEventListener('resize', surVisibilite);
 setInterval(majDynamique, 1000);
