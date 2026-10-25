@@ -353,11 +353,6 @@ ui.effacer.addEventListener('click', async () => {
   signature = null;
   rendreVue();
 });
-
-// Repère discret quand la diapositive a le focus (clic dedans) : le clavier ne
-// change plus de diapositive tant qu'on n'a pas cliqué à côté.
-window.addEventListener('focus', () => document.documentElement.classList.add('focus'));
-window.addEventListener('blur', () => document.documentElement.classList.remove('focus'));
 document.addEventListener('visibilitychange', surVisibilite);
 window.addEventListener('resize', surVisibilite);
 setInterval(majDynamique, 1000);

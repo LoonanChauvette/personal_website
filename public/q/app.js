@@ -41,10 +41,6 @@ const DIAPO = (() => {
   }
 })();
 if (DIAPO) document.documentElement.classList.add('integre');
-if (DIAPO) {
-  window.addEventListener('focus', () => document.documentElement.classList.add('focus'));
-  window.addEventListener('blur', () => document.documentElement.classList.remove('focus'));
-}
 
 let seance = null;
 let question = null;
