@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="data:," />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Administration — sondages</title>
+    <link rel="stylesheet" href="/admin/admin.css" />
+  </head>
+  <body>
+    <main class="page">
+      <h1>Sondages en classe</h1>
+
+      <!-- Pas connecté -->
+      <section id="vue-invite" class="carte" hidden>
+        <h2>Connexion</h2>
+        <p><a id="lien-github" class="bouton" href="/api/poll?op=connexion">Se connecter avec GitHub</a></p>
+        <hr />
+        <h3>Ordinateur de la salle</h3>
+        <p class="note">
+          Ne tapez pas votre mot de passe ici. Affichez un code, puis approuvez-le depuis votre téléphone déjà connecté
+          (scanner le QR code, ou ouvrir <strong id="adresse-admin">/admin</strong> et saisir le code).
+        </p>
+        <p><button type="button" id="btn-demande" class="bouton secondaire">Approuver cet ordinateur depuis mon téléphone</button></p>
+        <div id="demande" class="demande" hidden>
+          <div id="demande-qr" class="qr" aria-hidden="true"></div>
+          <p class="code" id="demande-code">—</p>
+          <p class="note" id="demande-etat">En attente d’approbation…</p>
+        </div>
+      </section>
+
+      <!-- Connecté -->
+      <section id="vue-admin" hidden>
+        <section class="carte">
+          <p id="qui" class="note">—</p>
+          <p class="liens">
+            <a href="/q/ecran.html">Écran de projection</a> ·
+            <a href="/q/prof.html">Télécommande</a> ·
+            <a href="/q/">Page étudiante</a> ·
+            <button type="button" id="btn-deconnexion" class="lien">Se déconnecter</button>
+          </p>
+        </section>
+
+        <section class="carte" id="carte-approuver">
+          <h2>Approuver un ordinateur</h2>
+          <form id="form-approuver" class="ligne">
+            <label for="champ-code">Code affiché sur l’écran</label>
+            <input id="champ-code" autocomplete="off" spellcheck="false" placeholder="ABC-234" maxlength="9" />
+            <button type="submit" class="bouton">Approuver</button>
+          </form>
+          <p class="note" id="approuver-message"></p>
+          <p class="note">L’ordinateur approuvé reste connecté 5 heures, puis se déconnecte seul.</p>
+        </section>
+
+        <section class="carte">
+          <h2>Cours</h2>
+          <p id="cours-etat" class="etat">—</p>
+          <p class="ligne">
+            <button type="button" id="btn-cours" class="bouton">Démarrer le cours (4 h)</button>
+            <button type="button" id="btn-fin-cours" class="bouton secondaire" hidden>Terminer</button>
+          </p>
+          <p class="note">
+            Les diapositives Excalidraw+ ne lancent une question que pendant un cours démarré. Le reste du temps,
+            ouvrir ou modifier la présentation ne déclenche rien.
+          </p>
+        </section>
+
+        <section class="carte">
+          <h2>Diapositives de sondage pour Excalidraw+</h2>
+          <p class="note">
+            Choisissez une banque. Le bouton produit un fichier <code>.excalidraw</code> : une diapositive « question »
+            et une diapositive « résultats » par question. Importez-le dans Excalidraw+ (menu → Ouvrir), puis copiez les
+            diapositives voulues dans votre présentation.
+          </p>
+          <form id="form-diapos" class="ligne">
+            <label for="champ-banque">Banque</label>
+            <input id="champ-banque" value="/q/banques/cours7.md" spellcheck="false" />
+            <button type="submit" class="bouton">Produire les diapositives</button>
+          </form>
+          <p class="note" id="diapos-message"></p>
+        </section>
+      </section>
+    </main>
+    <footer class="pied">© Loonan Chauvette, 2026</footer>
+    <script src="/q/vendor/qrcode.js"></script>
+    <script type="module" src="/admin/admin.js"></script>
+  </body>
+</html>

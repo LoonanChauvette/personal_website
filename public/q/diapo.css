@@ -1,0 +1,123 @@
+/* Diapositive de sondage dans un élément HTML d'Excalidraw+.
+   Les tailles suivent la boîte de l'élément (vh/vw = taille sur la diapositive). */
+:root {
+  --encre: #16181d;
+  --marine: #1a3556;
+  --filet: #d7dae0;
+  --gris: #6b7078;
+  --vert: #1c5233;
+  --police: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --t: min(7vh, 3.4vw);
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #fff;
+  color: var(--encre);
+  font-family: var(--police);
+  font-size: var(--t);
+  line-height: 1.25;
+  overflow: hidden;
+}
+[hidden] {
+  display: none !important;
+}
+.diapo {
+  height: 100%;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 2vh;
+  padding: 3vh 2.5vw;
+}
+.corps {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.grand {
+  margin: 0;
+  font-size: 1.5em;
+  font-weight: 600;
+  color: var(--marine);
+  text-align: center;
+}
+.compteur {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+}
+.compteur .nombre {
+  font-size: 5em;
+  font-weight: 700;
+  color: var(--marine);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.compteur .unite {
+  font-size: 1.4em;
+  font-weight: 600;
+}
+.chrono {
+  margin: 0.3em 0 0;
+  color: var(--gris);
+  font-variant-numeric: tabular-nums;
+}
+.graphique {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.graphique svg {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+}
+.pied {
+  display: flex;
+  align-items: center;
+  gap: 1.2vw;
+  font-size: 0.8em;
+}
+.pied .qr svg {
+  display: block;
+  height: 16vh;
+  width: auto;
+}
+.adresse {
+  font-weight: 600;
+}
+.statut {
+  margin: 0 0 0 auto;
+  color: var(--gris);
+  text-align: right;
+}
+.statut.erreur {
+  color: var(--encre);
+  border-right: 3px solid var(--encre);
+  padding-right: 0.5em;
+}
+.role-resultats .pied .qr {
+  display: none;
+}
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 0.3em 0.9em;
+  border-radius: 8px;
+  border: 2px solid var(--marine);
+  background: #fff;
+  color: var(--marine);
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.5;
+}

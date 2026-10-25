@@ -1,0 +1,75 @@
+/* Diapositive étudiante : la page de réponse dans un élément HTML d'Excalidraw+.
+   Chargé après style.css. L'élément mesure environ 350 × 360 px sur la diapositive
+   et s'agrandit avec elle : les tailles suivent la hauteur de l'élément (vh). */
+html.integre,
+html.integre body {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  font-size: max(11px, 4.6vh);
+}
+html.integre .ecran {
+  max-width: none;
+  padding: 2.5vh 3vw;
+  gap: 2vh;
+}
+html.integre .pied,
+html.integre .mentions {
+  display: none;
+}
+html.integre .etat {
+  font-size: 1em;
+}
+html.integre .ma-reponse {
+  font-size: 0.82em;
+  padding-top: 1vh;
+}
+html.integre .zone,
+html.integre .zone-controles,
+html.integre .curseur,
+html.integre .liste-options {
+  gap: 1.6vh;
+}
+html.integre .grille {
+  grid-template-columns: repeat(auto-fit, minmax(11vw, 1fr));
+  gap: 1.6vh;
+}
+html.integre .touche {
+  min-height: 9vh;
+  padding: 0.8vh 2.5vw;
+  font-size: 1em;
+  border-radius: 1.5vh;
+}
+html.integre .touche .lettre {
+  font-size: 1.1em;
+  min-width: 1.4em;
+}
+html.integre .touche .libelle {
+  font-size: 0.8em;
+}
+html.integre .bouton-envoyer {
+  min-height: 8.5vh;
+  font-size: 0.95em;
+  padding: 0.8vh 3vw;
+  border-radius: 1.5vh;
+}
+html.integre .zone-controles > .bouton-envoyer,
+html.integre .curseur > .bouton-envoyer {
+  margin-top: 0.8vh;
+}
+html.integre .champ,
+html.integre input,
+html.integre textarea {
+  font-size: 0.95em;
+}
+html.integre .item-classement {
+  min-height: 0;
+  padding: 0.6vh 2vw;
+  font-size: 0.85em;
+}
+html.integre .bouton-fleche {
+  min-width: 0;
+  min-height: 0;
+  width: 7vh;
+  height: 7vh;
+}

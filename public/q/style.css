@@ -1,0 +1,447 @@
+/* Page étudiante — mobile d'abord, sans cadriciel, sans ombre ni dégradé. */
+:root {
+  --encre: #16181d;
+  --marine: #1a3556;
+  --filet: #d7dae0;
+  --vert: #1c5233;
+  --fond: #ffffff;
+  --police: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--fond);
+  color: var(--encre);
+  font-family: var(--police);
+  font-size: 18px;
+  line-height: 1.35;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.ecran {
+  flex: 1;
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 20px 18px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pied {
+  border-top: 1px solid var(--filet);
+  padding: 10px 18px calc(12px + env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: 13px;
+  color: var(--encre);
+}
+
+.connexion {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 4px solid var(--filet);
+  font-size: 15px;
+}
+
+.question-texte {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.etat {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.3;
+  /* Deux lignes réservées : passer de la consigne à « Envoi… » puis à
+     « Réponse envoyée ✓ » ne déplace rien. */
+  min-height: calc(2 * 1.3em);
+}
+
+.etat.erreur {
+  border-left: 4px solid var(--encre);
+  padding-left: 10px;
+}
+
+.ma-reponse {
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--filet);
+  font-size: 16px;
+  line-height: 1.35;
+  min-height: calc(2 * 1.35em + 8px);
+}
+
+.ma-reponse.vide {
+  color: #767676;
+}
+
+.reessai .bouton-envoyer {
+  margin-top: 4px;
+}
+
+.zone {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Blocs de saisie : même espacement partout, bouton Envoyer compris. */
+.zone-controles,
+.curseur {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.zone-controles > .bouton-envoyer,
+.curseur > .bouton-envoyer {
+  margin-top: 8px;
+}
+
+/* Choix, choix multiples, vrai/faux : liste verticale alignée. */
+.liste-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.liste-options .touche {
+  width: 100%;
+}
+
+.touche.case .coche {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 2px solid currentColor;
+  border-radius: 5px;
+  position: relative;
+}
+
+.touche.case[aria-pressed="true"] .coche::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 1px;
+  width: 7px;
+  height: 13px;
+  border: solid currentColor;
+  border-width: 0 3px 3px 0;
+  transform: rotate(45deg);
+}
+
+.grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  gap: 12px;
+}
+
+.grille.avec-libelles {
+  grid-template-columns: 1fr;
+}
+
+.touche {
+  min-height: 64px;
+  padding: 10px 14px;
+  border: 2px solid var(--marine);
+  border-radius: 10px;
+  background: var(--fond);
+  color: var(--marine);
+  font: inherit;
+  font-size: 22px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.touche .lettre {
+  font-size: 26px;
+  font-weight: 700;
+  min-width: 30px;
+}
+
+.touche .libelle {
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.touche[aria-pressed="true"] {
+  background: var(--marine);
+  color: #fff;
+}
+
+.touche:disabled {
+  border-color: var(--filet);
+  color: var(--encre);
+}
+
+.touche:focus-visible,
+.bouton-envoyer:focus-visible,
+.bouton-fleche:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--marine);
+  outline-offset: 2px;
+}
+
+.bouton-envoyer {
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 16px;
+  border: 2px solid var(--marine);
+  border-radius: 10px;
+  background: var(--marine);
+  color: #fff;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.bouton-envoyer:disabled {
+  background: var(--fond);
+  color: var(--filet);
+  border-color: var(--filet);
+}
+
+.aide {
+  margin: 0;
+  font-size: 15px;
+}
+
+/* Curseur */
+
+.valeur-curseur {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--marine);
+  height: 44px;
+  display: flex;
+  align-items: flex-end;
+}
+
+.valeur-curseur.attente {
+  font-size: 17px;
+  font-weight: 400;
+  color: var(--encre);
+}
+
+.piste-curseur {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 56px;
+  margin: 0;
+  background: transparent;
+  touch-action: pan-y;
+}
+
+.piste-curseur::-webkit-slider-runnable-track {
+  height: 8px;
+  background: var(--filet);
+  border-radius: 4px;
+}
+
+.piste-curseur::-moz-range-track {
+  height: 8px;
+  background: var(--filet);
+  border-radius: 4px;
+}
+
+.piste-curseur::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 36px;
+  height: 36px;
+  margin-top: -14px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--marine);
+}
+
+.piste-curseur::-moz-range-thumb {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--marine);
+}
+
+/* Curseur non touché : poignée creuse et pointillée au milieu — visible,
+   mais clairement « pas encore une réponse ». */
+.piste-curseur.sans-valeur::-webkit-slider-thumb {
+  background: var(--fond);
+  border: 3px dashed var(--marine);
+}
+
+.piste-curseur.sans-valeur::-moz-range-thumb {
+  background: var(--fond);
+  border: 3px dashed var(--marine);
+}
+
+.ancres {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 15px;
+}
+
+.ancres span:last-child {
+  text-align: right;
+}
+
+/* Champs */
+.champ {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.champ input[type="text"],
+.champ input[type="number"],
+.champ textarea {
+  flex: 1;
+  min-height: 56px;
+  padding: 12px 14px;
+  border: 2px solid var(--marine);
+  border-radius: 10px;
+  background: var(--fond);
+  color: var(--encre);
+  font: inherit;
+  font-size: 20px;
+}
+
+.champ textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.unite {
+  align-self: center;
+  font-size: 18px;
+  font-weight: 600;
+  min-width: 48px;
+}
+
+.compteur-caracteres {
+  margin: 0;
+  text-align: right;
+  font-size: 14px;
+}
+
+/* Classement */
+.liste-classement {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.item-classement {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 2px solid var(--marine);
+  border-radius: 10px;
+  padding: 8px 10px;
+  min-height: 60px;
+  background: var(--fond);
+}
+
+.item-classement .rang {
+  font-weight: 700;
+  font-size: 20px;
+  min-width: 24px;
+  color: var(--marine);
+}
+
+.item-classement .libelle {
+  flex: 1;
+  font-size: 18px;
+}
+
+.fleches {
+  display: flex;
+  gap: 6px;
+}
+
+.bouton-fleche {
+  width: 48px;
+  height: 48px;
+  border: 2px solid var(--marine);
+  border-radius: 8px;
+  background: var(--fond);
+  color: var(--marine);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.bouton-fleche:disabled {
+  border-color: var(--filet);
+  color: var(--filet);
+}
+
+/* Résultats */
+.resultats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--filet);
+  padding-top: 12px;
+}
+
+.resultats svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.titre-resultats {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.mentions {
+  margin: auto 0 0;
+  padding-top: 16px;
+  font-size: 13px;
+}
+
+@media (min-width: 620px) {
+  .ecran {
+    padding-top: 32px;
+  }
+  .grille {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .grille.avec-libelles {
+    grid-template-columns: 1fr;
+  }
+}
