@@ -428,6 +428,15 @@ export function formaterReponse(type, gabarit, valeur) {
       })
       .join(' › ');
   }
+  if (type === 'serie' && valeur && typeof valeur === 'object') {
+    return (g.questions || [])
+      .filter((sq) => valeur[sq.cle] !== undefined)
+      .map((sq) => {
+        const { cle, type: t, ...sous } = sq;
+        return `${cle}. ${formaterReponse(t, sous, valeur[cle])}`;
+      })
+      .join('  ·  ');
+  }
   return String(valeur);
 }
 
@@ -682,6 +691,50 @@ function rendreBarres(type, gabarit, res, opts) {
     );
   }
 
+  return racineSvg(m.bw, hauteur, enfants, opts);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Nombre, valeurs fréquentes : une barre par valeur (au plus 5 + « autres »)
+// ─────────────────────────────────────────────────────────────
+function rendreValeurs(gabarit, res, opts) {
+  const m = mesures(opts);
+  const g = gabarit || {};
+  const unite = g.unite ? ` ${g.unite}` : '';
+  const tol = Number(g.tolerance) || 0;
+  const bonnes = (opts.bonnes || []).map(Number).filter(Number.isFinite);
+  const estBonne = (v) => bonnes.some((b) => Math.abs(v - b) <= tol + 1e-9);
+  const n = Math.max(0, Number(res.n) || 0);
+  const fmtV = (v) => new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 3 }).format(v);
+  const lignes = res.frequentes.map((f) => ({ libelle: fmtV(Number(f.valeur)) + unite, v: Number(f.n) || 0, bonne: estBonne(Number(f.valeur)) }));
+  const autres = n - lignes.reduce((s, l) => s + l.v, 0);
+  if (autres > 0) lignes.push({ libelle: 'Autres', v: autres, bonne: false });
+  const avecCoche = lignes.some((l) => l.bonne);
+  const margeCoche = avecCoche ? m.fsLettre * 1.1 : 0;
+  const colLibelle = margeCoche + Math.max(...lignes.map((l) => l.libelle.length)) * m.fsOption * 0.56 + 18;
+  const colChiffre = m.fsChiffre * (m.compact ? 4.6 : 5.4);
+  const xBarre = m.pad + colLibelle;
+  const largBarre = Math.max(80, m.bw - m.pad * 2 - colLibelle - colChiffre - 16);
+  const pasL = m.barreH + 26;
+  const hauteur = m.pad * 2 + lignes.length * pasL;
+  const enfants = [];
+  lignes.forEach((l, i) => {
+    const part = n ? l.v / n : 0;
+    const haut = m.pad + i * pasL;
+    const g2 = svg('g', {}, [svg('title', {}, [`${l.libelle} : ${nombreEntier(part * 100)} %, ${nombreEntier(l.v)} réponse${l.v === 1 ? '' : 's'}${l.bonne ? ' — bonne réponse' : ''}`])]);
+    if (l.bonne) g2.appendChild(cheminCoche(m.pad, haut + (m.barreH - m.fsLettre * 0.72) / 2, m.fsLettre * 0.72));
+    g2.appendChild(txt(m.pad + margeCoche, haut + m.barreH * 0.8, l.libelle, {
+      taille: m.fsOption, graisse: 700, couleur: l.bonne ? COULEURS.vert : COULEURS.marine,
+    }));
+    g2.appendChild(svg('rect', { x: xBarre, y: haut, width: largBarre, height: m.barreH, fill: COULEURS.fond, stroke: COULEURS.filet, 'stroke-width': 2 }));
+    if (part > 0) {
+      g2.appendChild(svg('rect', { x: xBarre, y: haut, width: Math.max(4, largBarre * part), height: m.barreH, fill: l.bonne ? COULEURS.vert : COULEURS.marine }));
+    }
+    g2.appendChild(txt(m.bw - m.pad, haut + m.barreH * 0.74, `${nombreEntier(part * 100)} % · ${nombreEntier(l.v)}`, {
+      taille: m.fsChiffre, graisse: 600, ancre: 'end', couleur: COULEURS.encre,
+    }));
+    enfants.push(g2);
+  });
   return racineSvg(m.bw, hauteur, enfants, opts);
 }
 
@@ -1198,8 +1251,14 @@ export function rendreResultats(type, gabarit, resultats, opts = {}) {
       case 'vraifaux':
         return rendreBarres(type, gabarit, res, opts);
       case 'echelle':
-      case 'nombre':
         return rendreHistogramme(type, gabarit, res, opts);
+      case 'nombre':
+        // Peu de valeurs distinctes, ou une bonne réponse connue : barres des valeurs
+        // fréquentes (la bonne en vert à la révélation) ; sinon histogramme par classes.
+        return Array.isArray(res.frequentes) && res.frequentes.length &&
+          ((opts.bonnes && opts.bonnes.length) || (Number(res.distinctes) || 99) <= 5)
+          ? rendreValeurs(gabarit, res, opts)
+          : rendreHistogramme(type, gabarit, res, opts);
       case 'curseur':
         return rendreCurseur(gabarit, res, opts);
       case 'nuage':
@@ -1208,12 +1267,92 @@ export function rendreResultats(type, gabarit, resultats, opts = {}) {
         return rendreCartes(gabarit, res, opts);
       case 'classement':
         return rendreClassement(gabarit, res, opts);
+      case 'serie':
+        return rendreSerie(gabarit, res, opts);
       default:
         return vide('Type de résultats non pris en charge', opts);
     }
   } catch (err) {
     return vide('Résultats indisponibles', opts);
   }
+}
+
+// Série : tableau compact, une cellule par sous-question (colonnes remplies l'une après
+// l'autre, comme la diapositive) : les réponses les plus fréquentes et leur part ; à la
+// révélation (opts.bonnes fourni), la bonne réponse en vert avec une coche. Les types sans
+// réponse courte (nuage, texte, classement…) gardent leur petit graphique.
+function rendreSerie(gabarit, res, opts) {
+  const g = gabaritNormalise('serie', gabarit);
+  const sousQ = g.questions || [];
+  const colonnes = Math.max(1, Math.min(3, Number(g.colonnes) || 1));
+  const conteneur = document.createElement('div');
+  conteneur.className = 'serie-resultats';
+  conteneur.style.setProperty('--cols', String(colonnes));
+  conteneur.style.setProperty('--lignes', String(Math.ceil(sousQ.length / colonnes)));
+  conteneur.setAttribute('role', 'group');
+  conteneur.setAttribute('aria-label', opts.etiquette || 'Résultats de la série');
+  const revele = opts.bonnes !== undefined;
+  const pct = (v, n) => `${nombreEntier(n ? (100 * v) / n : 0)} %`;
+  const fmtV = (v) => new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 3 }).format(v);
+  for (const sq of sousQ) {
+    const bloc = document.createElement('div');
+    bloc.className = 'serie-bloc';
+    const tete = document.createElement('div');
+    tete.className = 'serie-num';
+    tete.textContent = sq.etiquette || sq.cle;
+    const corps = document.createElement('div');
+    corps.className = 'serie-graphique';
+    const sous = (res.parties || {})[sq.cle];
+    const { cle: _c, type, etiquette: _e, ...gab } = sq;
+    const n = Number(sous && sous.n) || 0;
+    let lignes = null;
+    if (['choix', 'multiple', 'vraifaux'].includes(type)) {
+      const bonnes = new Set((gab.bonnes || []).map(String));
+      lignes = optionsDe(type, gab).map((o) => ({
+        libelle: type === 'vraifaux' ? (o.cle === 'V' ? 'Vrai' : 'Faux') : o.cle,
+        v: compteDe(sous && sous.comptes, o.cle),
+        bonne: revele && bonnes.has(o.cle),
+      }));
+      lignes.sort((a, b) => b.v - a.v);
+    } else if (type === 'nombre') {
+      const tol = Number(gab.tolerance) || 0;
+      const bonnes = (gab.bonnes || []).map(Number);
+      lignes = (sous && Array.isArray(sous.frequentes) ? sous.frequentes : []).map((f) => ({
+        libelle: fmtV(Number(f.valeur)),
+        v: Number(f.n) || 0,
+        bonne: revele && bonnes.some((b) => Math.abs(Number(f.valeur) - b) <= tol + 1e-9),
+      }));
+    } else if (type === 'echelle' && sous && sous.comptes) {
+      lignes = Object.entries(sous.comptes).map(([k, v]) => ({ libelle: k, v: Number(v) || 0, bonne: false }))
+        .sort((a, b) => b.v - a.v);
+    }
+    if (lignes) {
+      corps.classList.add('serie-valeurs');
+      if (!n) corps.appendChild(element2('span', 'serie-vide', '—'));
+      // Trois réponses au plus, plus la bonne si elle n'y est pas : la cellule reste d'une ligne.
+      const montrees = lignes.filter((l) => l.v > 0).slice(0, 3);
+      const bonneHors = lignes.find((l) => l.bonne && !montrees.includes(l));
+      if (n && bonneHors) montrees.push(bonneHors);
+      for (const l of n ? montrees : []) {
+        const puce = element2('span', l.bonne ? 'serie-puce bonne' : 'serie-puce');
+        puce.append(element2('b', null, (l.bonne ? '✓ ' : '') + l.libelle), element2('span', 'part', pct(l.v, n)));
+        puce.title = `${l.libelle} : ${pct(l.v, n)} (${nombreEntier(l.v)})${l.bonne ? ' — bonne réponse' : ''}`;
+        corps.appendChild(puce);
+      }
+    } else {
+      corps.appendChild(rendreResultats(type, gab, sous, { ...opts, bonnes: revele ? gab.bonnes || [] : undefined, etiquette: `Question ${sq.cle}` }));
+    }
+    bloc.append(tete, corps);
+    conteneur.appendChild(bloc);
+  }
+  return conteneur;
+}
+
+function element2(tag, classe, texte) {
+  const e = document.createElement(tag);
+  if (classe) e.className = classe;
+  if (texte !== undefined) e.textContent = texte;
+  return e;
 }
 
 // Remplace le contenu d'un conteneur par le graphique.

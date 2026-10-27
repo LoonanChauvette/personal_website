@@ -14,7 +14,14 @@ export const TYPES = Object.freeze([
   "nuage",
   "texte",
   "classement",
+  "serie",
 ]);
+
+// Une « série » regroupe plusieurs sous-questions sur une même diapositive (une seule
+// question pour le serveur : un lancement, une révélation). Sous-types admis : tous sauf
+// « serie » (pas d'imbrication).
+const MIN_SOUS = 2;
+const MAX_SOUS = 9;
 
 const LETTRES = Object.freeze("ABCDEF".split(""));
 const MIN_OPTIONS = 2;
@@ -195,8 +202,18 @@ export function normaliserGabarit(type, gabarit) {
       };
     }
 
-    case "nombre":
-      return { ...base, unite: texteOu(g.unite).trim().slice(0, 16) };
+    case "nombre": {
+      // Bonne(s) réponse(s) facultative(s) : nombres, avec une tolérance absolue facultative.
+      let bonnes = g.bonnes;
+      if (bonnes === undefined || bonnes === null) bonnes = [];
+      else if (!Array.isArray(bonnes)) bonnes = [bonnes];
+      bonnes = bonnes.map((b) => Number(String(b).replace(",", ".")));
+      if (bonnes.some((b) => !Number.isFinite(b))) throw new Error("Bonne réponse numérique invalide.");
+      if (bonnes.length > 3) throw new Error("Une question numérique a au plus 3 bonnes réponses.");
+      const tolerance = g.tolerance === undefined || g.tolerance === null ? 0 : Number(g.tolerance);
+      if (!Number.isFinite(tolerance) || tolerance < 0) throw new Error("Tolérance invalide.");
+      return { ...base, unite: texteOu(g.unite).trim().slice(0, 16), bonnes, tolerance };
+    }
 
     case "nuage":
       return { ...base, max_mots: entierDans(g.max_mots, 3, 1, 10, "Le nombre de mots") };
@@ -206,6 +223,35 @@ export function normaliserGabarit(type, gabarit) {
 
     case "classement":
       return { ...base, items: normaliserItems(g.items) };
+
+    case "serie": {
+      if (!Array.isArray(g.questions)) throw new Error("Une série demande une liste « questions ».");
+      if (g.questions.length < MIN_SOUS || g.questions.length > MAX_SOUS) {
+        throw new Error(`Une série compte entre ${MIN_SOUS} et ${MAX_SOUS} questions (reçu ${g.questions.length}).`);
+      }
+      const vues = new Set();
+      const questions = g.questions.map((sq, i) => {
+        if (!estObjet(sq)) throw new Error(`Sous-question ${i + 1} invalide.`);
+        const cle = sq.cle === undefined || sq.cle === null ? String(i + 1) : String(sq.cle).trim();
+        if (!/^[A-Za-z0-9_-]{1,12}$/.test(cle)) throw new Error(`Clé de sous-question invalide « ${cle} ».`);
+        if (vues.has(cle)) throw new Error(`Clé de sous-question en double : « ${cle} ».`);
+        vues.add(cle);
+        if (sq.type === "serie") throw new Error("Une série ne peut pas contenir de série.");
+        const { type: _t, cle: _c, etiquette, ...reste } = sq;
+        let sous;
+        try {
+          sous = normaliserGabarit(sq.type, reste);
+        } catch (e) {
+          throw new Error(`Sous-question ${cle} : ${e.message}`);
+        }
+        // Étiquette courte affichée à la place de la clé (« a », « F0 »…) ; la clé reste l'identifiant.
+        return { cle, type: sq.type, etiquette: texteOu(etiquette).trim().slice(0, 24), ...sous };
+      });
+      // Colonnes : les sous-questions remplissent les colonnes l'une après l'autre
+      // (série « 3 sons × 3 questions » → une colonne par son).
+      const colonnes = entierDans(g.colonnes, 1, 1, 3, "Le nombre de colonnes");
+      return { ...base, colonnes, questions };
+    }
 
     default:
       throw new Error(`Type de question inconnu : « ${type} ».`);
@@ -337,6 +383,23 @@ export function validerReponse(type, gabarit, reponse) {
       return { ok: true, valeur: cles };
     }
 
+    case "serie": {
+      // Réponse = objet {cleSousQuestion: réponse}. Réponse partielle admise (au moins une) :
+      // l'étudiant peut répondre au fur et à mesure ; un nouvel envoi remplace le précédent.
+      if (!estObjet(reponse)) return refus("Un objet {sous-question: réponse} est attendu.");
+      const valeur = {};
+      for (const [cle, brute] of Object.entries(reponse)) {
+        const sq = g.questions.find((q) => q.cle === cle);
+        if (!sq) return refus(`« ${cle} » n'est pas une question de cette série.`);
+        if (brute === undefined || brute === null || brute === "") continue;
+        const r = validerReponse(sq.type, sq, brute);
+        if (!r.ok) return refus(`Question ${cle} : ${r.erreur}`);
+        valeur[cle] = r.valeur;
+      }
+      if (Object.keys(valeur).length === 0) return refus("Répondez à au moins une question.");
+      return { ok: true, valeur };
+    }
+
     default:
       return refus(`Type de question inconnu : « ${type} ».`);
   }
@@ -457,11 +520,21 @@ export function agreger(type, gabarit, valeurs = []) {
 
     case "nombre": {
       const triees = propres.map((p) => p.valeur).sort((a, b) => a - b);
+      // Valeurs les plus fréquentes (au plus 5) : lisibles telles quelles quand la classe
+      // converge vers quelques réponses (calculs à réponse unique).
+      const parValeur = new Map();
+      for (const v of triees) parValeur.set(v, (parValeur.get(v) || 0) + 1);
+      const frequentes = [...parValeur.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+        .slice(0, 5)
+        .map(([valeur, k]) => ({ valeur, n: k }));
       return {
         n,
         valeurs: triees,
         mediane: mediane(triees),
         classes: classesNombre(triees),
+        frequentes,
+        distinctes: parValeur.size,
       };
     }
 
@@ -515,6 +588,19 @@ export function agreger(type, gabarit, valeurs = []) {
       }));
       rangs.sort((a, b) => (a.rang_moyen ?? Infinity) - (b.rang_moyen ?? Infinity));
       return { n, rangs };
+    }
+
+    case "serie": {
+      // Un résultat par sous-question, calculé avec l'agrégation de son propre type.
+      // n = nombre d'appareils ayant répondu à au moins une sous-question.
+      const parties = {};
+      for (const sq of g.questions) {
+        const vals = propres.filter((p) => p.valeur[sq.cle] !== undefined)
+          .map((p) => (p.cle === null ? p.valeur[sq.cle] : { cle: p.cle, valeur: p.valeur[sq.cle] }));
+        const { cle: _c, type: _t, etiquette: _e, ...sous } = sq;
+        parties[sq.cle] = agreger(sq.type, sous, vals);
+      }
+      return { n, parties };
     }
 
     default:

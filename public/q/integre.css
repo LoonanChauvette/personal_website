@@ -89,3 +89,53 @@ html.integre .resultats svg {
   height: auto;
   max-height: 100%;
 }
+/* Série dans la diapositive : grille de la diapositive (colonnes remplies l'une après
+   l'autre), commandes serrées, tailles en vh. */
+html.integre .zone-controles.serie {
+  gap: 1.4vh;
+}
+html.integre .serie-grille {
+  grid-template-columns: repeat(var(--cols, 1), 1fr);
+  grid-template-rows: repeat(var(--lignes, 3), auto);
+  grid-auto-flow: column;
+  gap: 1.2vh 2.5vw;
+}
+html.integre .serie-rangee {
+  gap: 1.2vw;
+  grid-template-columns: 2.2em 1fr;
+}
+html.integre .serie-num {
+  font-size: 0.85em;
+}
+html.integre .serie-controle {
+  gap: 0.6vh;
+}
+html.integre .serie-controle .liste-options {
+  gap: 0.8vw;
+}
+html.integre .serie-controle .touche {
+  min-height: 7vh;
+  min-width: 0;
+  padding: 0.3vh 0.8vw;
+  font-size: 0.85em;
+}
+html.integre .serie-controle .champ input {
+  min-height: 7vh;
+  padding: 0.3vh 1vw;
+}
+html.integre .serie-controle .champ .unite {
+  font-size: 0.75em;
+}
+html.integre .serie-resultats {
+  gap: 1vh 2.5vw;
+  align-content: center;
+}
+html.integre .serie-bloc {
+  grid-template-columns: 2.2em 1fr;
+}
+html.integre .serie-valeurs {
+  font-size: 0.8em;
+}
+html.integre .serie-graphique svg {
+  max-height: 20vh;
+}

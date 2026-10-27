@@ -239,7 +239,13 @@ function comptePresence(hash, maintenant = Date.now()) {
 
 function questionPublique(question, nbReponses, enseignant = false) {
   const gabarit = { ...question.gabarit };
-  if (!enseignant && question.statut !== "revelee") delete gabarit.bonnes;
+  if (!enseignant && question.statut !== "revelee") {
+    delete gabarit.bonnes;
+    // Série : retirer aussi les bonnes réponses de chaque sous-question.
+    if (Array.isArray(gabarit.questions)) {
+      gabarit.questions = gabarit.questions.map(({ bonnes: _b, ...sq }) => sq);
+    }
+  }
   const vue = {
     id: question.id,
     tour: question.tour,

@@ -81,6 +81,60 @@ body {
   height: auto;
   max-height: 100%;
 }
+/* Série : une cellule par sous-question, colonnes remplies l'une après l'autre
+   (même disposition que la diapositive) ; réponses fréquentes en pastilles. */
+.graphique .serie-resultats {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 1), 1fr);
+  grid-template-rows: repeat(var(--lignes, 3), auto);
+  grid-auto-flow: column;
+  align-content: center;
+  width: 100%;
+  gap: 1.6vh 2.5vw;
+}
+.serie-bloc {
+  display: grid;
+  grid-template-columns: 1.6em 1fr;
+  align-items: center;
+  min-height: 0;
+}
+.serie-num {
+  font-weight: 700;
+  color: var(--marine);
+}
+.serie-graphique {
+  min-height: 0;
+  display: flex;
+  align-items: center;
+}
+.serie-graphique svg {
+  width: 100%;
+  height: auto;
+  max-height: 22vh;
+}
+.serie-valeurs {
+  flex-wrap: wrap;
+  gap: 0.25em 0.6em;
+  font-size: 0.8em;
+}
+.serie-puce {
+  white-space: nowrap;
+}
+.serie-puce b {
+  color: var(--marine);
+}
+.serie-puce .part {
+  margin-left: 0.3em;
+  color: var(--gris);
+  font-variant-numeric: tabular-nums;
+}
+.serie-puce.bonne b,
+.serie-puce.bonne .part {
+  color: var(--vert);
+}
+.serie-vide {
+  color: var(--gris);
+}
 .pied {
   display: flex;
   align-items: center;

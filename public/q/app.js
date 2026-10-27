@@ -55,6 +55,9 @@ let envoiEnCours = false;
 let minuterie = null;
 let echecs = 0;
 let signatureResultats = null;
+// Fonction d'envoi des contrôles : envoyer() pour une question simple ; une série la
+// remplace le temps de construire chaque sous-question (la réponse rejoint l'objet commun).
+let envoyerSous = (reponse) => envoyer(reponse);
 
 // ─── Petites fabriques DOM ───
 function element(tag, classe, contenu) {
@@ -103,6 +106,8 @@ function consigne(type) {
       return 'Écrivez votre réponse, puis Envoyer.';
     case 'classement':
       return 'Placez les éléments dans l’ordre, puis Envoyer.';
+    case 'serie':
+      return 'Répondez à chaque question, puis Envoyer.';
     default:
       return 'Répondez ci-dessous.';
   }
@@ -110,6 +115,7 @@ function consigne(type) {
 
 // ─── Contrôles par type ───
 function grilleLettres(q, multiple) {
+  const envoi = envoyerSous;
   const options = optionsDe(q.type, q.gabarit);
   const avecTextes = !(q.gabarit && q.gabarit.masquer_texte) && !DIAPO;
   // Liste verticale : lettres alignées, libellé éventuel à droite de la lettre.
@@ -136,7 +142,10 @@ function grilleLettres(q, multiple) {
     bouton.type = 'button';
     bouton.dataset.cle = option.cle;
     bouton.setAttribute('aria-pressed', selection.has(option.cle) ? 'true' : 'false');
-    const nomOption = option.cle === 'V' && q.type === 'vraifaux' ? 'Vrai' : option.cle === 'F' && q.type === 'vraifaux' ? 'Faux' : option.cle;
+    // Dans une série en colonnes, la place manque : « V » / « F » (l'énoncé dit « vrai ou faux »).
+    const court = q.court === true;
+    const nomOption = court ? option.cle : option.cle === 'V' && q.type === 'vraifaux' ? 'Vrai' : option.cle === 'F' && q.type === 'vraifaux' ? 'Faux' : option.cle;
+    if (court && q.type === 'vraifaux') bouton.setAttribute('aria-label', option.cle === 'V' ? 'Vrai' : 'Faux');
     bouton.innerHTML =
       (multiple ? '<span class="coche" aria-hidden="true"></span>' : '') +
       `<span class="lettre">${echapper(nomOption)}</span>` +
@@ -152,7 +161,7 @@ function grilleLettres(q, multiple) {
         selection.clear();
         selection.add(option.cle);
         for (const [cle, b] of boutons) b.setAttribute('aria-pressed', cle === option.cle ? 'true' : 'false');
-        envoyer(option.cle);
+        envoi(option.cle);
       }
     });
     boutons.set(option.cle, bouton);
@@ -170,7 +179,7 @@ function grilleLettres(q, multiple) {
         signalerErreur('Choisissez au moins une lettre.');
         return;
       }
-      envoyer([...selection].sort());
+      envoi([...selection].sort());
     });
     enfants.push(boutonEnvoyer);
   }
@@ -181,6 +190,7 @@ function grilleLettres(q, multiple) {
 }
 
 function controleEchelle(q) {
+  const envoi = envoyerSous;
   const g = q.gabarit || {};
   const min = Number.isFinite(Number(g.min)) ? Number(g.min) : 1;
   const max = Number.isFinite(Number(g.max)) ? Number(g.max) : 5;
@@ -201,7 +211,7 @@ function controleEchelle(q) {
     bouton.addEventListener('click', () => {
       if (!estOuverte()) return;
       tous.forEach((b) => b.setAttribute('aria-pressed', b === bouton ? 'true' : 'false'));
-      envoyer(valeur);
+      envoi(valeur);
     });
     tous.push(bouton);
     boutons.appendChild(bouton);
@@ -217,6 +227,7 @@ function controleEchelle(q) {
 }
 
 function controleCurseur(q) {
+  const envoi = envoyerSous;
   const g = q.gabarit || {};
   const min = Number.isFinite(Number(g.min)) ? Number(g.min) : 0;
   const max = Number.isFinite(Number(g.max)) ? Number(g.max) : 100;
@@ -247,7 +258,7 @@ function controleCurseur(q) {
   function planifierEnvoi(delai) {
     clearTimeout(minuterieEnvoi);
     minuterieEnvoi = setTimeout(() => {
-      if (estOuverte()) envoyer(Number(piste.value));
+      if (estOuverte()) envoi(Number(piste.value));
     }, delai);
   }
 
@@ -300,6 +311,7 @@ function controleCurseur(q) {
 }
 
 function controleNombre(q) {
+  const envoi = envoyerSous;
   const g = q.gabarit || {};
   const conteneur = element('div', 'zone-controles');
   const champ = element('div', 'champ');
@@ -329,7 +341,7 @@ function controleNombre(q) {
       signalerErreur('Ce n’est pas un nombre valide.');
       return;
     }
-    envoyer(valeur);
+    envoi(valeur);
   });
   entree.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter') {
@@ -344,6 +356,7 @@ function controleNombre(q) {
 }
 
 function controleNuage(q) {
+  const envoi = envoyerSous;
   const g = q.gabarit || {};
   const maxMots = Number(g.max_mots) || 3;
   const conteneur = element('div', 'zone-controles');
@@ -375,7 +388,7 @@ function controleNuage(q) {
       signalerErreur('Un mot fait plus de 40 caractères.');
       return;
     }
-    envoyer(mots).then((ok) => {
+    envoi(mots).then((ok) => {
       if (ok) entree.value = '';
     });
   });
@@ -391,6 +404,7 @@ function controleNuage(q) {
 }
 
 function controleTexte(q) {
+  const envoi = envoyerSous;
   const g = q.gabarit || {};
   const max = Number(g.max) || 280;
   const conteneur = element('div', 'zone-controles');
@@ -419,7 +433,7 @@ function controleTexte(q) {
       signalerErreur('Écrivez d’abord une réponse.');
       return;
     }
-    envoyer(texte);
+    envoi(texte);
   });
 
   conteneur.appendChild(bouton);
@@ -427,6 +441,7 @@ function controleTexte(q) {
 }
 
 function controleClassement(q) {
+  const envoi = envoyerSous;
   const g = q.gabarit || {};
   const items = Array.isArray(g.items) ? g.items : [];
   const conteneur = element('div', 'zone-controles');
@@ -487,7 +502,7 @@ function controleClassement(q) {
   bouton.type = 'button';
   bouton.addEventListener('click', () => {
     if (!estOuverte()) return;
-    envoyer(ordre.map((item) => item.cle));
+    envoi(ordre.map((item) => item.cle));
   });
   conteneur.appendChild(bouton);
 
@@ -513,9 +528,73 @@ function construireControles(q) {
       return controleTexte(q);
     case 'classement':
       return controleClassement(q);
+    case 'serie':
+      return controleSerie(q);
     default:
       return { element: element('p', 'aide', 'Type de question inconnu.'), lire: () => null };
   }
+}
+
+// Série : sous-questions en grille (colonnes remplies l'une après l'autre), chacune
+// précédée de son étiquette. Les commandes ne font qu'enregistrer ; un seul bouton
+// « Envoyer » envoie l'objet {cle: réponse} (réponse partielle admise, un nouvel envoi
+// remplace le précédent).
+function controleSerie(q) {
+  const g = q.gabarit || {};
+  const sous = Array.isArray(g.questions) ? g.questions : [];
+  const colonnes = Math.max(1, Math.min(3, Number(g.colonnes) || 1));
+  const conteneur = element('div', 'zone-controles serie');
+  const grille = element('div', 'serie-grille');
+  grille.style.setProperty('--cols', String(colonnes));
+  grille.style.setProperty('--lignes', String(Math.ceil(sous.length / colonnes)));
+  const reponses = reponseLocale && reponseLocale.reponse && typeof reponseLocale.reponse === 'object' && !Array.isArray(reponseLocale.reponse)
+    ? { ...reponseLocale.reponse }
+    : {};
+  const lecteurs = [];
+  for (const sq of sous) {
+    const rangee = element('div', 'serie-rangee');
+    rangee.appendChild(element('span', 'serie-num', sq.etiquette || sq.cle));
+    const { cle, type, etiquette: _e, ...gab } = sq;
+    const souq = { id: q.id, tour: q.tour, type, gabarit: gab, statut: q.statut, court: colonnes > 1 };
+    const local = reponseLocale;
+    reponseLocale = reponses[cle] !== undefined ? { reponse: reponses[cle], envoye: true } : null;
+    const envoyerOrig = envoyerSous;
+    envoyerSous = (valeur) => {
+      reponses[cle] = valeur;
+      return Promise.resolve(true);
+    };
+    const ctrl = construireControles(souq);
+    envoyerSous = envoyerOrig;
+    reponseLocale = local;
+    // Les boutons « Envoyer » propres aux sous-questions disparaissent : envoi commun.
+    for (const b of ctrl.element.querySelectorAll('.bouton-envoyer')) b.remove();
+    ctrl.element.classList.add('serie-controle');
+    rangee.appendChild(ctrl.element);
+    grille.appendChild(rangee);
+    lecteurs.push([cle, ctrl.lire]);
+  }
+  const lire = () => {
+    for (const [cle, lireSous] of lecteurs) {
+      const v = lireSous();
+      const vide = v === null || v === undefined || (typeof v === 'string' && v.trim() === '') || (Array.isArray(v) && !v.length);
+      if (!vide) reponses[cle] = typeof v === 'string' ? v.trim().replace(',', '.') : v;
+      else delete reponses[cle];
+    }
+    return { ...reponses };
+  };
+  const bouton = element('button', 'bouton-envoyer', 'Envoyer');
+  bouton.type = 'button';
+  bouton.addEventListener('click', () => {
+    if (!estOuverte()) return;
+    const r = lire();
+    if (!Object.keys(r).length) {
+      signalerErreur('Répondez à au moins une question.');
+      return;
+    }
+    envoyer(r);
+  });
+  conteneur.append(grille, bouton);
+  return { element: conteneur, lire };
 }
 
 // ─── Construction / mise à jour de l'écran ───
