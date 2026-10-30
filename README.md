@@ -122,3 +122,9 @@ Loonan Chauvette
 Email: loonan.chauvette@cervo.ulaval.ca  
 GitHub: [github.com/LoonanChauvette](https://github.com/LoonanChauvette)  
 LinkedIn: [linkedin.com/in/loonan-chauvette](https://linkedin.com/in/loonan-chauvette)
+
+## Teaching demos
+
+Reusable demos are maintained in the private [teaching-demos repository](https://github.com/LoonanChauvette/teaching-demos), deployed as a separate Vercel project. This website forwards `/demo/…` through the rewrites in `vercel.json`. Edit demos in that repository; do not restore independent copies in `public/demo/`.
+
+Existing paths (`/demo/splatter.html`, `/demo/beating.html`, `/demo/traveling-wave.html`) remain valid. `/demo/` provides the searchable gallery. For a fixed presentation version, use `/demo/releases/v1/<demo-path>`, for example `/demo/releases/v1/splatter.html`. That route points to the immutable initial demo deployment; current `/demo/` paths follow new production releases. Future frozen releases need a separate rewrite before the general `/demo/` rule.
