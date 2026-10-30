@@ -3,5 +3,19 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "framework": "astro",
-  "devCommand": "npm run dev"
+  "devCommand": "npm run dev",
+  "rewrites": [
+    {
+      "source": "/demo/releases/v1/:path*",
+      "destination": "https://teaching-demos-fx7a382b1-loonans-projects.vercel.app/demo/:path*"
+    },
+    {
+      "source": "/demo",
+      "destination": "https://teaching-demos.vercel.app/demo/index.html"
+    },
+    {
+      "source": "/demo/:path*",
+      "destination": "https://teaching-demos.vercel.app/demo/:path*"
+    }
+  ]
 }
