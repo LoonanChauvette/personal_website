@@ -12,6 +12,7 @@ import {
   lireReponseLocale,
   garderReponseLocale,
   dessinerResultats,
+  dispositionSerie,
   echapper,
 } from './commun.js';
 
@@ -549,11 +550,13 @@ function construireControles(q) {
   }
 }
 
-// Série : sous-questions en grille. Les colonnes se remplissent l'une après l'autre ;
-// avec titres_colonnes / titres_lignes, c'est une matrice (en-têtes en haut et à gauche),
-// sinon chaque cellule porte son étiquette (1a…) et, s'il existe, son énoncé.
-// Les commandes ne font qu'enregistrer ; un seul bouton « Envoyer » envoie l'objet
-// {cle: réponse} (réponse partielle admise, un nouvel envoi remplace le précédent).
+// Série : plusieurs sous-questions, un seul bouton « Envoyer » (objet {cle: réponse} ; réponse
+// partielle admise, un nouvel envoi remplace le précédent). Deux dispositions :
+// - « matrice » : dans la diapositive seulement (énoncés imprimés à côté) ; en-têtes des
+//   colonnes (Son 1…) et des lignes (a, b, c), une cellule par sous-question.
+// - « liste » : téléphone et navigateur ; un bloc par colonne (titre + détail), une ligne par
+//   sous-question avec son nom en clair. Libellés courts : nom à gauche, commande dans une
+//   colonne de largeur fixe à droite (toutes les commandes alignées) ; sinon nom au-dessus.
 function controleSerie(q) {
   const g = q.gabarit || {};
   const sous = Array.isArray(g.questions) ? g.questions : [];
@@ -561,17 +564,40 @@ function controleSerie(q) {
   const nLignes = Math.ceil(sous.length / colonnes);
   const tCol = Array.isArray(g.titres_colonnes) ? g.titres_colonnes : [];
   const tLig = Array.isArray(g.titres_lignes) ? g.titres_lignes : [];
-  const matrice = tCol.length > 0 || tLig.length > 0;
+  const details = Array.isArray(g.details_colonnes) ? g.details_colonnes : [];
+  const disposition = dispositionSerie(g, !!DIAPO);
   const conteneur = element('div', 'zone-controles serie');
-  const grille = element('div', matrice ? 'serie-grille matrice' : 'serie-grille');
-  grille.style.setProperty('--cols', String(colonnes));
-  grille.style.setProperty('--lignes', String(nLignes));
   const reponses = reponseLocale && reponseLocale.reponse && typeof reponseLocale.reponse === 'object' && !Array.isArray(reponseLocale.reponse)
     ? { ...reponseLocale.reponse }
     : {};
   const lecteurs = [];
-  // Matrice : en-têtes placés explicitement (ligne 1 = titres des colonnes, colonne 1 = titres des lignes).
-  if (matrice) {
+  const nomDe = (sq, i) => sq.texte || tLig[i % nLignes] || sq.etiquette || sq.cle;
+
+  // Commande d'une sous-question (son propre « Envoyer » retiré : envoi commun).
+  function commande(sq, court) {
+    const { cle, type, etiquette: _e, texte: _t, ...gab } = sq;
+    const souq = { id: q.id, tour: q.tour, type, gabarit: gab, statut: q.statut, court };
+    const local = reponseLocale;
+    reponseLocale = reponses[cle] !== undefined ? { reponse: reponses[cle], envoye: true } : null;
+    const envoyerOrig = envoyerSous;
+    envoyerSous = (valeur) => {
+      reponses[cle] = valeur;
+      return Promise.resolve(true);
+    };
+    const ctrl = construireControles(souq);
+    envoyerSous = envoyerOrig;
+    reponseLocale = local;
+    for (const b of ctrl.element.querySelectorAll('.bouton-envoyer')) b.remove();
+    ctrl.element.classList.add('serie-controle');
+    if (gab.unite) ctrl.element.dataset.unite = gab.unite;
+    lecteurs.push([cle, ctrl.lire]);
+    return ctrl.element;
+  }
+
+  if (disposition === 'matrice') {
+    const grille = element('div', 'serie-grille matrice');
+    grille.style.setProperty('--cols', String(colonnes));
+    grille.style.setProperty('--lignes', String(nLignes));
     for (let c = 0; c < colonnes; c++) {
       const t = element('div', 'serie-titre-col', tCol[c] || '');
       t.style.gridRow = '1';
@@ -584,37 +610,44 @@ function controleSerie(q) {
       t.style.gridColumn = '1';
       grille.appendChild(t);
     }
-  }
-  sous.forEach((sq, i) => {
-    const rangee = element('div', 'serie-rangee');
-    if (matrice) {
+    sous.forEach((sq, i) => {
+      const rangee = element('div', 'serie-rangee');
       rangee.style.gridColumn = String(Math.floor(i / nLignes) + 2);
       rangee.style.gridRow = String((i % nLignes) + 2);
-    } else {
-      rangee.appendChild(element('span', 'serie-num', sq.etiquette || sq.cle));
-    }
-    const { cle, type, etiquette: _e, texte, ...gab } = sq;
-    const corps = element('div', 'serie-corps');
-    if (!matrice && texte) corps.appendChild(element('p', 'serie-texte', texte));
-    const souq = { id: q.id, tour: q.tour, type, gabarit: gab, statut: q.statut, court: colonnes > 1 };
-    const local = reponseLocale;
-    reponseLocale = reponses[cle] !== undefined ? { reponse: reponses[cle], envoye: true } : null;
-    const envoyerOrig = envoyerSous;
-    envoyerSous = (valeur) => {
-      reponses[cle] = valeur;
-      return Promise.resolve(true);
-    };
-    const ctrl = construireControles(souq);
-    envoyerSous = envoyerOrig;
-    reponseLocale = local;
-    // Les boutons « Envoyer » propres aux sous-questions disparaissent : envoi commun.
-    for (const b of ctrl.element.querySelectorAll('.bouton-envoyer')) b.remove();
-    ctrl.element.classList.add('serie-controle');
-    corps.appendChild(ctrl.element);
-    rangee.appendChild(corps);
-    grille.appendChild(rangee);
-    lecteurs.push([cle, ctrl.lire]);
-  });
+      rangee.setAttribute('aria-label', `${tCol[Math.floor(i / nLignes)] || ''} ${nomDe(sq, i)}`.trim());
+      rangee.appendChild(commande(sq, true));
+      grille.appendChild(rangee);
+    });
+    conteneur.appendChild(grille);
+  } else {
+    // Un groupe par colonne quand la série a des titres de colonnes ; sinon un seul groupe.
+    const groupes = tCol.length ? Array.from({ length: colonnes }, (_, c) => sous.slice(c * nLignes, (c + 1) * nLignes)) : [sous];
+    const longs = sous.some((sq, i) => nomDe(sq, i).length > 26);
+    const liste = element('div', `serie-liste ${longs ? 'empile' : 'cote-a-cote'}`);
+    let i = 0;
+    groupes.forEach((membres, c) => {
+      const groupe = element('section', 'serie-groupe');
+      if (tCol.length) {
+        const tete = element('div', 'serie-groupe-tete');
+        tete.appendChild(element('span', 'serie-groupe-titre', tCol[c] || ''));
+        if (details[c]) tete.appendChild(element('span', 'serie-groupe-detail', details[c]));
+        groupe.appendChild(tete);
+        groupe.setAttribute('aria-label', tCol[c] || '');
+      }
+      for (const sq of membres) {
+        const rangee = element('div', 'serie-rangee');
+        const nom = element('div', 'serie-libelle');
+        if (!tCol.length && sq.etiquette) nom.appendChild(element('span', 'serie-num', sq.etiquette));
+        nom.appendChild(element('span', 'serie-texte', nomDe(sq, i)));
+        rangee.append(nom, commande(sq, false));
+        groupe.appendChild(rangee);
+        i += 1;
+      }
+      liste.appendChild(groupe);
+    });
+    conteneur.appendChild(liste);
+  }
+
   const lire = () => {
     for (const [cle, lireSous] of lecteurs) {
       const v = lireSous();
@@ -635,7 +668,7 @@ function controleSerie(q) {
     }
     envoyer(r);
   });
-  conteneur.append(grille, bouton);
+  conteneur.appendChild(bouton);
   return { element: conteneur, lire };
 }
 
@@ -692,8 +725,10 @@ function majMaReponse() {
   const etiquette = question.type === 'nuage' ? 'Vos mots' : 'Votre réponse';
   ui.maReponse.textContent = `${etiquette} : ${formaterReponse(question.type, question.gabarit, reponseLocale.reponse)}`;
   // Série révélée : chaque réponse est déjà marquée « vous » dans la grille ; la ligne donne le score.
-  // Diapositive révélée : la réponse est marquée sur le graphique ; la ligne garde le verdict.
-  if (question.statut === 'revelee' && (question.type === 'serie' || DIAPO)) ui.maReponse.textContent = question.type === 'serie' ? 'Vos réponses' : 'Votre réponse';
+  // Diapositive révélée : la réponse est marquée sur le graphique ; la ligne garde le verdict
+  // (types corrigés seulement : un nuage garde « Vos mots : … »).
+  const corrigeable = ['choix', 'vraifaux', 'multiple', 'nombre'].includes(question.type) && (question.gabarit?.bonnes || []).length;
+  if (question.statut === 'revelee' && (question.type === 'serie' || (DIAPO && corrigeable))) ui.maReponse.textContent = question.type === 'serie' ? 'Vos réponses' : 'Votre réponse';
   if (question.statut === 'revelee') {
     const correction = corriger(question.type, question.gabarit, reponseLocale.reponse);
     if (correction.statut) {
@@ -717,13 +752,24 @@ function majMaReponse() {
   }
 }
 
+// Rotation du téléphone, fenêtre redimensionnée : le graphique (tracé à la largeur réelle)
+// est retracé à la nouvelle largeur.
+let largeurTracee = 0;
+addEventListener('resize', () => {
+  if (DIAPO || ui.resultats.hidden) return;
+  const l = ui.resultats.parentElement.clientWidth;
+  if (Math.abs(l - largeurTracee) < 8) return;
+  signatureResultats = null;
+  majResultats();
+});
+
 function majResultats() {
   // Diapositive étudiante : révéler = projeter, le graphique y remplace la zone de réponse.
   const visibles = !!(question && question.statut === 'revelee' && question.resultats && (question.publie || DIAPO));
-  if (DIAPO) {
-    ui.zone.hidden = visibles || !question;
-    document.documentElement.classList.toggle('revele', visibles);
-  }
+  // Résultats visibles : ils remplacent la zone de réponse (fermée, la réponse de l'étudiant
+  // est marquée dans le graphique), sur la diapositive comme sur le téléphone.
+  ui.zone.hidden = visibles || !question;
+  if (DIAPO) document.documentElement.classList.toggle('revele', visibles);
   if (!visibles) {
     ui.resultats.replaceChildren();
     ui.resultats.hidden = true;
@@ -741,8 +787,16 @@ function majResultats() {
   const gabarit = DIAPO && Array.isArray(question.gabarit?.options)
     ? { ...question.gabarit, options: question.gabarit.options.map((o) => ({ ...o, texte: '' })) }
     : question.gabarit;
+  // Téléphone / navigateur : tracé à la largeur réelle (en px CSS), pour que les tailles de
+  // police du graphique soient les vraies (un tracé de 760 réduit à 350 px les divise par 2).
+  // Diapositive : l'élément est mis à l'échelle avec la diapositive, tracé compact de base.
+  largeurTracee = ui.resultats.parentElement.clientWidth;
+  const largeur = DIAPO ? undefined : Math.max(280, Math.round(largeurTracee - 36));
   dessinerResultats(ui.resultats, question.type, gabarit, question.resultats, {
     compact: true,
+    largeur,
+    echelle: DIAPO ? undefined : 'ecran',
+    enDiapo: !!DIAPO,
     bonnes: (question.gabarit && question.gabarit.bonnes) || [],
     maReponse: reponseLocale?.envoye ? reponseLocale.reponse : undefined,
     etiquette: 'Résultats de la question',

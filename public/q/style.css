@@ -159,96 +159,172 @@ body {
   grid-template-columns: 1fr;
 }
 
-/* Série : une rangée par sous-question, étiquette à gauche ; colonnes remplies l'une
-   après l'autre ; lettres côte à côte ; un seul bouton Envoyer. */
+/* Série (téléphone, navigateur) : un bloc par groupe (Son 1…), titre + détail ; une ligne
+   par sous-question : nom à gauche, commande dans une colonne de largeur fixe à droite, de
+   sorte que champs et paires Vrai/Faux s'alignent d'une ligne à l'autre et d'un bloc à
+   l'autre. Noms longs (classe .empile) : nom au-dessus, commande pleine largeur. */
 .zone-controles.serie {
-  gap: 14px;
+  gap: 18px;
 }
-.serie-grille {
-  display: grid;
-  grid-template-columns: 1fr;
+.serie-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  --col-commande: 168px;
+  max-width: 480px;
+}
+/* Écran large : le bloc garde une largeur de lecture (noms et champs proches). */
+.zone-controles.serie > .bouton-envoyer {
+  max-width: 480px;
+}
+.serie-groupe {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+}
+.serie-groupe + .serie-groupe {
+  border-top: 1px solid var(--filet);
+  padding-top: 16px;
+}
+.serie-groupe-tete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 10px;
+}
+.serie-groupe-titre {
+  font-weight: 700;
+  font-size: 19px;
+  color: var(--marine);
+}
+.serie-groupe-detail {
+  font-size: 15px;
+  color: #4a4f57;
 }
 .serie-rangee {
   display: grid;
-  grid-template-columns: 2.4em 1fr;
+  grid-template-columns: minmax(0, 1fr) var(--col-commande);
   align-items: center;
+  column-gap: 12px;
+  min-height: 52px;
+}
+.serie-liste.empile .serie-rangee {
+  grid-template-columns: 1fr;
+  row-gap: 6px;
+}
+.serie-libelle {
+  display: flex;
+  align-items: baseline;
   gap: 8px;
+  font-size: 17px;
+  line-height: 1.25;
 }
 .serie-num {
   font-weight: 700;
   color: var(--marine);
 }
 .serie-controle {
-  gap: 6px;
+  gap: 0;
 }
-.serie-controle .liste-options {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.serie-controle .liste-options .touche {
-  width: auto;
-  flex: 1 1 0;
-  min-width: 48px;
-  justify-content: center;
+.serie-controle .champ {
+  gap: 8px;
 }
 .serie-controle .champ input {
   width: 100%;
   min-width: 0;
+  min-height: 48px;
+  padding: 8px 10px;
+  font-size: 19px;
 }
-/* Résultats d'une série (page /q et diapositive étudiante). */
-.serie-resultats {
+.serie-controle .unite {
+  min-width: 0;
+  width: 2.2em;
+  font-size: 16px;
+}
+.serie-controle .liste-options {
   display: grid;
-  grid-template-columns: repeat(var(--cols, 1), 1fr);
-  grid-template-rows: repeat(var(--lignes, 3), auto);
-  grid-auto-flow: column;
-  gap: 10px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 8px;
+}
+.serie-controle .liste-options .touche {
   width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 4px;
+  justify-content: center;
 }
-.serie-bloc {
-  display: grid;
-  grid-template-columns: 2.4em 1fr;
-  align-items: center;
-  gap: 6px;
+.serie-controle .touche .lettre {
+  font-size: 18px;
+  min-width: 0;
 }
-.serie-bloc {
+
+/* Résultats d'une série (liste) : mêmes blocs que le formulaire, réponses à droite. */
+.serie-resultats.liste {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 480px;
+}
+/* Nom à gauche (≈ 40 %), réponses à droite : valeur | % | vous en colonnes fixes. */
+.serie-resultats.liste .serie-rangee {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   align-items: start;
+  min-height: 0;
+}
+.serie-resultats.liste.empile .serie-rangee {
+  grid-template-columns: 1fr;
+  row-gap: 4px;
+}
+.serie-resultats.liste.empile .serie-valeurs {
+  max-width: 300px;
 }
 .serie-valeurs {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  align-items: stretch;
+  gap: 3px;
 }
 .serie-ligne {
+  display: grid;
+  grid-template-columns: minmax(5.2em, 1fr) 2.9em 2.4em;
+  align-items: baseline;
+  column-gap: 6px;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 4px;
+  border-radius: 6px;
 }
 .serie-ligne b {
   color: var(--marine);
 }
 .serie-ligne .part {
-  margin-left: 6px;
-  color: var(--gris, #6b7078);
-}
-.serie-ligne.bonne b,
-.serie-ligne.bonne .part {
-  color: var(--vert, #1c5233);
-}
-.serie-ligne.faux b,
-.serie-ligne.faux .part {
-  color: #c92a2a;
-  font-weight: 400;
-}
-.serie-ligne.faux {
-  font-size: 0.85em;
+  text-align: right;
+  color: #4a4f57;
 }
 .serie-ligne .vous {
-  margin-left: 6px;
-  font-size: 0.75em;
-  border: 1px solid currentColor;
-  border-radius: 8px;
-  padding: 0 5px;
+  font-size: 0.8em;
+  font-weight: 700;
+  text-align: right;
+}
+.serie-ligne.est-vous {
+  background: #e8eef6;
+}
+.serie-ligne.bonne b,
+.serie-ligne.bonne .part,
+.serie-ligne.bonne .vous {
+  color: var(--vert);
+}
+.serie-ligne.faux b,
+.serie-ligne.faux .part,
+.serie-ligne.faux .vous {
+  color: #c92a2a;
+}
+.serie-ligne.faux b {
+  font-weight: 600;
+}
+.serie-ligne.vide {
+  color: #767676;
 }
 
 .touche {
@@ -287,6 +363,10 @@ body {
 .touche:disabled {
   border-color: var(--filet);
   color: var(--encre);
+}
+.touche[aria-pressed="true"]:disabled {
+  border-color: var(--marine);
+  color: #fff;
 }
 
 .touche:focus-visible,

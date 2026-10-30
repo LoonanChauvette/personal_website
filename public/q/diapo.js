@@ -200,6 +200,7 @@ function tracerGraphique(q) {
     : q.gabarit;
   dessinerResultats(zone, q.type, gabarit, q.resultats, {
     compact: true,
+    enDiapo: true,
     bonnes: (q.gabarit && q.gabarit.bonnes) || [],
     etiquette: 'Résultats de la question',
   });

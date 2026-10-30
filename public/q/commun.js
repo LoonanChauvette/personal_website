@@ -11,6 +11,7 @@ export const COULEURS = Object.freeze({
   filet: '#d7dae0',
   fond: '#ffffff',
   vert: '#1c5233',
+  rouge: '#c92a2a',
 });
 
 export const POLICE = "'Source Sans 3', system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -560,6 +561,24 @@ function racineSvg(largeur, hauteur, enfants, opts = {}) {
 
 function mesures(opts = {}) {
   const compact = !!opts.compact;
+  // Tracé à la taille réelle d'un écran (px CSS) : tailles de lecture d'une page web.
+  if (opts.echelle === 'ecran') {
+    return {
+      compact: true,
+      echelleEcran: true,
+      bw: Number(opts.largeur) || 360,
+      pad: 8,
+      ligne: 48,
+      barreH: 16,
+      fsLettre: 22,
+      fsOption: 16,
+      fsChiffre: 16,
+      fsNote: 14,
+      fsTitre: 17,
+      fsCarte: 16,
+      ecartRang: 12,
+    };
+  }
   return {
     compact,
     bw: Number(opts.largeur) || (compact ? 760 : 1600),
@@ -572,6 +591,7 @@ function mesures(opts = {}) {
     fsNote: compact ? 30 : 30,
     fsTitre: compact ? 36 : 42,
     fsCarte: compact ? 34 : 32,
+    ecartRang: compact ? 22 : 30,
   };
 }
 
@@ -598,113 +618,88 @@ function vide(message, opts = {}) {
 // ─────────────────────────────────────────────────────────────
 // Barres horizontales : choix, multiple, vrai/faux
 // ─────────────────────────────────────────────────────────────
+// Ligne « barre » commune aux choix et aux valeurs numériques. Colonnes fixes, mesurées :
+//   [coche] [étiquette] [barre ……………] [%] [vous]
+// - étiquette : lettre (choix) ou valeur (nombre), colonne à la largeur de la plus longue ;
+// - libellé d'option éventuel : au-dessus de la barre, sur 2 lignes au plus (jamais coupé
+//   au milieu d'un mot ; « … » seulement au-delà de 2 lignes) ;
+// - % : juste après la barre, aligné à gauche (colonne de largeur « 100 % ») ;
+// - réponse de l'étudiant : rangée teintée + « vous » dans sa propre colonne (rien ne déborde).
+function rangeesBarres(m, lignes, n, opts) {
+  const avecCoche = lignes.some((l) => l.bonne);
+  const avecVous = lignes.some((l) => l.vous);
+  const ecart = Math.round(m.fsChiffre * 0.4);
+  const colCoche = avecCoche ? Math.round(m.fsLettre * 0.95) : 0;
+  const colEtiq = Math.max(...lignes.map((l) => largeurTexte(l.etiquette, l.fsEtiquette, 700))) + ecart;
+  const colPct = largeurTexte('100 %', m.fsChiffre, 600) + ecart;
+  const fsVous = m.fsNote;
+  const colVous = avecVous ? largeurTexte('vous', fsVous, 700) + ecart : 0;
+  const xEtiq = m.pad + colCoche;
+  const xBarre = xEtiq + colEtiq;
+  const largBarre = Math.max(80, m.bw - m.pad - xBarre - colPct - colVous);
+  const xPct = xBarre + largBarre + ecart;
+  const pasTexte = Math.round(m.fsOption * 1.3);
+  const enfants = [];
+  let y = m.pad;
+  for (const l of lignes) {
+    const part = n ? l.v / n : 0;
+    const textes = l.texte ? enrouler(l.texte, m.fsOption, m.bw - m.pad - xBarre, 600, 2) : [];
+    const hTexte = textes.length * pasTexte + (textes.length ? 6 : 0);
+    const hRang = Math.max(hTexte + m.barreH, l.fsEtiquette * 1.05);
+    const yBarre = y + hTexte + Math.max(0, (hRang - hTexte - m.barreH) / 2);
+    const g = svg('g', {}, [
+      svg('title', {}, [`${l.titre} : ${nombreEntier(part * 100)} %, ${nombreEntier(l.v)} réponse${l.v === 1 ? '' : 's'}${l.bonne ? ' — bonne réponse' : ''}${l.vous ? ' — votre réponse' : ''}`]),
+    ]);
+    if (l.vous) {
+      const m2 = Math.round(m.pad * 0.5);
+      g.appendChild(svg('rect', { x: m2, y: y - m2, width: m.bw - 2 * m2, height: hRang + 2 * m2, rx: 10, fill: '#e8eef6', class: 'vous' }));
+    }
+    // Étiquette (et coche) : alignées sur la première ligne du libellé, ou centrées sur la barre.
+    const yEtiq = textes.length ? y + m.fsOption * 0.95 : yBarre + m.barreH / 2 + l.fsEtiquette * 0.36;
+    if (l.bonne) g.appendChild(cheminCoche(m.pad, yEtiq - m.fsLettre * 0.62, m.fsLettre * 0.66));
+    g.appendChild(txt(xEtiq, yEtiq, l.etiquette, { taille: l.fsEtiquette, graisse: 700, couleur: l.bonne ? COULEURS.vert : COULEURS.marine }));
+    textes.forEach((t, k) => g.appendChild(txt(xBarre, y + m.fsOption * 0.95 + k * pasTexte, t, { taille: m.fsOption, graisse: 600 })));
+    g.appendChild(svg('rect', { x: xBarre, y: yBarre, width: largBarre, height: m.barreH, fill: COULEURS.fond, stroke: COULEURS.filet, 'stroke-width': 2 }));
+    if (part > 0) {
+      g.appendChild(svg('rect', { x: xBarre, y: yBarre, width: Math.max(4, largBarre * part), height: m.barreH, fill: l.bonne ? COULEURS.vert : COULEURS.marine }));
+    }
+    const yChiffre = yBarre + m.barreH / 2 + m.fsChiffre * 0.36;
+    g.appendChild(txt(xPct, yChiffre, `${nombreEntier(part * 100)} %`, { taille: m.fsChiffre, graisse: 600 }));
+    if (l.vous) {
+      g.appendChild(txt(m.bw - m.pad, yBarre + m.barreH / 2 + fsVous * 0.36, 'vous', {
+        taille: fsVous, graisse: 700, ancre: 'end', couleur: l.bonne ? COULEURS.vert : COULEURS.rouge,
+      }));
+    }
+    enfants.push(g);
+    y += hRang + m.ecartRang;
+  }
+  return { enfants, hauteur: y - m.ecartRang + m.pad };
+}
+
 function rendreBarres(type, gabarit, res, opts) {
   const m = mesures(opts);
   const options = optionsDe(type, gabarit);
   const bonnes = new Set((opts.bonnes || []).map(String));
+  const miennes = new Set((Array.isArray(opts.maReponse) ? opts.maReponse : [opts.maReponse]).filter((v) => v != null).map(String));
   const n = Math.max(0, Number(res.n) || 0);
-  const avecCoche = options.some((o) => bonnes.has(o.cle));
-  const margeCoche = avecCoche ? m.fsLettre * 1.1 : 0;
-  const colLettre = m.fsLettre * 1.1 + margeCoche;
-  const colChiffre = m.fsChiffre * (m.compact ? 4.6 : 5.4);
-  const xBarre = m.pad + colLettre;
-  const largBarre = Math.max(80, m.bw - m.pad * 2 - colLettre - colChiffre - 16);
-  const noteMultiple = type === 'multiple';
-  const hauteurNote = noteMultiple ? m.fsNote * 2 : 0;
-  const hauteur = m.pad + options.length * m.ligne + hauteurNote + m.pad;
-  const enfants = [];
-
-  options.forEach((option, i) => {
-    const v = compteDe(res.comptes, option.cle);
-    const part = n ? v / n : 0;
-    const bonne = bonnes.has(option.cle);
-    const vous = (Array.isArray(opts.maReponse) ? opts.maReponse : [opts.maReponse]).includes(option.cle);
-    const haut = m.pad + i * m.ligne;
-    const yBaselineLettre = haut + m.fsLettre;
-    const groupe = svg('g', {}, []);
-    groupe.appendChild(
-      svg('title', {}, [
-        `${option.cle}${option.texte ? ' — ' + option.texte : ''} : ${nombreEntier(part * 100)} %, ${nombreEntier(v)} réponse${v === 1 ? '' : 's'}${bonne ? ' — bonne réponse' : ''}`,
-      ]),
-    );
-
-    if (bonne) groupe.appendChild(cheminCoche(m.pad, haut + m.fsLettre * 0.22, m.fsLettre * 0.72));
-    groupe.appendChild(
-      txt(m.pad + margeCoche, yBaselineLettre, option.cle, {
-        taille: m.fsLettre,
-        graisse: 700,
-        couleur: bonne ? COULEURS.vert : COULEURS.marine,
-      }),
-    );
-    // Réponse de l'étudiant : lettre cerclée (pas de texte en plus : la colonne des chiffres
-    // garde sa largeur et ne chevauche jamais la barre).
-    if (vous) {
-      groupe.appendChild(
-        svg('circle', {
-          cx: m.pad + margeCoche + m.fsLettre * 0.33,
-          cy: yBaselineLettre - m.fsLettre * 0.36,
-          r: m.fsLettre * 0.62,
-          fill: 'none',
-          stroke: bonne ? COULEURS.vert : '#c92a2a',
-          'stroke-width': 2.5,
-          class: 'vous',
-        }),
-      );
-    }
-
-    const yBarre = option.texte ? haut + m.fsOption + 8 : haut + m.fsLettre * 0.55;
-    if (option.texte) {
-      groupe.appendChild(
-        txt(xBarre, haut + m.fsOption, couperTexte(option.texte, m.fsOption, largBarre), {
-          taille: m.fsOption,
-          graisse: 600,
-        }),
-      );
-    }
-
-    groupe.appendChild(
-      svg('rect', {
-        x: xBarre,
-        y: yBarre,
-        width: largBarre,
-        height: m.barreH,
-        fill: COULEURS.fond,
-        stroke: COULEURS.filet,
-        'stroke-width': 2,
-      }),
-    );
-    if (part > 0) {
-      groupe.appendChild(
-        svg('rect', {
-          x: xBarre,
-          y: yBarre,
-          width: Math.max(4, largBarre * part),
-          height: m.barreH,
-          fill: bonne ? COULEURS.vert : COULEURS.marine,
-        }),
-      );
-    }
-    groupe.appendChild(
-      txt(m.bw - m.pad, yBarre + m.barreH * 0.74, `${nombreEntier(part * 100)} % · ${nombreEntier(v)}`, {
-        taille: m.fsChiffre,
-        graisse: 600,
-        ancre: 'end',
-        couleur: COULEURS.encre,
-      }),
-    );
-    enfants.push(groupe);
-  });
-
-  if (noteMultiple) {
-    enfants.push(
-      txt(m.pad, hauteur - m.pad - 4, 'Part des répondants — plusieurs choix possibles', {
-        taille: m.fsNote,
-        couleur: COULEURS.encre,
-      }),
-    );
+  // Vrai/Faux : le mot entier tient lieu d'étiquette (pas de « V » + « Vrai »).
+  const vf = type === 'vraifaux';
+  const lignes = options.map((o) => ({
+    etiquette: vf ? o.texte : o.cle,
+    fsEtiquette: vf ? m.fsOption : m.fsLettre,
+    texte: vf ? '' : o.texte,
+    titre: `${o.cle}${o.texte && !vf ? ' — ' + o.texte : ''}`,
+    v: compteDe(res.comptes, o.cle),
+    bonne: bonnes.has(o.cle),
+    vous: miennes.has(o.cle),
+  }));
+  const { enfants, hauteur } = rangeesBarres(m, lignes, n, opts);
+  let h = hauteur;
+  if (type === 'multiple') {
+    enfants.push(txt(m.pad, h + m.fsNote * 0.4, 'Part des répondants — plusieurs choix possibles', { taille: m.fsNote }));
+    h += m.fsNote * 1.4;
   }
-
-  return racineSvg(m.bw, hauteur, enfants, opts);
+  return racineSvg(m.bw, h, enfants, opts);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -719,43 +714,14 @@ function rendreValeurs(gabarit, res, opts) {
   const estBonne = (v) => bonnes.some((b) => Math.abs(v - b) <= tol + 1e-9);
   const n = Math.max(0, Number(res.n) || 0);
   const fmtV = (v) => formaterNombre(v, { max: 3 });
-  const lignes = res.frequentes.map((f) => ({ libelle: fmtV(Number(f.valeur)) + unite, v: Number(f.n) || 0, bonne: estBonne(Number(f.valeur)), vous: opts.maReponse != null && Number(opts.maReponse) === Number(f.valeur) }));
-  const autres = n - lignes.reduce((s, l) => s + l.v, 0);
-  if (autres > 0) lignes.push({ libelle: 'Autres', v: autres, bonne: false });
-  const avecCoche = lignes.some((l) => l.bonne);
-  const margeCoche = avecCoche ? m.fsLettre * 1.1 : 0;
-  const colLibelle = margeCoche + Math.max(...lignes.map((l) => l.libelle.length)) * m.fsOption * 0.56 + 18;
-  const colChiffre = m.fsChiffre * (m.compact ? 4.6 : 5.4);
-  const xBarre = m.pad + colLibelle;
-  const largBarre = Math.max(80, m.bw - m.pad * 2 - colLibelle - colChiffre - 16);
-  const pasL = m.barreH + 26;
-  const hauteur = m.pad * 2 + lignes.length * pasL;
-  const enfants = [];
-  lignes.forEach((l, i) => {
-    const part = n ? l.v / n : 0;
-    const haut = m.pad + i * pasL;
-    const g2 = svg('g', {}, [svg('title', {}, [`${l.libelle} : ${nombreEntier(part * 100)} %, ${nombreEntier(l.v)} réponse${l.v === 1 ? '' : 's'}${l.bonne ? ' — bonne réponse' : ''}`])]);
-    if (l.bonne) g2.appendChild(cheminCoche(m.pad, haut + (m.barreH - m.fsLettre * 0.72) / 2, m.fsLettre * 0.72));
-    g2.appendChild(txt(m.pad + margeCoche, haut + m.barreH * 0.8, l.libelle, {
-      taille: m.fsOption, graisse: 700, couleur: l.bonne ? COULEURS.vert : COULEURS.marine,
-    }));
-    // Réponse de l'étudiant : valeur soulignée (verte si juste, rouge sinon).
-    if (l.vous) {
-      const x0 = m.pad + margeCoche, yS = haut + m.barreH * 0.8 + 5;
-      g2.appendChild(svg('line', {
-        x1: x0, x2: x0 + l.libelle.length * m.fsOption * 0.56, y1: yS, y2: yS,
-        stroke: l.bonne ? COULEURS.vert : '#c92a2a', 'stroke-width': 3, class: 'vous',
-      }));
-    }
-    g2.appendChild(svg('rect', { x: xBarre, y: haut, width: largBarre, height: m.barreH, fill: COULEURS.fond, stroke: COULEURS.filet, 'stroke-width': 2 }));
-    if (part > 0) {
-      g2.appendChild(svg('rect', { x: xBarre, y: haut, width: Math.max(4, largBarre * part), height: m.barreH, fill: l.bonne ? COULEURS.vert : COULEURS.marine }));
-    }
-    g2.appendChild(txt(m.bw - m.pad, haut + m.barreH * 0.74, `${nombreEntier(part * 100)} % · ${nombreEntier(l.v)}`, {
-      taille: m.fsChiffre, graisse: 600, ancre: 'end', couleur: COULEURS.encre,
-    }));
-    enfants.push(g2);
+  const mienne = opts.maReponse != null ? Number(opts.maReponse) : null;
+  const lignes = res.frequentes.map((f) => {
+    const v = Number(f.valeur);
+    return { etiquette: fmtV(v) + unite, fsEtiquette: m.fsOption, texte: '', titre: fmtV(v) + unite, v: Number(f.n) || 0, bonne: estBonne(v), vous: mienne === v };
   });
+  const autres = n - lignes.reduce((s, l) => s + l.v, 0);
+  if (autres > 0) lignes.push({ etiquette: 'Autres', fsEtiquette: m.fsOption, texte: '', titre: 'Autres', v: autres, bonne: false, vous: false });
+  const { enfants, hauteur } = rangeesBarres(m, lignes, n, opts);
   return racineSvg(m.bw, hauteur, enfants, opts);
 }
 
@@ -1056,15 +1022,19 @@ function rendreNuage(gabarit, res, opts) {
   if (!mots.length) return vide('Aucune réponse', opts);
 
   const maxN = Math.max(...mots.map((x) => x.n));
-  const fsMax = compact ? 78 : 96;
-  const fsMin = compact ? 34 : 36;
+  // Tailles proportionnelles à l'échelle du tracé (fsOption) : à l'écran, de 1× à 2.4× le texte.
+  const fsMin = Math.round(m.fsOption * (m.echelleEcran ? 1 : 0.95));
+  const fsMax = Math.round(m.fsOption * (m.echelleEcran ? 2.4 : 2.1));
   const largMax = m.bw - m.pad * 2;
-  const gapMot = compact ? 18 : 26;
+  const gapMot = Math.round(fsMin * 0.55);
 
   const tailles = mots.map((x, i) => {
-    if (maxN > 1) return fsMin + (fsMax - fsMin) * Math.sqrt(x.n / maxN);
-    const part = 1 - i / Math.max(1, mots.length);
-    return fsMin + (fsMax - fsMin) * (0.35 + 0.65 * part);
+    let t;
+    if (maxN > 1) t = fsMin + (fsMax - fsMin) * Math.sqrt(x.n / maxN);
+    else t = fsMin + (fsMax - fsMin) * (0.35 + 0.65 * (1 - i / Math.max(1, mots.length)));
+    // Jamais plus large que le cadre : un mot long est réduit, pas coupé.
+    const l = largeurTexte(x.mot, t, 700);
+    return l > largMax ? Math.max(fsMin * 0.8, (t * largMax) / l) : t;
   });
 
   // Placement en lignes centrées, sans chevauchement.
@@ -1087,7 +1057,7 @@ function rendreNuage(gabarit, res, opts) {
   if (courante.length) lignes.push({ mots: courante, largeur: largeurCourante });
 
   const enfants = [];
-  let y = m.pad + (compact ? 40 : 50);
+  let y = m.pad + (m.echelleEcran ? 8 : compact ? 40 : 50);
   lignes.forEach((ligne) => {
     const hauteurLigne = Math.max(...ligne.mots.map((x) => x.taille)) * 1.06;
     y += hauteurLigne * 0.78;
@@ -1105,9 +1075,9 @@ function rendreNuage(gabarit, res, opts) {
       enfants.push(groupe);
       x += mot.largeur + gapMot;
     });
-    y += hauteurLigne * 0.42 + (compact ? 12 : 16);
+    y += hauteurLigne * 0.42 + (m.echelleEcran ? 6 : compact ? 12 : 16);
   });
-  const hauteur = Math.max(compact ? 180 : 220, y + m.pad);
+  const hauteur = Math.max(m.echelleEcran ? 80 : compact ? 180 : 220, y + m.pad);
 
   return racineSvg(m.bw, hauteur, enfants, { ...opts, etiquette: opts.etiquette || 'Nuage de mots' });
 }
@@ -1298,12 +1268,65 @@ export function rendreResultats(type, gabarit, resultats, opts = {}) {
   }
 }
 
-// Série : une cellule par sous-question, colonnes remplies l'une après l'autre (comme la
-// diapositive). Révélée (opts.bonnes fourni) : la bonne réponse en vert sur la ligne de
-// l'étiquette (1a, 1b…), puis les trois mauvaises réponses les plus fréquentes en rouge.
-// Avant révélation (ou sans bonne réponse connue) : les trois réponses les plus fréquentes.
-// opts.maReponse (téléphone) : la réponse de l'étudiant est marquée « vous ».
+// Série. Disposition commune avec le formulaire (dispositionSerie) :
+// - « matrice » (dans une diapositive, énoncés imprimés à côté) : en-têtes Son 1… / a, b, c ;
+// - « liste » (téléphone, navigateur, écran) : un bloc par colonne (titre + détail), une ligne
+//   par sous-question : son nom en clair à gauche, les réponses à droite.
+// Révélée (opts.bonnes fourni) : la bonne réponse en vert sur la première ligne, puis les trois
+// mauvaises réponses les plus fréquentes en rouge. Avant : les trois plus fréquentes.
+// opts.maReponse (étudiant) : sa réponse est marquée « vous » (ajoutée si hors des trois).
 // Les types sans réponse courte (nuage, texte, classement…) gardent leur petit graphique.
+export function dispositionSerie(g, enDiapo) {
+  const matrice = (g.titres_colonnes || []).length > 0 || (g.titres_lignes || []).length > 0;
+  return enDiapo && matrice ? 'matrice' : 'liste';
+}
+
+function lignesSousQuestion(sq, sous, mienne, revele) {
+  const { type, ...gab } = sq;
+  const fmtV = (v) => formaterNombre(v, { max: 3 });
+  const unite = gab.unite ? ` ${gab.unite}` : '';
+  let lignes = null;
+  if (['choix', 'vraifaux'].includes(type)) {
+    const bonnes = new Set((gab.bonnes || []).map(String));
+    lignes = optionsDe(type, gab).map((o) => ({
+      libelle: type === 'vraifaux' ? (o.cle === 'V' ? 'Vrai' : 'Faux') : o.cle,
+      v: compteDe(sous && sous.comptes, o.cle),
+      bonne: bonnes.has(o.cle),
+      vous: mienne !== undefined && String(mienne) === o.cle,
+    }));
+  } else if (type === 'nombre') {
+    const tol = Number(gab.tolerance) || 0;
+    const bonnes = (gab.bonnes || []).map(Number);
+    const estBonne = (v) => bonnes.some((b) => Math.abs(v - b) <= tol + 1e-9);
+    lignes = (sous && Array.isArray(sous.frequentes) ? sous.frequentes : []).map((f) => ({
+      libelle: fmtV(Number(f.valeur)) + unite,
+      v: Number(f.n) || 0,
+      bonne: estBonne(Number(f.valeur)),
+      vous: mienne !== undefined && Number(mienne) === Number(f.valeur),
+    }));
+    if (bonnes.length && !lignes.some((l) => l.bonne)) lignes.push({ libelle: fmtV(bonnes[0]) + unite, v: 0, bonne: true, vous: false });
+    if (mienne !== undefined && !lignes.some((l) => l.vous)) {
+      lignes.push({ libelle: fmtV(Number(mienne)) + unite, v: 0, bonne: estBonne(Number(mienne)), vous: true, horsListe: true });
+    }
+  } else if (type === 'echelle' && sous && sous.comptes) {
+    lignes = Object.entries(sous.comptes).map(([k, v]) => ({ libelle: k, v: Number(v) || 0, bonne: false, vous: String(mienne) === k }));
+  }
+  if (!lignes) return null;
+  lignes.sort((a, b) => b.v - a.v);
+  const corrige = revele && lignes.some((l) => l.bonne);
+  let montrees;
+  if (corrige) {
+    const bonne = lignes.filter((l) => l.bonne).sort((a, b) => b.v - a.v)[0];
+    const erreurs = lignes.filter((l) => !l.bonne && (l.v > 0 || l.vous));
+    montrees = [bonne, ...erreurs.slice(0, 3)];
+    const maLigne = erreurs.find((l) => l.vous);
+    if (maLigne && !montrees.includes(maLigne)) montrees[montrees.length - 1] = maLigne;
+  } else {
+    montrees = lignes.filter((l) => l.v > 0 || l.vous).slice(0, 3);
+  }
+  return { montrees, corrige };
+}
+
 function rendreSerie(gabarit, res, opts) {
   const g = gabaritNormalise('serie', gabarit);
   const sousQ = g.questions || [];
@@ -1311,15 +1334,49 @@ function rendreSerie(gabarit, res, opts) {
   const nLignes = Math.ceil(sousQ.length / colonnes);
   const tCol = Array.isArray(g.titres_colonnes) ? g.titres_colonnes : [];
   const tLig = Array.isArray(g.titres_lignes) ? g.titres_lignes : [];
-  const matrice = tCol.length > 0 || tLig.length > 0;
+  const details = Array.isArray(g.details_colonnes) ? g.details_colonnes : [];
+  const disposition = dispositionSerie(g, !!opts.enDiapo);
+  const revele = opts.bonnes !== undefined;
+  const pct = (v, n) => `${nombreEntier(n ? (100 * v) / n : 0)} %`;
+  const mesReponses = opts.maReponse && typeof opts.maReponse === 'object' ? opts.maReponse : {};
+  const nomDe = (sq, i) => sq.texte || tLig[i % nLignes] || sq.etiquette || sq.cle;
+
+  // Réponses d'une sous-question : une ligne par valeur (valeur, %, « vous »).
+  function valeurs(sq) {
+    const sous = (res.parties || {})[sq.cle];
+    const n = Number(sous && sous.n) || 0;
+    const mienne = mesReponses[sq.cle];
+    const { cle: _c, etiquette: _e, texte: _t, ...gab } = sq;
+    const corps = element2('div', 'serie-graphique');
+    const r = lignesSousQuestion(gab, sous, mienne, revele);
+    if (!r) {
+      const { type, ...sansType } = gab;
+      corps.appendChild(rendreResultats(type, sansType, sous, { ...opts, maReponse: mienne, bonnes: revele ? gab.bonnes || [] : undefined, etiquette: `Question ${sq.cle}` }));
+      return corps;
+    }
+    corps.classList.add('serie-valeurs');
+    if (!r.montrees.length) corps.appendChild(element2('div', 'serie-ligne vide', '—'));
+    for (const l of r.montrees) {
+      const classe = r.corrige ? (l.bonne ? 'bonne' : 'faux') : '';
+      const ligne = element2('div', `serie-ligne ${classe} ${l.vous ? 'est-vous' : ''}`.replace(/\s+/g, ' ').trim());
+      ligne.append(
+        element2('b', 'valeur', (r.corrige && l.bonne ? '✓ ' : '') + l.libelle),
+        element2('span', 'part', l.horsListe ? '' : pct(l.v, n)),
+      );
+      if (l.vous) ligne.append(element2('span', 'vous', 'vous'));
+      ligne.title = `${l.libelle} : ${pct(l.v, n)} (${nombreEntier(l.v)})${r.corrige && l.bonne ? ' — bonne réponse' : ''}`;
+      corps.appendChild(ligne);
+    }
+    return corps;
+  }
+
   const conteneur = document.createElement('div');
-  conteneur.className = matrice ? 'serie-resultats matrice' : 'serie-resultats';
-  conteneur.style.setProperty('--cols', String(colonnes));
-  conteneur.style.setProperty('--lignes', String(nLignes));
   conteneur.setAttribute('role', 'group');
   conteneur.setAttribute('aria-label', opts.etiquette || 'Résultats de la série');
-  // Matrice : mêmes en-têtes que le formulaire (titres des colonnes en haut, des lignes à gauche).
-  if (matrice) {
+  if (disposition === 'matrice') {
+    conteneur.className = 'serie-resultats matrice';
+    conteneur.style.setProperty('--cols', String(colonnes));
+    conteneur.style.setProperty('--lignes', String(nLignes));
     for (let c = 0; c < colonnes; c++) {
       const t = element2('div', 'serie-titre-col', tCol[c] || '');
       t.style.gridRow = '1'; t.style.gridColumn = String(c + 2);
@@ -1330,88 +1387,39 @@ function rendreSerie(gabarit, res, opts) {
       t.style.gridRow = String(r + 2); t.style.gridColumn = '1';
       conteneur.appendChild(t);
     }
-  }
-  const placerBloc = (bloc, i) => {
-    if (!matrice) return;
-    bloc.style.gridColumn = String(Math.floor(i / nLignes) + 2);
-    bloc.style.gridRow = String((i % nLignes) + 2);
-  };
-  const revele = opts.bonnes !== undefined;
-  const pct = (v, n) => `${nombreEntier(n ? (100 * v) / n : 0)} %`;
-  const fmtV = (v) => formaterNombre(v, { max: 3 });
-  const mesReponses = opts.maReponse && typeof opts.maReponse === 'object' ? opts.maReponse : {};
-  sousQ.forEach((sq, i) => {
-    const bloc = element2('div', 'serie-bloc');
-    placerBloc(bloc, i);
-    const tete = element2('div', 'serie-num', matrice ? '' : sq.etiquette || sq.cle);
-    const corps = element2('div', 'serie-graphique');
-    const sous = (res.parties || {})[sq.cle];
-    const { cle: _c, type, etiquette: _e, texte: _t, ...gab } = sq;
-    const n = Number(sous && sous.n) || 0;
-    const mienne = mesReponses[sq.cle];
-    let lignes = null;
-    if (['choix', 'vraifaux'].includes(type)) {
-      const bonnes = new Set((gab.bonnes || []).map(String));
-      lignes = optionsDe(type, gab).map((o) => ({
-        libelle: type === 'vraifaux' ? (o.cle === 'V' ? 'Vrai' : 'Faux') : o.cle,
-        v: compteDe(sous && sous.comptes, o.cle),
-        bonne: bonnes.has(o.cle),
-        vous: mienne !== undefined && String(mienne) === o.cle,
-      }));
-    } else if (type === 'nombre') {
-      const tol = Number(gab.tolerance) || 0;
-      const bonnes = (gab.bonnes || []).map(Number);
-      const estBonne = (v) => bonnes.some((b) => Math.abs(v - b) <= tol + 1e-9);
-      lignes = (sous && Array.isArray(sous.frequentes) ? sous.frequentes : []).map((f) => ({
-        libelle: fmtV(Number(f.valeur)),
-        v: Number(f.n) || 0,
-        bonne: estBonne(Number(f.valeur)),
-        vous: mienne !== undefined && Number(mienne) === Number(f.valeur),
-      }));
-      // Bonne réponse que personne n'a donnée : affichée quand même (0 %).
-      if (bonnes.length && !lignes.some((l) => l.bonne)) lignes.push({ libelle: fmtV(bonnes[0]), v: 0, bonne: true, vous: false });
-      // Réponse de l'étudiant hors des valeurs fréquentes : ajoutée à sa ligne.
-      if (mienne !== undefined && !lignes.some((l) => l.vous)) {
-        lignes.push({ libelle: fmtV(Number(mienne)), v: 0, bonne: estBonne(Number(mienne)), vous: true, horsListe: true });
-      }
-    } else if (type === 'echelle' && sous && sous.comptes) {
-      lignes = Object.entries(sous.comptes).map(([k, v]) => ({ libelle: k, v: Number(v) || 0, bonne: false, vous: String(mienne) === k }));
-    }
-    if (!lignes) {
-      corps.appendChild(rendreResultats(type, gab, sous, { ...opts, maReponse: mienne, bonnes: revele ? gab.bonnes || [] : undefined, etiquette: `Question ${sq.cle}` }));
-      bloc.append(tete, corps);
+    sousQ.forEach((sq, i) => {
+      const bloc = element2('div', 'serie-bloc');
+      bloc.style.gridColumn = String(Math.floor(i / nLignes) + 2);
+      bloc.style.gridRow = String((i % nLignes) + 2);
+      bloc.appendChild(valeurs(sq));
       conteneur.appendChild(bloc);
-      return;
+    });
+    return conteneur;
+  }
+
+  // Noms longs : nom au-dessus des réponses (même règle que le formulaire).
+  const longs = sousQ.some((sq, k) => nomDe(sq, k).length > 26);
+  conteneur.className = `serie-resultats liste ${longs ? 'empile' : 'cote-a-cote'}`;
+  const groupes = tCol.length ? Array.from({ length: colonnes }, (_, c) => sousQ.slice(c * nLignes, (c + 1) * nLignes)) : [sousQ];
+  let i = 0;
+  groupes.forEach((membres, c) => {
+    const groupe = element2('section', 'serie-groupe');
+    if (tCol.length) {
+      const tete = element2('div', 'serie-groupe-tete');
+      tete.appendChild(element2('span', 'serie-groupe-titre', tCol[c] || ''));
+      if (details[c]) tete.appendChild(element2('span', 'serie-groupe-detail', details[c]));
+      groupe.appendChild(tete);
     }
-    corps.classList.add('serie-valeurs');
-    lignes.sort((a, b) => b.v - a.v);
-    const corrige = revele && lignes.some((l) => l.bonne);
-    let montrees;
-    if (corrige) {
-      // Bonne réponse d'abord (sur la ligne de l'étiquette), puis trois erreurs au plus.
-      const bonne = lignes.filter((l) => l.bonne).sort((a, b) => b.v - a.v)[0];
-      const erreurs = lignes.filter((l) => !l.bonne && (l.v > 0 || l.vous));
-      montrees = [bonne, ...erreurs.slice(0, 3)];
-      // La réponse de l'étudiant reste visible même si elle n'est pas parmi les trois.
-      const maLigne = erreurs.find((l) => l.vous);
-      if (maLigne && !montrees.includes(maLigne)) montrees[montrees.length - 1] = maLigne;
-    } else {
-      montrees = lignes.filter((l) => l.v > 0 || l.vous).slice(0, 3);
+    for (const sq of membres) {
+      const rangee = element2('div', 'serie-rangee');
+      const nom = element2('div', 'serie-libelle');
+      if (!tCol.length && sq.etiquette) nom.appendChild(element2('span', 'serie-num', sq.etiquette));
+      nom.appendChild(element2('span', 'serie-texte', nomDe(sq, i)));
+      rangee.append(nom, valeurs(sq));
+      groupe.appendChild(rangee);
+      i += 1;
     }
-    if (!montrees.length) corps.appendChild(element2('div', 'serie-ligne vide', '—'));
-    for (const l of montrees) {
-      const classe = corrige ? (l.bonne ? 'bonne' : 'faux') : '';
-      const ligne = element2('div', `serie-ligne ${classe}`.trim());
-      ligne.append(
-        element2('b', null, (corrige && l.bonne ? '✓ ' : '') + l.libelle),
-        element2('span', 'part', l.horsListe ? '' : pct(l.v, n)),
-      );
-      if (l.vous) ligne.append(element2('span', 'vous', 'vous'));
-      ligne.title = `${l.libelle} : ${pct(l.v, n)} (${nombreEntier(l.v)})${corrige && l.bonne ? ' — bonne réponse' : ''}`;
-      corps.appendChild(ligne);
-    }
-    if (matrice) bloc.append(corps); else bloc.append(tete, corps);
-    conteneur.appendChild(bloc);
+    conteneur.appendChild(groupe);
   });
   return conteneur;
 }

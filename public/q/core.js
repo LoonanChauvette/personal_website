@@ -259,7 +259,11 @@ export function normaliserGabarit(type, gabarit) {
       };
       const titres_colonnes = titres(g.titres_colonnes, colonnes, "titres_colonnes");
       const titres_lignes = titres(g.titres_lignes, Math.ceil(questions.length / colonnes), "titres_lignes");
-      return { ...base, colonnes, titres_colonnes, titres_lignes, questions };
+      // Détail de chaque colonne (ex. le spectre du son), affiché sur le téléphone seulement :
+      // la diapositive l'imprime déjà à côté de l'élément.
+      const details_colonnes = (Array.isArray(g.details_colonnes) ? g.details_colonnes : [])
+        .slice(0, colonnes).map((t) => texteOu(t).trim().slice(0, 60));
+      return { ...base, colonnes, titres_colonnes, titres_lignes, details_colonnes, questions };
     }
 
     default:
