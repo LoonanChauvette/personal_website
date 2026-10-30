@@ -1,3 +1,4 @@
+import { corriger } from './core.js';
 // Page étudiante : un seul écran, un seul gabarit à la fois, états écrits en clair.
 import {
   apiEtat,
@@ -31,7 +32,7 @@ const PLAFOND = 15000;
 
 // Diapositive étudiante (élément HTML d'Excalidraw+) : le document porte
 // <script type="application/json" id="question">{"id": "…"}</script> et n'affiche
-// que cette question ; l'énoncé est déjà sur la diapositive.
+// que cette question dans le formulaire intégré.
 const DIAPO = (() => {
   try {
     const c = JSON.parse(document.getElementById('question')?.textContent || 'null');
@@ -47,6 +48,7 @@ let question = null;
 let signature = null;
 let questionPrecedente = null;
 let reponseLocale = null;
+let cleReponseMemoire = null; // séance:id:tour de reponseLocale
 let messageLocal = null;
 let erreurLocale = null;
 let minuterieErreur = null;
@@ -101,7 +103,7 @@ function consigne(type) {
     case 'nombre':
       return 'Entrez un nombre, puis Envoyer.';
     case 'nuage':
-      return 'Un ou deux mots, puis Envoyer.';
+      return 'Ajoutez un mot ou une courte expression.';
     case 'texte':
       return 'Écrivez votre réponse, puis Envoyer.';
     case 'classement':
@@ -117,7 +119,7 @@ function consigne(type) {
 function grilleLettres(q, multiple) {
   const envoi = envoyerSous;
   const options = optionsDe(q.type, q.gabarit);
-  const avecTextes = !(q.gabarit && q.gabarit.masquer_texte) && !DIAPO;
+  const avecTextes = DIAPO || !(q.gabarit && q.gabarit.masquer_texte);
   // Liste verticale : lettres alignées, libellé éventuel à droite de la lettre.
   const grille = element('div', 'liste-options');
   if (avecTextes && options.some((o) => o.texte)) grille.classList.add('avec-libelles');
@@ -356,51 +358,63 @@ function controleNombre(q) {
 }
 
 function controleNuage(q) {
-  const envoi = envoyerSous;
-  const g = q.gabarit || {};
-  const maxMots = Number(g.max_mots) || 3;
-  const conteneur = element('div', 'zone-controles');
+  const max = Number(q.gabarit?.max_mots) || 3;
+  const conteneur = element('div', 'zone-controles nuage-controles');
   const champ = element('div', 'champ');
   const entree = element('input');
   entree.type = 'text';
   entree.maxLength = 40;
   entree.autocomplete = 'off';
-  entree.setAttribute('aria-label', 'Vos mots');
-  entree.placeholder = 'deux mots';
-  champ.appendChild(entree);
-  conteneur.appendChild(champ);
-  conteneur.appendChild(element('p', 'aide', `Jusqu’à ${maxMots} mots, 40 caractères. Un nouvel envoi remplace le précédent.`));
-
-  const bouton = element('button', 'bouton-envoyer', 'Envoyer');
+  entree.setAttribute('aria-label', 'Votre entrée');
+  entree.placeholder = 'Mot ou courte expression';
+  const bouton = element('button', 'bouton-envoyer', 'Ajouter');
   bouton.type = 'button';
-  bouton.addEventListener('click', () => {
-    if (!estOuverte()) return;
-    const mots = entree.value.trim().split(/\s+/).filter(Boolean);
-    if (!mots.length) {
-      signalerErreur('Écrivez au moins un mot.');
-      return;
-    }
-    if (mots.length > maxMots) {
-      signalerErreur(`${maxMots} mots au maximum.`);
-      return;
-    }
-    if (mots.some((m) => m.length > 40)) {
-      signalerErreur('Un mot fait plus de 40 caractères.');
-      return;
-    }
-    envoi(mots).then((ok) => {
-      if (ok) entree.value = '';
+  const pastilles = element('div', 'nuage-pastilles');
+  const aide = element('p', 'aide');
+  let valeurs = reponseLocale?.envoye ? (Array.isArray(reponseLocale.reponse) ? [...reponseLocale.reponse] : [reponseLocale.reponse]) : [];
+  let occupe = false;
+  function afficher() {
+    pastilles.replaceChildren();
+    valeurs.forEach((valeur, index) => {
+      const pastille = element('span', 'nuage-pastille');
+      pastille.appendChild(element('span', '', valeur));
+      const retirer = element('button', 'nuage-retirer', '×');
+      retirer.type = 'button';
+      retirer.setAttribute('aria-label', `Retirer ${valeur}`);
+      retirer.disabled = !estOuverte() || occupe;
+      retirer.addEventListener('click', () => modifier(valeurs.filter((_, i) => i !== index)));
+      pastille.appendChild(retirer);
+      pastilles.appendChild(pastille);
     });
+    entree.disabled = !estOuverte() || occupe || valeurs.length >= max;
+    bouton.disabled = entree.disabled;
+    aide.textContent = valeurs.length >= max ? 'Retirez une entrée pour en ajouter une autre' : `Jusqu’à ${max} entrées de 3 mots et 40 caractères au plus.`;
+  }
+  async function modifier(suivantes) {
+    if (!estOuverte() || occupe) return;
+    occupe = true;
+    afficher();
+    const ok = await envoyerSous(suivantes);
+    if (ok) { valeurs = suivantes; entree.value = ''; }
+    occupe = false;
+    afficher();
+  }
+  bouton.addEventListener('click', () => {
+    const valeur = entree.value.trim().replace(/\s+/g, ' ');
+    if (!valeur || valeur.split(/\s+/).length > 3 || Array.from(valeur).length > 40) {
+      signalerErreur('Entrez une expression de 1 à 3 mots et 40 caractères au plus.');
+      return;
+    }
+    modifier([...valeurs, valeur]);
   });
   entree.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter') {
-      ev.preventDefault();
-      bouton.click();
-    }
+    if (ev.key === 'Enter') { ev.preventDefault(); bouton.click(); }
   });
-
-  conteneur.appendChild(bouton);
-  return { element: conteneur, lire: () => entree.value };
+  champ.appendChild(entree);
+  conteneur.append(champ, pastilles, aide, bouton);
+  conteneur.actualiserNuage = afficher;
+  afficher();
+  return { element: conteneur, lire: () => valeurs };
 }
 
 function controleTexte(q) {
@@ -535,26 +549,53 @@ function construireControles(q) {
   }
 }
 
-// Série : sous-questions en grille (colonnes remplies l'une après l'autre), chacune
-// précédée de son étiquette. Les commandes ne font qu'enregistrer ; un seul bouton
-// « Envoyer » envoie l'objet {cle: réponse} (réponse partielle admise, un nouvel envoi
-// remplace le précédent).
+// Série : sous-questions en grille. Les colonnes se remplissent l'une après l'autre ;
+// avec titres_colonnes / titres_lignes, c'est une matrice (en-têtes en haut et à gauche),
+// sinon chaque cellule porte son étiquette (1a…) et, s'il existe, son énoncé.
+// Les commandes ne font qu'enregistrer ; un seul bouton « Envoyer » envoie l'objet
+// {cle: réponse} (réponse partielle admise, un nouvel envoi remplace le précédent).
 function controleSerie(q) {
   const g = q.gabarit || {};
   const sous = Array.isArray(g.questions) ? g.questions : [];
   const colonnes = Math.max(1, Math.min(3, Number(g.colonnes) || 1));
+  const nLignes = Math.ceil(sous.length / colonnes);
+  const tCol = Array.isArray(g.titres_colonnes) ? g.titres_colonnes : [];
+  const tLig = Array.isArray(g.titres_lignes) ? g.titres_lignes : [];
+  const matrice = tCol.length > 0 || tLig.length > 0;
   const conteneur = element('div', 'zone-controles serie');
-  const grille = element('div', 'serie-grille');
+  const grille = element('div', matrice ? 'serie-grille matrice' : 'serie-grille');
   grille.style.setProperty('--cols', String(colonnes));
-  grille.style.setProperty('--lignes', String(Math.ceil(sous.length / colonnes)));
+  grille.style.setProperty('--lignes', String(nLignes));
   const reponses = reponseLocale && reponseLocale.reponse && typeof reponseLocale.reponse === 'object' && !Array.isArray(reponseLocale.reponse)
     ? { ...reponseLocale.reponse }
     : {};
   const lecteurs = [];
-  for (const sq of sous) {
+  // Matrice : en-têtes placés explicitement (ligne 1 = titres des colonnes, colonne 1 = titres des lignes).
+  if (matrice) {
+    for (let c = 0; c < colonnes; c++) {
+      const t = element('div', 'serie-titre-col', tCol[c] || '');
+      t.style.gridRow = '1';
+      t.style.gridColumn = String(c + 2);
+      grille.appendChild(t);
+    }
+    for (let r = 0; r < nLignes; r++) {
+      const t = element('div', 'serie-titre-lig', tLig[r] || '');
+      t.style.gridRow = String(r + 2);
+      t.style.gridColumn = '1';
+      grille.appendChild(t);
+    }
+  }
+  sous.forEach((sq, i) => {
     const rangee = element('div', 'serie-rangee');
-    rangee.appendChild(element('span', 'serie-num', sq.etiquette || sq.cle));
-    const { cle, type, etiquette: _e, ...gab } = sq;
+    if (matrice) {
+      rangee.style.gridColumn = String(Math.floor(i / nLignes) + 2);
+      rangee.style.gridRow = String((i % nLignes) + 2);
+    } else {
+      rangee.appendChild(element('span', 'serie-num', sq.etiquette || sq.cle));
+    }
+    const { cle, type, etiquette: _e, texte, ...gab } = sq;
+    const corps = element('div', 'serie-corps');
+    if (!matrice && texte) corps.appendChild(element('p', 'serie-texte', texte));
     const souq = { id: q.id, tour: q.tour, type, gabarit: gab, statut: q.statut, court: colonnes > 1 };
     const local = reponseLocale;
     reponseLocale = reponses[cle] !== undefined ? { reponse: reponses[cle], envoye: true } : null;
@@ -569,10 +610,11 @@ function controleSerie(q) {
     // Les boutons « Envoyer » propres aux sous-questions disparaissent : envoi commun.
     for (const b of ctrl.element.querySelectorAll('.bouton-envoyer')) b.remove();
     ctrl.element.classList.add('serie-controle');
-    rangee.appendChild(ctrl.element);
+    corps.appendChild(ctrl.element);
+    rangee.appendChild(corps);
     grille.appendChild(rangee);
     lecteurs.push([cle, ctrl.lire]);
-  }
+  });
   const lire = () => {
     for (const [cle, lireSous] of lecteurs) {
       const v = lireSous();
@@ -603,7 +645,13 @@ function construire(q) {
   erreurLocale = null;
   essaiEnvoi = null;
   signatureResultats = null;
-  reponseLocale = lireReponseLocale(seance, q.id, q.tour);
+  // La révélation reconstruit l'écran (le gabarit reçoit les bonnes réponses). Dans une
+  // diapositive (iframe isolée), le stockage local peut être indisponible : la réponse gardée
+  // en mémoire pour la même question et le même tour est conservée.
+  const cleQ = `${seance}:${q.id}:${q.tour}`;
+  const lue = lireReponseLocale(seance, q.id, q.tour);
+  if (lue || cleQ !== cleReponseMemoire) reponseLocale = lue;
+  cleReponseMemoire = cleQ;
 
   ui.zone.replaceChildren();
   ui.zone.hidden = false;
@@ -612,10 +660,8 @@ function construire(q) {
   ui.reessai.hidden = true;
 
   const gab = q.gabarit || {};
-  if (DIAPO) {
-    ui.texte.textContent = '';
-    ui.texte.hidden = true;
-  } else if (gab.masquer_texte) {
+  ui.texte.classList.toggle('long', DIAPO && String(gab.texte || '').length > 100);
+  if (gab.masquer_texte && !DIAPO) {
     ui.texte.textContent = 'Regardez la diapositive';
     ui.texte.hidden = false;
   } else if (gab.texte) {
@@ -642,9 +688,33 @@ function majMaReponse() {
     ui.maReponse.classList.add('vide');
     return;
   }
-  ui.maReponse.classList.remove('vide');
+  ui.maReponse.classList.remove('vide', 'juste', 'faux', 'partiel');
   const etiquette = question.type === 'nuage' ? 'Vos mots' : 'Votre réponse';
   ui.maReponse.textContent = `${etiquette} : ${formaterReponse(question.type, question.gabarit, reponseLocale.reponse)}`;
+  // Série révélée : chaque réponse est déjà marquée « vous » dans la grille ; la ligne donne le score.
+  // Diapositive révélée : la réponse est marquée sur le graphique ; la ligne garde le verdict.
+  if (question.statut === 'revelee' && (question.type === 'serie' || DIAPO)) ui.maReponse.textContent = question.type === 'serie' ? 'Vos réponses' : 'Votre réponse';
+  if (question.statut === 'revelee') {
+    const correction = corriger(question.type, question.gabarit, reponseLocale.reponse);
+    if (correction.statut) {
+      let verdict = '✓ Bonne réponse';
+      if (question.type === 'serie' && correction.parties) {
+        const parties = Object.values(correction.parties).filter((v) => v !== null);
+        verdict = `${parties.filter((v) => v === 'juste').length} sur ${parties.length} justes`;
+      } else if (correction.statut === 'faux') {
+        const bonnes = question.gabarit?.bonnes || [];
+        // Diapositive : lettre seule (les libellés sont sur la diapositive), sinon le verdict déborde.
+        const bonne = DIAPO && question.type !== 'nombre'
+          ? bonnes.map((b) => (question.type === 'vraifaux' ? (b === 'V' ? 'Vrai' : 'Faux') : b)).join(', ')
+          : formaterReponse(question.type, question.gabarit, question.type === 'multiple' ? bonnes : bonnes[0]);
+        verdict = bonnes.length ? `✗ Bonne réponse : ${bonne}` : '✗ Réponse incorrecte';
+      } else if (correction.statut === 'partiel') {
+        const parties = Object.values(correction.parties).filter((v) => v !== null);
+        verdict = `${parties.filter((v) => v === 'juste').length} sur ${parties.length} justes`;
+      }
+      ui.maReponse.appendChild(element('span', `verdict ${correction.statut}`, ` · ${verdict}`));
+    }
+  }
 }
 
 function majResultats() {
@@ -660,7 +730,7 @@ function majResultats() {
     signatureResultats = null;
     return;
   }
-  const sig = JSON.stringify(question.resultats);
+  const sig = JSON.stringify([question.resultats, reponseLocale?.reponse, question.gabarit]);
   if (sig === signatureResultats) {
     ui.resultats.hidden = false;
     return;
@@ -673,7 +743,8 @@ function majResultats() {
     : question.gabarit;
   dessinerResultats(ui.resultats, question.type, gabarit, question.resultats, {
     compact: true,
-    bonnes: DIAPO ? (question.gabarit && question.gabarit.bonnes) || [] : undefined,
+    bonnes: (question.gabarit && question.gabarit.bonnes) || [],
+    maReponse: reponseLocale?.envoye ? reponseLocale.reponse : undefined,
     etiquette: 'Résultats de la question',
   });
   if (!DIAPO) ui.resultats.prepend(element('p', 'titre-resultats', 'Résultats'));
@@ -684,6 +755,7 @@ function basculerControles(ouvert) {
   for (const controle of ui.zone.querySelectorAll('button, input, textarea, select')) {
     controle.disabled = !ouvert;
   }
+  ui.zone.querySelector('.nuage-controles')?.actualiserNuage?.();
 }
 
 function majStatut() {

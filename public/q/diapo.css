@@ -85,18 +85,41 @@ body {
    (même disposition que la diapositive) ; réponses fréquentes en pastilles. */
 .graphique .serie-resultats {
   display: grid;
-  grid-template-columns: repeat(var(--cols, 1), 1fr);
+  grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
   grid-template-rows: repeat(var(--lignes, 3), auto);
   grid-auto-flow: column;
   align-content: center;
   width: 100%;
   gap: 1.6vh 2.5vw;
 }
+.graphique .serie-resultats.matrice {
+  grid-template-columns: auto repeat(var(--cols, 1), minmax(0, 1fr));
+  grid-template-rows: auto repeat(var(--lignes, 3), auto);
+  grid-auto-flow: row;
+  align-content: start;
+}
+.serie-titre-col,
+.serie-titre-lig {
+  font-size: 0.75em;
+  font-weight: 700;
+  color: var(--marine);
+  white-space: nowrap;
+}
+.serie-titre-col {
+  text-align: left;
+}
+.serie-titre-lig {
+  line-height: 1.25;
+  align-self: start;
+}
 .serie-bloc {
   display: grid;
   grid-template-columns: 1.6em 1fr;
   align-items: center;
   min-height: 0;
+}
+.serie-resultats.matrice .serie-bloc {
+  grid-template-columns: 1fr;
 }
 .serie-num {
   font-weight: 700;
@@ -112,27 +135,54 @@ body {
   height: auto;
   max-height: 22vh;
 }
+.serie-bloc {
+  align-items: start;
+}
 .serie-valeurs {
-  flex-wrap: wrap;
-  gap: 0.25em 0.6em;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15em;
   font-size: 0.8em;
 }
-.serie-puce {
-  white-space: nowrap;
+/* Une réponse par ligne : la première est sur la ligne de l'étiquette (1a, 1b…). */
+.serie-num {
+  line-height: 1.25;
+  font-size: 0.8em;
 }
-.serie-puce b {
+.serie-ligne {
+  white-space: nowrap;
+  line-height: 1.25;
+}
+.serie-ligne b {
   color: var(--marine);
 }
-.serie-puce .part {
-  margin-left: 0.3em;
+.serie-ligne .part {
+  margin-left: 0.4em;
   color: var(--gris);
   font-variant-numeric: tabular-nums;
 }
-.serie-puce.bonne b,
-.serie-puce.bonne .part {
+.serie-ligne.bonne b,
+.serie-ligne.bonne .part {
   color: var(--vert);
 }
-.serie-vide {
+.serie-ligne.faux b,
+.serie-ligne.faux .part {
+  color: #c92a2a;
+  font-weight: 400;
+}
+.serie-ligne.faux {
+  font-size: 0.85em;
+}
+.serie-ligne .vous {
+  margin-left: 0.4em;
+  font-size: 0.75em;
+  color: var(--encre);
+  border: 1px solid currentColor;
+  border-radius: 0.6em;
+  padding: 0 0.35em;
+}
+.serie-ligne.vide {
   color: var(--gris);
 }
 .pied {

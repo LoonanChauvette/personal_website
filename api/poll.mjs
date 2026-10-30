@@ -376,7 +376,9 @@ async function operationRepondre(req, res) {
 
   const cleR = cleRep(salle, etat.seance, question.id, question.tour);
   await store.pipeline([
-    ["hset", cleR, appareil, JSON.stringify(validation.valeur)],
+    validation.valeur instanceof Array && question.type === "nuage" && validation.valeur.length === 0
+      ? ["hdel", cleR, appareil]
+      : ["hset", cleR, appareil, JSON.stringify(validation.valeur)],
     ["expire", cleR, TTL_DEFAUT],
   ]);
   // Un appareil qui répond est connecté : utile quand l'état vient du cache CDN.
@@ -568,6 +570,7 @@ async function operationMutation(req, res, op) {
     case "reveler": {
       etat.revelees = [...new Set([...(Array.isArray(etat.revelees) ? etat.revelees : []), question.id])].slice(-200);
       question.statut = "revelee";
+      question.publie = true;
       question.revision += 1;
       const { valeurs } = await lireReponses(store, salle, etat.seance, question);
       question.resultats = agregerPublic(question.type, question.gabarit, valeurs);

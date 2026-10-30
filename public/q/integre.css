@@ -74,8 +74,7 @@ html.integre .bouton-fleche {
   height: 7vh;
 }
 /* Révélé : le graphique remplace la zone de réponse et prend la place libre. */
-html.integre.revele .etat,
-html.integre.revele .ma-reponse {
+html.integre.revele .etat {
   display: none;
 }
 html.integre .resultats {
@@ -90,36 +89,71 @@ html.integre .resultats svg {
   max-height: 100%;
 }
 /* Série dans la diapositive : grille de la diapositive (colonnes remplies l'une après
-   l'autre), commandes serrées, tailles en vh. */
+   l'autre), commandes serrées, tailles en vh. Chaque cellule a la même largeur ; le champ
+   et la paire V/F occupent toute la cellule : réponses et boutons s'alignent en colonnes. */
 html.integre .zone-controles.serie {
   gap: 1.4vh;
 }
 html.integre .serie-grille {
-  grid-template-columns: repeat(var(--cols, 1), 1fr);
+  grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
   grid-template-rows: repeat(var(--lignes, 3), auto);
   grid-auto-flow: column;
   gap: 1.2vh 2.5vw;
+  align-items: center;
+}
+html.integre .serie-grille.matrice {
+  grid-template-columns: auto repeat(var(--cols, 1), minmax(0, 1fr));
+  grid-template-rows: auto repeat(var(--lignes, 3), auto);
+  grid-auto-flow: row;
+}
+html.integre .serie-titre-col {
+  font-size: 0.75em;
+  font-weight: 700;
+  color: var(--marine);
+  text-align: center;
+}
+html.integre .serie-titre-lig {
+  font-size: 0.75em;
+  font-weight: 700;
+  color: var(--marine);
+  white-space: nowrap;
 }
 html.integre .serie-rangee {
   gap: 1.2vw;
-  grid-template-columns: 2.2em 1fr;
+  grid-template-columns: 2.2em minmax(0, 1fr);
+}
+html.integre .serie-grille.matrice .serie-rangee {
+  grid-template-columns: minmax(0, 1fr);
 }
 html.integre .serie-num {
   font-size: 0.85em;
+}
+html.integre .serie-texte {
+  margin: 0 0 0.4vh;
+  font-size: 0.75em;
+  line-height: 1.2;
 }
 html.integre .serie-controle {
   gap: 0.6vh;
 }
 html.integre .serie-controle .liste-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: 0.8vw;
 }
 html.integre .serie-controle .touche {
+  width: 100%;
   min-height: 7vh;
   min-width: 0;
   padding: 0.3vh 0.8vw;
   font-size: 0.85em;
+  justify-content: center;
+}
+html.integre .serie-controle .champ {
+  width: 100%;
 }
 html.integre .serie-controle .champ input {
+  width: 100%;
   min-height: 7vh;
   padding: 0.3vh 1vw;
 }
@@ -127,11 +161,20 @@ html.integre .serie-controle .champ .unite {
   font-size: 0.75em;
 }
 html.integre .serie-resultats {
+  grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
   gap: 1vh 2.5vw;
-  align-content: center;
+  align-content: start;
+}
+html.integre .serie-resultats.matrice {
+  grid-template-columns: auto repeat(var(--cols, 1), minmax(0, 1fr));
+  grid-template-rows: auto repeat(var(--lignes, 3), auto);
+  grid-auto-flow: row;
 }
 html.integre .serie-bloc {
   grid-template-columns: 2.2em 1fr;
+}
+html.integre .serie-resultats.matrice .serie-bloc {
+  grid-template-columns: 1fr;
 }
 html.integre .serie-valeurs {
   font-size: 0.8em;
@@ -139,3 +182,21 @@ html.integre .serie-valeurs {
 html.integre .serie-graphique svg {
   max-height: 20vh;
 }
+
+html.integre.revele .ma-reponse { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.7em; padding-top: 0; }
+html.integre .nuage-pastilles { gap: 1vh; }
+html.integre .nuage-pastille { padding-left: 1vw; border-radius: 1vh; }
+html.integre .nuage-retirer { min-width: 6vh; min-height: 6vh; }
+
+/* L'énoncé reste visible, avec deux lignes au plus dans la boîte intégrée. */
+html.integre .question-texte {
+  color: var(--encre);
+  font-size: 0.8em;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+html.integre .question-texte.long { font-size: 0.7em; }

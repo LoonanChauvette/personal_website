@@ -344,22 +344,19 @@ export function telecharger(nom, contenu, type = 'text/csv;charset=utf-8') {
 // ─────────────────────────────────────────────────────────────
 // Formatage
 // ─────────────────────────────────────────────────────────────
-const NF0 = new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 0 });
-const NF1 = new Intl.NumberFormat('fr-CA', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+export function formaterNombre(v, { min = 0, max = 0 } = {}) {
+  return new Intl.NumberFormat('fr-CA', { minimumFractionDigits: min, maximumFractionDigits: max })
+    .format(v).replace(/\u00a0/g, '\u202f').replace(',', '.');
+}
 
 export function nombreEntier(v) {
   const n = Number(v);
-  return NF0.format(Number.isFinite(n) ? n : 0);
+  return formaterNombre(Number.isFinite(n) ? n : 0);
 }
 
 export function nombreDecimal(v, decimales = 1) {
   const n = Number(v);
-  if (!Number.isFinite(n)) return '—';
-  if (decimales === 0) return NF0.format(n);
-  return decimales === 1 ? NF1.format(n) : new Intl.NumberFormat('fr-CA', {
-    minimumFractionDigits: decimales,
-    maximumFractionDigits: decimales,
-  }).format(n);
+  return Number.isFinite(n) ? formaterNombre(n, { min: decimales, max: decimales }) : '—';
 }
 
 export function formaterDuree(ms) {
@@ -415,8 +412,8 @@ export function formaterReponse(type, gabarit, valeur) {
       })
       .join(', ');
   }
-  if (type === 'echelle' || type === 'curseur') return String(valeur);
-  if (type === 'nombre') return `${valeur}${g.unite ? ' ' + g.unite : ''}`;
+  if (type === 'echelle' || type === 'curseur') return formaterNombre(valeur, { max: 3 });
+  if (type === 'nombre') return `${formaterNombre(valeur, { max: 6 })}${g.unite ? ' ' + g.unite : ''}`;
   if (type === 'nuage') return Array.isArray(valeur) ? valeur.join(' · ') : String(valeur);
   if (type === 'texte') return String(valeur);
   if (type === 'classement') {
@@ -621,6 +618,7 @@ function rendreBarres(type, gabarit, res, opts) {
     const v = compteDe(res.comptes, option.cle);
     const part = n ? v / n : 0;
     const bonne = bonnes.has(option.cle);
+    const vous = (Array.isArray(opts.maReponse) ? opts.maReponse : [opts.maReponse]).includes(option.cle);
     const haut = m.pad + i * m.ligne;
     const yBaselineLettre = haut + m.fsLettre;
     const groupe = svg('g', {}, []);
@@ -638,6 +636,21 @@ function rendreBarres(type, gabarit, res, opts) {
         couleur: bonne ? COULEURS.vert : COULEURS.marine,
       }),
     );
+    // Réponse de l'étudiant : lettre cerclée (pas de texte en plus : la colonne des chiffres
+    // garde sa largeur et ne chevauche jamais la barre).
+    if (vous) {
+      groupe.appendChild(
+        svg('circle', {
+          cx: m.pad + margeCoche + m.fsLettre * 0.33,
+          cy: yBaselineLettre - m.fsLettre * 0.36,
+          r: m.fsLettre * 0.62,
+          fill: 'none',
+          stroke: bonne ? COULEURS.vert : '#c92a2a',
+          'stroke-width': 2.5,
+          class: 'vous',
+        }),
+      );
+    }
 
     const yBarre = option.texte ? haut + m.fsOption + 8 : haut + m.fsLettre * 0.55;
     if (option.texte) {
@@ -705,8 +718,8 @@ function rendreValeurs(gabarit, res, opts) {
   const bonnes = (opts.bonnes || []).map(Number).filter(Number.isFinite);
   const estBonne = (v) => bonnes.some((b) => Math.abs(v - b) <= tol + 1e-9);
   const n = Math.max(0, Number(res.n) || 0);
-  const fmtV = (v) => new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 3 }).format(v);
-  const lignes = res.frequentes.map((f) => ({ libelle: fmtV(Number(f.valeur)) + unite, v: Number(f.n) || 0, bonne: estBonne(Number(f.valeur)) }));
+  const fmtV = (v) => formaterNombre(v, { max: 3 });
+  const lignes = res.frequentes.map((f) => ({ libelle: fmtV(Number(f.valeur)) + unite, v: Number(f.n) || 0, bonne: estBonne(Number(f.valeur)), vous: opts.maReponse != null && Number(opts.maReponse) === Number(f.valeur) }));
   const autres = n - lignes.reduce((s, l) => s + l.v, 0);
   if (autres > 0) lignes.push({ libelle: 'Autres', v: autres, bonne: false });
   const avecCoche = lignes.some((l) => l.bonne);
@@ -726,6 +739,14 @@ function rendreValeurs(gabarit, res, opts) {
     g2.appendChild(txt(m.pad + margeCoche, haut + m.barreH * 0.8, l.libelle, {
       taille: m.fsOption, graisse: 700, couleur: l.bonne ? COULEURS.vert : COULEURS.marine,
     }));
+    // Réponse de l'étudiant : valeur soulignée (verte si juste, rouge sinon).
+    if (l.vous) {
+      const x0 = m.pad + margeCoche, yS = haut + m.barreH * 0.8 + 5;
+      g2.appendChild(svg('line', {
+        x1: x0, x2: x0 + l.libelle.length * m.fsOption * 0.56, y1: yS, y2: yS,
+        stroke: l.bonne ? COULEURS.vert : '#c92a2a', 'stroke-width': 3, class: 'vous',
+      }));
+    }
     g2.appendChild(svg('rect', { x: xBarre, y: haut, width: largBarre, height: m.barreH, fill: COULEURS.fond, stroke: COULEURS.filet, 'stroke-width': 2 }));
     if (part > 0) {
       g2.appendChild(svg('rect', { x: xBarre, y: haut, width: Math.max(4, largBarre * part), height: m.barreH, fill: l.bonne ? COULEURS.vert : COULEURS.marine }));
@@ -1277,74 +1298,121 @@ export function rendreResultats(type, gabarit, resultats, opts = {}) {
   }
 }
 
-// Série : tableau compact, une cellule par sous-question (colonnes remplies l'une après
-// l'autre, comme la diapositive) : les réponses les plus fréquentes et leur part ; à la
-// révélation (opts.bonnes fourni), la bonne réponse en vert avec une coche. Les types sans
-// réponse courte (nuage, texte, classement…) gardent leur petit graphique.
+// Série : une cellule par sous-question, colonnes remplies l'une après l'autre (comme la
+// diapositive). Révélée (opts.bonnes fourni) : la bonne réponse en vert sur la ligne de
+// l'étiquette (1a, 1b…), puis les trois mauvaises réponses les plus fréquentes en rouge.
+// Avant révélation (ou sans bonne réponse connue) : les trois réponses les plus fréquentes.
+// opts.maReponse (téléphone) : la réponse de l'étudiant est marquée « vous ».
+// Les types sans réponse courte (nuage, texte, classement…) gardent leur petit graphique.
 function rendreSerie(gabarit, res, opts) {
   const g = gabaritNormalise('serie', gabarit);
   const sousQ = g.questions || [];
   const colonnes = Math.max(1, Math.min(3, Number(g.colonnes) || 1));
+  const nLignes = Math.ceil(sousQ.length / colonnes);
+  const tCol = Array.isArray(g.titres_colonnes) ? g.titres_colonnes : [];
+  const tLig = Array.isArray(g.titres_lignes) ? g.titres_lignes : [];
+  const matrice = tCol.length > 0 || tLig.length > 0;
   const conteneur = document.createElement('div');
-  conteneur.className = 'serie-resultats';
+  conteneur.className = matrice ? 'serie-resultats matrice' : 'serie-resultats';
   conteneur.style.setProperty('--cols', String(colonnes));
-  conteneur.style.setProperty('--lignes', String(Math.ceil(sousQ.length / colonnes)));
+  conteneur.style.setProperty('--lignes', String(nLignes));
   conteneur.setAttribute('role', 'group');
   conteneur.setAttribute('aria-label', opts.etiquette || 'Résultats de la série');
+  // Matrice : mêmes en-têtes que le formulaire (titres des colonnes en haut, des lignes à gauche).
+  if (matrice) {
+    for (let c = 0; c < colonnes; c++) {
+      const t = element2('div', 'serie-titre-col', tCol[c] || '');
+      t.style.gridRow = '1'; t.style.gridColumn = String(c + 2);
+      conteneur.appendChild(t);
+    }
+    for (let r = 0; r < nLignes; r++) {
+      const t = element2('div', 'serie-titre-lig', tLig[r] || '');
+      t.style.gridRow = String(r + 2); t.style.gridColumn = '1';
+      conteneur.appendChild(t);
+    }
+  }
+  const placerBloc = (bloc, i) => {
+    if (!matrice) return;
+    bloc.style.gridColumn = String(Math.floor(i / nLignes) + 2);
+    bloc.style.gridRow = String((i % nLignes) + 2);
+  };
   const revele = opts.bonnes !== undefined;
   const pct = (v, n) => `${nombreEntier(n ? (100 * v) / n : 0)} %`;
-  const fmtV = (v) => new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 3 }).format(v);
-  for (const sq of sousQ) {
-    const bloc = document.createElement('div');
-    bloc.className = 'serie-bloc';
-    const tete = document.createElement('div');
-    tete.className = 'serie-num';
-    tete.textContent = sq.etiquette || sq.cle;
-    const corps = document.createElement('div');
-    corps.className = 'serie-graphique';
+  const fmtV = (v) => formaterNombre(v, { max: 3 });
+  const mesReponses = opts.maReponse && typeof opts.maReponse === 'object' ? opts.maReponse : {};
+  sousQ.forEach((sq, i) => {
+    const bloc = element2('div', 'serie-bloc');
+    placerBloc(bloc, i);
+    const tete = element2('div', 'serie-num', matrice ? '' : sq.etiquette || sq.cle);
+    const corps = element2('div', 'serie-graphique');
     const sous = (res.parties || {})[sq.cle];
-    const { cle: _c, type, etiquette: _e, ...gab } = sq;
+    const { cle: _c, type, etiquette: _e, texte: _t, ...gab } = sq;
     const n = Number(sous && sous.n) || 0;
+    const mienne = mesReponses[sq.cle];
     let lignes = null;
-    if (['choix', 'multiple', 'vraifaux'].includes(type)) {
+    if (['choix', 'vraifaux'].includes(type)) {
       const bonnes = new Set((gab.bonnes || []).map(String));
       lignes = optionsDe(type, gab).map((o) => ({
         libelle: type === 'vraifaux' ? (o.cle === 'V' ? 'Vrai' : 'Faux') : o.cle,
         v: compteDe(sous && sous.comptes, o.cle),
-        bonne: revele && bonnes.has(o.cle),
+        bonne: bonnes.has(o.cle),
+        vous: mienne !== undefined && String(mienne) === o.cle,
       }));
-      lignes.sort((a, b) => b.v - a.v);
     } else if (type === 'nombre') {
       const tol = Number(gab.tolerance) || 0;
       const bonnes = (gab.bonnes || []).map(Number);
+      const estBonne = (v) => bonnes.some((b) => Math.abs(v - b) <= tol + 1e-9);
       lignes = (sous && Array.isArray(sous.frequentes) ? sous.frequentes : []).map((f) => ({
         libelle: fmtV(Number(f.valeur)),
         v: Number(f.n) || 0,
-        bonne: revele && bonnes.some((b) => Math.abs(Number(f.valeur) - b) <= tol + 1e-9),
+        bonne: estBonne(Number(f.valeur)),
+        vous: mienne !== undefined && Number(mienne) === Number(f.valeur),
       }));
-    } else if (type === 'echelle' && sous && sous.comptes) {
-      lignes = Object.entries(sous.comptes).map(([k, v]) => ({ libelle: k, v: Number(v) || 0, bonne: false }))
-        .sort((a, b) => b.v - a.v);
-    }
-    if (lignes) {
-      corps.classList.add('serie-valeurs');
-      if (!n) corps.appendChild(element2('span', 'serie-vide', '—'));
-      // Trois réponses au plus, plus la bonne si elle n'y est pas : la cellule reste d'une ligne.
-      const montrees = lignes.filter((l) => l.v > 0).slice(0, 3);
-      const bonneHors = lignes.find((l) => l.bonne && !montrees.includes(l));
-      if (n && bonneHors) montrees.push(bonneHors);
-      for (const l of n ? montrees : []) {
-        const puce = element2('span', l.bonne ? 'serie-puce bonne' : 'serie-puce');
-        puce.append(element2('b', null, (l.bonne ? '✓ ' : '') + l.libelle), element2('span', 'part', pct(l.v, n)));
-        puce.title = `${l.libelle} : ${pct(l.v, n)} (${nombreEntier(l.v)})${l.bonne ? ' — bonne réponse' : ''}`;
-        corps.appendChild(puce);
+      // Bonne réponse que personne n'a donnée : affichée quand même (0 %).
+      if (bonnes.length && !lignes.some((l) => l.bonne)) lignes.push({ libelle: fmtV(bonnes[0]), v: 0, bonne: true, vous: false });
+      // Réponse de l'étudiant hors des valeurs fréquentes : ajoutée à sa ligne.
+      if (mienne !== undefined && !lignes.some((l) => l.vous)) {
+        lignes.push({ libelle: fmtV(Number(mienne)), v: 0, bonne: estBonne(Number(mienne)), vous: true, horsListe: true });
       }
-    } else {
-      corps.appendChild(rendreResultats(type, gab, sous, { ...opts, bonnes: revele ? gab.bonnes || [] : undefined, etiquette: `Question ${sq.cle}` }));
+    } else if (type === 'echelle' && sous && sous.comptes) {
+      lignes = Object.entries(sous.comptes).map(([k, v]) => ({ libelle: k, v: Number(v) || 0, bonne: false, vous: String(mienne) === k }));
     }
-    bloc.append(tete, corps);
+    if (!lignes) {
+      corps.appendChild(rendreResultats(type, gab, sous, { ...opts, maReponse: mienne, bonnes: revele ? gab.bonnes || [] : undefined, etiquette: `Question ${sq.cle}` }));
+      bloc.append(tete, corps);
+      conteneur.appendChild(bloc);
+      return;
+    }
+    corps.classList.add('serie-valeurs');
+    lignes.sort((a, b) => b.v - a.v);
+    const corrige = revele && lignes.some((l) => l.bonne);
+    let montrees;
+    if (corrige) {
+      // Bonne réponse d'abord (sur la ligne de l'étiquette), puis trois erreurs au plus.
+      const bonne = lignes.filter((l) => l.bonne).sort((a, b) => b.v - a.v)[0];
+      const erreurs = lignes.filter((l) => !l.bonne && (l.v > 0 || l.vous));
+      montrees = [bonne, ...erreurs.slice(0, 3)];
+      // La réponse de l'étudiant reste visible même si elle n'est pas parmi les trois.
+      const maLigne = erreurs.find((l) => l.vous);
+      if (maLigne && !montrees.includes(maLigne)) montrees[montrees.length - 1] = maLigne;
+    } else {
+      montrees = lignes.filter((l) => l.v > 0 || l.vous).slice(0, 3);
+    }
+    if (!montrees.length) corps.appendChild(element2('div', 'serie-ligne vide', '—'));
+    for (const l of montrees) {
+      const classe = corrige ? (l.bonne ? 'bonne' : 'faux') : '';
+      const ligne = element2('div', `serie-ligne ${classe}`.trim());
+      ligne.append(
+        element2('b', null, (corrige && l.bonne ? '✓ ' : '') + l.libelle),
+        element2('span', 'part', l.horsListe ? '' : pct(l.v, n)),
+      );
+      if (l.vous) ligne.append(element2('span', 'vous', 'vous'));
+      ligne.title = `${l.libelle} : ${pct(l.v, n)} (${nombreEntier(l.v)})${corrige && l.bonne ? ' — bonne réponse' : ''}`;
+      corps.appendChild(ligne);
+    }
+    if (matrice) bloc.append(corps); else bloc.append(tete, corps);
     conteneur.appendChild(bloc);
-  }
+  });
   return conteneur;
 }
 

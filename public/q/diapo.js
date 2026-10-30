@@ -42,12 +42,12 @@ const LECTURE = !(typeof jeton === 'string' && jeton);
 const DELAI_AFFICHAGE_MS = 700; // la diapositive doit rester affichée un instant
 
 const racine = document.getElementById('diapo');
+const afficherQr = conf.qr !== false;
 racine.className = `diapo role-${ROLE}`;
 racine.innerHTML = `
   <section class="corps" id="corps" aria-live="polite"></section>
   <footer class="pied">
-    <span class="qr" id="qr" aria-hidden="true"></span>
-    <span class="adresse" id="adresse"></span>
+    ${afficherQr ? '<span class="qr" id="qr" aria-hidden="true"></span><span class="adresse" id="adresse"></span>' : ''}
     <p class="statut" id="statut" role="status"></p>
     <button type="button" id="effacer" class="discret" hidden>Effacer</button>
     <button type="button" id="action" hidden></button>
@@ -59,9 +59,11 @@ const ui = {
   action: document.getElementById('action'),
   effacer: document.getElementById('effacer'),
 };
-document.getElementById('adresse').textContent = adresseCourte();
-const qr = qrSvg(urlSalle(), { cellSize: 3, margin: 1 });
-if (qr) document.getElementById('qr').appendChild(qr);
+if (afficherQr) {
+  document.getElementById('adresse').textContent = adresseCourte();
+  const qr = qrSvg(urlSalle(), { cellSize: 3, margin: 1 });
+  if (qr) document.getElementById('qr').appendChild(qr);
+}
 
 let etat = null;
 let signature = null;
