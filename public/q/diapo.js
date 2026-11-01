@@ -332,8 +332,25 @@ function rendrePaires(q) {
   const etape = etapes[n];
   if (!etape) return;
   ui.corps.classList.add('paires');
-  ui.corps.append(el('p', `paires-titre${etape.essai ? ' essai' : ''}`,
-    etape.essai ? `Entraînement ${etape.numero} sur ${etape.total}` : `Paire ${etape.numero} sur ${etape.total}`));
+  // Titre entre ◀ et ▶ : changer d'étape sans faire entendre la paire (correction, reprise).
+  const tete = el('div', 'paires-tete');
+  const fleche = (sens, texte, titre, inactif) => {
+    const b = el('button', 'fleche-etape', texte);
+    b.type = 'button';
+    b.dataset.paires = sens;
+    b.title = titre;
+    b.setAttribute('aria-label', titre);
+    b.disabled = inactif;
+    b.hidden = LECTURE;
+    return b;
+  };
+  tete.append(
+    fleche('precedente', '◀', 'Étape précédente (sans son)', n === 0),
+    el('p', `paires-titre${etape.essai ? ' essai' : ''}`,
+      etape.essai ? `Entraînement ${etape.numero} sur ${etape.total}` : `Paire ${etape.numero} sur ${etape.total}`),
+    fleche('avancer', '▶', 'Étape suivante (sans son)', n === etapes.length - 1),
+  );
+  ui.corps.append(tete);
   if (etape.essai) {
     ui.corps.append(el('p', 'paires-note', 'Réponses non enregistrées'));
   } else {
@@ -349,18 +366,13 @@ function rendrePaires(q) {
   if (!LECTURE) {
     const cmd = el('div', 'commandes');
     const derniere = n === etapes.length - 1;
-    const precedente = el('button', 'discret', '◀');
-    precedente.type = 'button';
-    precedente.dataset.paires = 'precedente';
-    precedente.disabled = n === 0;
-    precedente.title = 'Étape précédente';
     const ecouter = el('button', null, 'Écouter');
     ecouter.type = 'button';
     ecouter.dataset.paires = 'ecouter';
     const suivante = el('button', 'principal', derniere ? 'Terminer' : etapes[n + 1].essai || etape.essai === etapes[n + 1].essai ? 'Suivante' : 'Commencer');
     suivante.type = 'button';
     suivante.dataset.paires = derniere ? 'terminer' : 'suivante';
-    cmd.append(precedente, ecouter, suivante);
+    cmd.append(ecouter, suivante);
     ui.corps.append(cmd);
   }
   ui.statut.textContent = blocage || (etape.essai ? 'Entraînement' : '');
@@ -386,6 +398,7 @@ async function agirPaires(action) {
     if (action === 'terminer') {
       if (await envoyer('fermer')) await envoyer('reveler');
     } else {
+      // ◀ / ▶ : changer d'étape sans son ; Suivante : changer d'étape puis la faire entendre.
       const cible = action === 'precedente' ? Math.max(0, n - 1) : Math.min(etapes.length - 1, n + 1);
       // Le son ne part qu'une fois l'étape acceptée : téléphones et salle entendent la même paire.
       if (await envoyer('etape', { etape: cible })) {

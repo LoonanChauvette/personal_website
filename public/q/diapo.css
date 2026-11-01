@@ -247,15 +247,23 @@ button.discret.confirmer {
   color: #e03131;
   border-color: #e03131;
 }
-/* Paires : écoute pilotée par l'enseignant (numéro de la paire, réponses, son en cours, commandes). */
+/* Paires : écoute pilotée par l'enseignant. De haut en bas : ◀ Paire n sur N ▶, réponses à
+   la paire, son en cours, commandes ; espacés pour rester lisibles à petite taille. */
 .corps.paires {
-  gap: 1.2vh;
+  justify-content: space-evenly;
+  gap: 0;
+}
+.paires-tete {
+  display: flex;
+  align-items: center;
+  gap: 3vw;
 }
 .paires-titre {
   margin: 0;
   font-size: 1.4em;
   font-weight: 700;
   color: var(--marine);
+  white-space: nowrap;
 }
 .paires-titre.essai,
 .paires-note {
@@ -265,18 +273,30 @@ button.discret.confirmer {
   margin: 0;
   font-size: 1.1em;
 }
+button.fleche-etape {
+  padding: 0.15em 0.55em;
+  font-size: 0.9em;
+  border-width: 1px;
+  border-color: var(--filet);
+  color: var(--gris);
+  line-height: 1.2;
+}
+button.fleche-etape:disabled {
+  visibility: hidden;
+}
 .corps.paires .compteur .nombre {
-  font-size: 3.6em;
+  font-size: 3.4em;
 }
 .lecture {
   margin: 0;
   display: flex;
-  gap: 0.6em;
+  gap: 2vw;
   align-items: center;
   color: var(--gris);
+  user-select: none;
 }
 .lecture .son {
-  padding: 0.1em 0.6em;
+  padding: 0.15em 0.9em;
   border-radius: 999px;
   border: 2px solid var(--filet);
 }
@@ -287,8 +307,12 @@ button.discret.confirmer {
 }
 .commandes {
   display: flex;
-  gap: 0.8vw;
+  gap: 3vw;
   align-items: center;
+}
+.commandes button {
+  min-width: 6.5em;
+  padding: 0.4em 1em;
 }
 button.principal {
   color: #fff;
