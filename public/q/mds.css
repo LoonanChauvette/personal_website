@@ -25,6 +25,9 @@ body {
 }
 #mds {
   height: 100%;
+  /* Glisser pour tourner la 3D ne doit pas sélectionner les noms ni les boutons. */
+  user-select: none;
+  -webkit-user-select: none;
   display: grid;
   grid-template-rows: auto 1fr auto;
   gap: 1vh;

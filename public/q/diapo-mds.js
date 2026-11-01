@@ -442,6 +442,7 @@ ui.carte.addEventListener('pointerout', (e) => {
 // le SVG étant redessiné à chaque image).
 ui.carte.addEventListener('pointerdown', (e) => {
   if (!vue || vue.dim !== 3 || pointDe(e) !== null) return;
+  e.preventDefault(); // pas de sélection de texte pendant le glissement
   glissement = { x: e.clientX, y: e.clientY, id: e.pointerId };
   rotationAuto = false;
   survol = null;
