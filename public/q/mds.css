@@ -40,7 +40,12 @@ body {
   justify-content: space-between;
   gap: 1em;
 }
+.zone {
+  position: relative;
+  min-height: 0;
+}
 .carte {
+  height: 100%;
   min-height: 0;
   display: flex;
   align-items: center;
@@ -126,4 +131,17 @@ button.discret {
   stroke: #e8590c;
   stroke-width: 10;
   stroke-opacity: 0.35;
+}
+.axe-vertical {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: 0.75em;
+  color: var(--gris);
+}
+.bascule.petite button {
+  padding: 0.1em 0.55em;
 }

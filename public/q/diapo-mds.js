@@ -13,6 +13,9 @@
 // toujours disponible. Sans résultat de la classe, la diapositive part sur « Simulé ».
 // Bascule 1D / 2D / 3D : nombre de dimensions de la carte (le stress de chacune s'affiche).
 //   1D : points sur une droite, arcs au survol ; 3D : vue en perspective, glisser pour tourner.
+//   3D, « Vertical : D1 / D2 / D3 » : la vue tourne pour mettre cet axe à la verticale ; les
+//   tiges descendent le long de cet axe jusqu'au plan des deux autres (la coordonnée se lit
+//   à la longueur de la tige).
 // Survoler un point : traits vers les autres sons, avec la dissimilarité jugée.
 // Cliquer un point : l'instrument joue (un second clic arrête).
 import { apiGarde, COULEURS, svg, txt, nombreEntier } from './commun.js';
@@ -44,7 +47,17 @@ racine.innerHTML = `
       <button type="button" data-dim="3">3D</button>
     </div>
   </header>
-  <div class="carte" id="carte"></div>
+  <div class="zone">
+    <div class="carte" id="carte"></div>
+    <div class="axe-vertical" id="axe-vertical" hidden>
+      <span>Vertical</span>
+      <div class="bascule petite" role="group" aria-label="Axe vertical">
+        <button type="button" data-axe="0">D1</button>
+        <button type="button" data-axe="1">D2</button>
+        <button type="button" data-axe="2">D3</button>
+      </div>
+    </div>
+  </div>
   <footer class="pied">
     <span class="source" id="source"></span>
     <button type="button" id="rejouer" class="discret" title="Repartir de positions au hasard">Recalculer</button>
@@ -56,6 +69,8 @@ const ui = {
   rejouer: document.getElementById('rejouer'),
   boutons: [...racine.querySelectorAll('[data-source]')],
   dims: [...racine.querySelectorAll('[data-dim]')],
+  axeVertical: document.getElementById('axe-vertical'),
+  axes: [...racine.querySelectorAll('[data-axe]')],
 };
 
 const donnees = { classe: null, simule: null, erreurClasse: null };
@@ -67,7 +82,83 @@ let animation = 0;
 let survol = null;
 const audios = new Map();
 let enLecture = null;
-const angle = { lacet: -0.6, tangage: 0.35 }; // vue 3D
+// ─── Vue 3D : matrice de rotation (repère des données → repère de l'écran) ─────
+// Écran : x vers la droite, y vers le haut, z vers le spectateur.
+function produit(A, B) {
+  return A.map((l) => B[0].map((_, j) => l.reduce((s, a, k) => s + a * B[k][j], 0)));
+}
+function rotX(t) {
+  const [c, s] = [Math.cos(t), Math.sin(t)];
+  return [[1, 0, 0], [0, c, -s], [0, s, c]];
+}
+function rotY(t) {
+  const [c, s] = [Math.cos(t), Math.sin(t)];
+  return [[c, 0, s], [0, 1, 0], [-s, 0, c]];
+}
+// Rotation d'angle t autour de l'axe k des données (Rodrigues sur un vecteur de base).
+function rotAxe(k, t) {
+  const [c, s] = [Math.cos(t), Math.sin(t)];
+  const [i, j] = [(k + 1) % 3, (k + 2) % 3];
+  const M = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  M[k][k] = 1;
+  M[i][i] = c;
+  M[j][j] = c;
+  M[i][j] = -s;
+  M[j][i] = s;
+  return M;
+}
+// Axe k vers le haut de l'écran (permutations de déterminant +1), puis vue un peu de biais et d'en haut.
+const MISE_DEBOUT = [
+  [[0, -1, 0], [1, 0, 0], [0, 0, 1]], // D1 vertical
+  [[1, 0, 0], [0, 1, 0], [0, 0, 1]], // D2 vertical
+  [[1, 0, 0], [0, 0, 1], [0, -1, 0]], // D3 vertical
+];
+function vueCible(k) {
+  return produit(rotX(0.35), produit(rotY(-0.6), MISE_DEBOUT[k]));
+}
+function quaternion(R) {
+  const t = R[0][0] + R[1][1] + R[2][2];
+  let q;
+  if (t > 0) {
+    const s = 0.5 / Math.sqrt(t + 1);
+    q = [0.25 / s, (R[2][1] - R[1][2]) * s, (R[0][2] - R[2][0]) * s, (R[1][0] - R[0][1]) * s];
+  } else if (R[0][0] > R[1][1] && R[0][0] > R[2][2]) {
+    const s = 2 * Math.sqrt(1 + R[0][0] - R[1][1] - R[2][2]);
+    q = [(R[2][1] - R[1][2]) / s, 0.25 * s, (R[0][1] + R[1][0]) / s, (R[0][2] + R[2][0]) / s];
+  } else if (R[1][1] > R[2][2]) {
+    const s = 2 * Math.sqrt(1 + R[1][1] - R[0][0] - R[2][2]);
+    q = [(R[0][2] - R[2][0]) / s, (R[0][1] + R[1][0]) / s, 0.25 * s, (R[1][2] + R[2][1]) / s];
+  } else {
+    const s = 2 * Math.sqrt(1 + R[2][2] - R[0][0] - R[1][1]);
+    q = [(R[1][0] - R[0][1]) / s, (R[0][2] + R[2][0]) / s, (R[1][2] + R[2][1]) / s, 0.25 * s];
+  }
+  const n = Math.hypot(...q);
+  return q.map((v) => v / n);
+}
+function matrice([w, x, y, z]) {
+  return [
+    [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+    [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+    [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+  ];
+}
+function slerp(a, b, t) {
+  let d = a.reduce((s, v, i) => s + v * b[i], 0);
+  const c = d < 0 ? b.map((v) => -v) : b;
+  d = Math.abs(d);
+  if (d > 0.9995) {
+    const q = a.map((v, i) => v + t * (c[i] - v));
+    const n = Math.hypot(...q);
+    return q.map((v) => v / n);
+  }
+  const o = Math.acos(d);
+  const [ka, kb] = [Math.sin((1 - t) * o) / Math.sin(o), Math.sin(t * o) / Math.sin(o)];
+  return a.map((v, i) => ka * v + kb * c[i]);
+}
+
+let axeVertical = 1; // D2 à la verticale par défaut
+let rotation = vueCible(axeVertical);
+let virage = 0; // animation du changement d'axe vertical
 let glissement = null; // rotation à la souris en cours
 let rotationAuto = true; // la 3D tourne d'elle-même jusqu'au premier glissement
 
@@ -132,13 +223,9 @@ function preparer(g, cleSource) {
 function versEcran(v, p) {
   if (v.dim === 1) return [CENTRE[0] + (p[0] - v.centre[0]) * v.echelle, LIGNE_1D, 0];
   if (v.dim === 2) return [CENTRE[0] + (p[0] - v.centre[0]) * v.echelle, CENTRE[1] - (p[1] - v.centre[1]) * v.echelle, 0];
-  const [x, y, z] = p.map((c, k) => c - v.centre[k]);
-  const [ca, sa, cb, sb] = [Math.cos(angle.lacet), Math.sin(angle.lacet), Math.cos(angle.tangage), Math.sin(angle.tangage)];
-  const x1 = x * ca + z * sa;
-  const z1 = -x * sa + z * ca;
-  const y2 = y * cb - z1 * sb;
-  const z2 = y * sb + z1 * cb;
-  return [CENTRE[0] + x1 * v.echelle, CENTRE[1] - y2 * v.echelle, z2 / v.rayon];
+  const d = p.map((c, k) => c - v.centre[k]);
+  const [x, y, z] = rotation.map((l) => l.reduce((s, r, k) => s + r * d[k], 0));
+  return [CENTRE[0] + x * v.echelle, CENTRE[1] - y * v.echelle, z / v.rayon];
 }
 
 function nomDe(son) {
@@ -183,19 +270,33 @@ function axes(s, v) {
       const dx = x2 - o[0];
       const dy = y2 - o[1];
       const n = Math.hypot(dx, dy) || 1;
-      s.appendChild(txt(x2 + (dx / n) * 34, y2 + (dy / n) * 34 + 11, `D${k + 1}`, { ...gris, graisse: 600 }));
+      const actif = k === axeVertical;
+      s.appendChild(txt(x2 + (dx / n) * 34, y2 + (dy / n) * 34 + 11, `D${k + 1}`, { ...gris, graisse: actif ? 700 : 600, couleur: actif ? COULEURS.marine : GRIS }));
     }
-    s.appendChild(txt(ZONE.x0, H - 22, 'Glisser pour tourner', { taille: 28, couleur: GRIS }));
+    s.appendChild(txt(ZONE.x1, H - 22, 'Glisser pour tourner', { taille: 28, ancre: 'end', couleur: GRIS }));
   }
 }
 
-// 3D : tige de chaque point jusqu'au plan D1–D3 (relief lisible sur une image fixe).
+// 3D : plan des deux autres axes (sol clair) et tige de chaque point jusqu'à ce plan, le
+// long de l'axe vertical choisi : la longueur de la tige est la coordonnée sur cet axe.
 function tiges(s, v, X) {
+  const k = axeVertical;
+  const [a, b] = [0, 1, 2].filter((j) => j !== k);
+  const coin = (u, w) => versEcran(v, v.centre.map((c, j) => c + (j === a ? u : 0) + (j === b ? w : 0)));
+  const r = v.rayon * 1.1;
+  const sol = [coin(-r, -r), coin(r, -r), coin(r, r), coin(-r, r)].map(([x, y]) => `${x},${y}`).join(' ');
+  s.appendChild(svg('polygon', { points: sol, fill: '#e7f0fb', 'fill-opacity': 0.55, stroke: '#c5d6ee', 'stroke-width': 2 }));
+  const pas = v.rayon * 0.035; // ombre : petit disque dans le plan
   X.forEach((p) => {
+    const pied = p.map((c, j) => (j === k ? v.centre[k] : c));
     const [x1, y1] = versEcran(v, p);
-    const [x2, y2] = versEcran(v, [p[0], v.centre[1], p[2]]);
-    s.appendChild(svg('line', { x1, y1, x2, y2, stroke: '#adb5bd', 'stroke-width': 2.5, 'stroke-dasharray': '6 6' }));
-    s.appendChild(svg('ellipse', { cx: x2, cy: y2, rx: 9, ry: 9 * Math.abs(Math.sin(angle.tangage)) + 1.5, fill: '#adb5bd' }));
+    const [x2, y2] = versEcran(v, pied);
+    s.appendChild(svg('line', { x1, y1, x2, y2, stroke: '#868e96', 'stroke-width': 2.5, 'stroke-dasharray': '6 6' }));
+    const ombre = Array.from({ length: 12 }, (_, m) => {
+      const t = (m / 12) * 2 * Math.PI;
+      return versEcran(v, pied.map((c, j) => c + (j === a ? pas * Math.cos(t) : 0) + (j === b ? pas * Math.sin(t) : 0)));
+    }).map(([x, y]) => `${x},${y}`).join(' ');
+    s.appendChild(svg('polygon', { points: ombre, fill: '#868e96' }));
   });
 }
 
@@ -282,7 +383,7 @@ function message(texte) {
 function image(v, X, s) {
   v.courant = X;
   v.stressCourant = s;
-  if (v.dim === 3 && rotationAuto && !glissement) angle.lacet += 0.012;
+  if (v.dim === 3 && rotationAuto && !glissement && !virage) tournerAutour(0.012);
   tracer(v, X);
 }
 
@@ -329,15 +430,38 @@ function glisser(v, depart) {
   animation = requestAnimationFrame(pas);
 }
 
+// Rotation automatique autour de l'axe vertical choisi (il reste vertical).
+function tournerAutour(t) {
+  rotation = produit(rotation, rotAxe(axeVertical, t));
+}
+
+// Changement d'axe vertical : rotation animée (interpolation de quaternions) vers la vue type.
+function virer(k) {
+  axeVertical = k;
+  ui.axes.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.axe) === k)));
+  rotationAuto = false;
+  cancelAnimationFrame(virage);
+  const [qa, qb] = [quaternion(rotation), quaternion(vueCible(k))];
+  let n = 0;
+  const pas = () => {
+    n += 1;
+    const t = Math.min(1, n / 40);
+    rotation = matrice(slerp(qa, qb, t * t * (3 - 2 * t)));
+    redessiner();
+    virage = t < 1 ? requestAnimationFrame(pas) : 0;
+  };
+  virage = requestAnimationFrame(pas);
+}
+
 // 3D : la vue continue de tourner un moment après le placement (relief), puis s'arrête.
 function tourner(v) {
   v.stressCourant = v.stressFinal;
   if (v.dim !== 3) return redessiner();
   let k = 0;
   const pas = () => {
-    if (vue !== v || !rotationAuto || glissement) return;
+    if (vue !== v || !rotationAuto || glissement || virage) return;
     k += 1;
-    angle.lacet += 0.012 * Math.max(0, 1 - k / 150);
+    tournerAutour(0.012 * Math.max(0, 1 - k / 150));
     tracer(v, v.final);
     if (k < 150) animation = requestAnimationFrame(pas);
   };
@@ -348,6 +472,8 @@ async function afficher({ rejouer = false } = {}) {
   const src = source();
   ui.boutons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.source === src)));
   ui.dims.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.dim) === dim)));
+  ui.axes.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.axe) === axeVertical)));
+  ui.axeVertical.hidden = dim !== 3;
   let g;
   try {
     if (src === 'simule') {
@@ -446,14 +572,17 @@ ui.carte.addEventListener('pointerdown', (e) => {
   glissement = { x: e.clientX, y: e.clientY, id: e.pointerId };
   rotationAuto = false;
   survol = null;
+  cancelAnimationFrame(virage);
+  virage = 0;
   ui.carte.setPointerCapture(e.pointerId);
   ui.carte.classList.add('tourne');
 });
 ui.carte.addEventListener('pointermove', (e) => {
   if (!glissement || e.pointerId !== glissement.id) return;
   const pleine = ui.carte.clientWidth || 1;
-  angle.lacet += ((e.clientX - glissement.x) / pleine) * Math.PI;
-  angle.tangage = Math.max(-1.45, Math.min(1.45, angle.tangage + ((e.clientY - glissement.y) / pleine) * Math.PI));
+  // Rotation « boule » : autour de la verticale et de l'horizontale de l'écran.
+  rotation = produit(rotY(((e.clientX - glissement.x) / pleine) * Math.PI),
+    produit(rotX(((e.clientY - glissement.y) / pleine) * Math.PI), rotation));
   glissement.x = e.clientX;
   glissement.y = e.clientY;
   redessiner();
@@ -484,6 +613,7 @@ ui.dims.forEach((b) => b.addEventListener('click', () => {
   dim = Number(b.dataset.dim);
   afficher({ rejouer: true });
 }));
+ui.axes.forEach((b) => b.addEventListener('click', () => virer(Number(b.dataset.axe))));
 ui.rejouer.addEventListener('click', () => afficher({ rejouer: true }));
 
 // À chaque affichage de la diapositive : relire le résultat gardé, puis rejouer le placement.
