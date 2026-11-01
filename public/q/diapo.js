@@ -208,6 +208,7 @@ function tracerGraphique(q) {
   dessinerResultats(zone, q.type, gabarit, q.resultats, {
     compact: true,
     enDiapo: true,
+    jouable: PAIRES,
     bonnes: (q.gabarit && q.gabarit.bonnes) || [],
     etiquette: 'Résultats de la question',
   });
@@ -297,6 +298,12 @@ async function jouerEtape(etape, gabarit) {
     majLecture();
     await jouerSon(audioDe(etape.a));
     if (jeton !== lecture.jeton) return;
+    if (etape.a === etape.b) {
+      // Diagonale de la matrice : un seul instrument.
+      lecture.etat = null;
+      majLecture();
+      return;
+    }
     lecture.etat = 'pause';
     majLecture();
     await new Promise((r) => setTimeout(r, pause));
@@ -416,7 +423,22 @@ async function agirPaires(action) {
 ui.corps.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-paires]');
   if (b && !b.disabled) agirPaires(b.dataset.paires);
+  // Matrice révélée : une case fait entendre son contraste (ligne puis colonne), la diagonale
+  // un seul instrument. Un second clic sur la case en cours arrête.
+  const c = PAIRES && ev.target.closest('.case-paire');
+  if (c) entendreCase(c);
 });
+
+async function entendreCase(c) {
+  const enCours = ui.corps.querySelector('.case-paire.joue');
+  arreterLecture();
+  enCours?.classList.remove('joue');
+  if (enCours === c) return;
+  c.classList.add('joue');
+  const q = phase().q;
+  await jouerEtape({ a: c.dataset.a, b: c.dataset.b }, (q && q.gabarit) || Q.gabarit);
+  c.classList.remove('joue');
+}
 
 // Bouton de secours : cliquable dans l'éditeur (et en présentation si Excalidraw+ le permet).
 function bouton(texte, op, discret = false) {

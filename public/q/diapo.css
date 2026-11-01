@@ -318,3 +318,15 @@ button.principal {
   color: #fff;
   background: var(--marine);
 }
+/* Matrice révélée : chaque case se clique pour entendre la paire ; case en cours encadrée. */
+.graphique svg.jouable .case-paire {
+  cursor: pointer;
+}
+.graphique svg.jouable .case-paire:hover,
+.graphique svg.jouable .case-paire.joue {
+  stroke: #1a3556;
+  stroke-width: 6;
+}
+.graphique svg.jouable text {
+  pointer-events: none;
+}

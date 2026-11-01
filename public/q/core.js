@@ -317,7 +317,11 @@ function normaliserPaires(g) {
     if (!fichier || fichier.length > 200 || /^[a-z]+:/i.test(fichier) || fichier.includes("..")) {
       throw new Error(`Son ${cle} : chemin de fichier relatif attendu.`);
     }
-    return { cle, fichier };
+    // Nom de l'instrument (lignes de la matrice) et abréviation (colonnes) : facultatifs,
+    // retirés de l'état public tant que la question n'est pas révélée.
+    const nom = texteOu(s.nom).trim().slice(0, 40);
+    const abrege = texteOu(s.abrege).trim().slice(0, 6);
+    return { cle, fichier, ...(nom ? { nom } : {}), ...(abrege ? { abrege } : {}) };
   });
   const liste = (brut, nom) => {
     if (!Array.isArray(brut)) throw new Error(`« ${nom} » doit être une liste de paires.`);

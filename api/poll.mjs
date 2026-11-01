@@ -250,6 +250,10 @@ function questionPublique(question, nbReponses, enseignant = false) {
     if (Array.isArray(gabarit.questions)) {
       gabarit.questions = gabarit.questions.map(({ bonnes: _b, ...sq }) => sq);
     }
+    // Paires : les instruments restent anonymes (A, B…) jusqu'à la révélation.
+    if (Array.isArray(gabarit.sons)) {
+      gabarit.sons = gabarit.sons.map(({ nom: _n, abrege: _a, ...son }) => son);
+    }
   }
   const vue = {
     id: question.id,

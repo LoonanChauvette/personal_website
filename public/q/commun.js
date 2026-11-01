@@ -1275,13 +1275,28 @@ export function rendreResultats(type, gabarit, resultats, opts = {}) {
 }
 
 // Paires : matrice de dissimilarité de la classe. Symétrique, diagonale nulle par définition ;
-// chaque case = moyenne des notes observées (« — » : paire sans réponse). Teinte : du blanc
-// (très semblables) au marine (très différents) ; le nombre reste écrit dans la case.
-function melangeCouleur(t) {
-  const de = [255, 255, 255];
-  const a = [0x1a, 0x35, 0x56];
-  const c = de.map((v, i) => Math.round(v + (a[i] - v) * Math.min(1, Math.max(0, t))));
-  return `rgb(${c.join(',')})`;
+// chaque case = moyenne des notes observées (« — » : paire sans réponse). Palette « chaleur » :
+// jaune pâle (très semblables) → jaune → orange → rouge → rouge sombre → noir (très différents),
+// barre de couleur à droite. Une fois révélés, les instruments nomment les lignes (nom) et les
+// colonnes (abréviation) ; sinon les clés A, B… Chaque case porte data-a / data-b : la
+// diapositive enseignant fait entendre le contraste au clic.
+const CHALEUR = [
+  [0, [255, 255, 224]],
+  [0.25, [255, 214, 32]],
+  [0.5, [255, 138, 0]],
+  [0.7, [226, 26, 12]],
+  [0.86, [130, 0, 0]],
+  [1, [0, 0, 0]],
+];
+
+export function couleurChaleur(t) {
+  const x = Math.min(1, Math.max(0, Number(t) || 0));
+  let k = 1;
+  while (k < CHALEUR.length - 1 && x > CHALEUR[k][0]) k += 1;
+  const [t0, c0] = CHALEUR[k - 1];
+  const [t1, c1] = CHALEUR[k];
+  const f = (x - t0) / (t1 - t0 || 1);
+  return `rgb(${c0.map((v, i) => Math.round(v + (c1[i] - v) * f)).join(',')})`;
 }
 
 function rendreMatrice(gabarit, res, opts) {
@@ -1293,20 +1308,33 @@ function rendreMatrice(gabarit, res, opts) {
   if (!k || matrice.length !== k) return vide('Résultats indisponibles', opts);
   const min = Number.isFinite(Number(g.min)) ? Number(g.min) : 0;
   const max = Number.isFinite(Number(g.max)) ? Number(g.max) : 100;
+  const son = (cle) => (Array.isArray(g.sons) ? g.sons.find((s) => s.cle === cle) : null) || {};
+  const ligne = (cle) => son(cle).nom || cle;
+  const colonne = (cle) => son(cle).abrege || son(cle).nom || cle;
 
-  const fsEtiquette = m.fsChiffre;
-  const marge = Math.round(fsEtiquette * 1.6);
-  const hautPied = m.fsNote * 3.2;
-  const cote = Math.floor(Math.min((m.bw - 2 * m.pad - marge) / k, (m.bw * 0.8 - marge) / k));
-  const x0 = Math.round((m.bw - (marge + cote * k)) / 2) + marge;
-  const y0 = m.pad + marge;
-  const hauteur = y0 + cote * k + hautPied + m.pad;
-  const fsCase = Math.round(Math.min(cote * 0.38, m.fsChiffre * 1.1));
+  const fsEtiquette = Math.round(m.fsChiffre * 0.78);
+  const fsTitre = Math.round(m.fsChiffre * 0.82);
+  const largeurLignes = Math.max(...cles.map((c) => largeurTexte(ligne(c), fsEtiquette, 600))) + fsEtiquette * 0.6;
+  const largeurBarre = Math.round(fsEtiquette * 0.9);
+  const largeurLegende = largeurBarre + fsEtiquette * 0.5 + largeurTexte(String(max), fsEtiquette, 400) + m.pad;
+  const yTitre = m.pad + fsTitre;
+  const y0 = yTitre + fsTitre * 0.7;
+  const cote = Math.floor(Math.min((m.bw - 2 * m.pad - largeurLignes - largeurLegende) / k, (m.bw * 0.72) / k));
+  const x0 = Math.round(m.pad + largeurLignes + (m.bw - 2 * m.pad - largeurLignes - largeurLegende - cote * k) / 2);
+  const yBas = y0 + cote * k;
+  const hautPied = fsEtiquette * 1.6 + m.fsNote * 2.8;
+  const hauteur = yBas + hautPied + m.pad;
+  const fsCase = Math.round(Math.min(cote * 0.34, m.fsChiffre * 0.9));
   const enfants = [];
 
+  enfants.push(txt(x0 + (cote * k) / 2, yTitre, 'Dissimilarité perçue', { taille: fsTitre, graisse: 600, ancre: 'middle' }));
   cles.forEach((cle, i) => {
-    enfants.push(txt(x0 + cote * i + cote / 2, y0 - fsEtiquette * 0.45, cle, { taille: fsEtiquette, graisse: 700, ancre: 'middle' }));
-    enfants.push(txt(x0 - fsEtiquette * 0.5, y0 + cote * i + cote / 2 + fsEtiquette * 0.35, cle, { taille: fsEtiquette, graisse: 700, ancre: 'end' }));
+    enfants.push(txt(x0 - fsEtiquette * 0.4, y0 + cote * i + cote / 2 + fsEtiquette * 0.35, ligne(cle), {
+      taille: fsEtiquette, graisse: 600, ancre: 'end',
+    }));
+    enfants.push(txt(x0 + cote * i + cote / 2, yBas + fsEtiquette * 1.25, colonne(cle), {
+      taille: fsEtiquette, graisse: 600, ancre: 'middle',
+    }));
   });
   for (let i = 0; i < k; i += 1) {
     for (let j = 0; j < k; j += 1) {
@@ -1317,30 +1345,50 @@ function rendreMatrice(gabarit, res, opts) {
       const y = y0 + cote * i;
       const rect = svg('rect', {
         x, y, width: cote, height: cote,
-        fill: i === j ? '#f1f3f5' : connu ? melangeCouleur(t) : COULEURS.fond,
-        stroke: COULEURS.filet, 'stroke-width': 2,
+        fill: i === j || !connu ? COULEURS.fond : couleurChaleur(t),
+        stroke: '#ffffff', 'stroke-width': 1.5,
+        class: 'case-paire', 'data-a': cles[i], 'data-b': cles[j],
       });
-      if (i !== j) rect.appendChild(svg('title', {}, [`${cles[i]}–${cles[j]} : ${connu ? nombreDecimal(v, 1) : 'aucune réponse'}`]));
+      rect.appendChild(svg('title', {}, [i === j ? ligne(cles[i])
+        : `${ligne(cles[i])} – ${ligne(cles[j])} : ${connu ? nombreDecimal(v, 1) : 'aucune réponse'}`]));
       enfants.push(rect);
-      enfants.push(txt(x + cote / 2, y + cote / 2 + fsCase * 0.35, i === j ? '0' : connu ? nombreEntier(Math.round(Number(v))) : '—', {
-        taille: fsCase,
-        graisse: i === j ? 400 : 600,
-        ancre: 'middle',
-        couleur: i === j ? '#868e96' : t > 0.55 ? COULEURS.fond : COULEURS.encre,
-      }));
+      if (i !== j) {
+        enfants.push(txt(x + cote / 2, y + cote / 2 + fsCase * 0.35, connu ? nombreEntier(Math.round(Number(v))) : '—', {
+          taille: fsCase, graisse: 600, ancre: 'middle', couleur: t > 0.62 ? COULEURS.fond : COULEURS.encre,
+        }));
+      }
     }
   }
+  // Cadre de la matrice, puis barre de couleur graduée (min, milieu, max).
+  enfants.push(svg('rect', { x: x0, y: y0, width: cote * k, height: cote * k, fill: 'none', stroke: COULEURS.encre, 'stroke-width': 1.5 }));
+  const xb = x0 + cote * k + m.pad;
+  const hb = cote * k * 0.75;
+  const yb = y0 + (cote * k - hb) / 2;
+  const id = `chaleur-${Math.random().toString(36).slice(2, 8)}`;
+  enfants.push(svg('defs', {}, [svg('linearGradient', { id, x1: 0, y1: 1, x2: 0, y2: 0 },
+    CHALEUR.map(([o, c]) => svg('stop', { offset: o, 'stop-color': `rgb(${c.join(',')})` })))]));
+  enfants.push(svg('rect', { x: xb, y: yb, width: largeurBarre, height: hb, fill: `url(#${id})`, stroke: COULEURS.encre, 'stroke-width': 1.5 }));
+  [[min, yb + hb], [Math.round((min + max) / 2), yb + hb / 2], [max, yb]].forEach(([v, y]) => {
+    enfants.push(svg('line', { x1: xb + largeurBarre, y1: y, x2: xb + largeurBarre + 8, y2: y, stroke: COULEURS.encre, 'stroke-width': 1.5 }));
+    enfants.push(txt(xb + largeurBarre + 12, y + fsEtiquette * 0.35, nombreEntier(v), { taille: fsEtiquette }));
+  });
 
   const n = Number(res.n) || 0;
   const simulees = Number(res.simulees) || 0;
-  const yPied = y0 + cote * k + m.fsNote * 1.5;
+  const yPied = yBas + fsEtiquette * 1.6 + m.fsNote * 1.3;
   const effectif = `${nombreEntier(n)} participant${n === 1 ? '' : 's'}${simulees ? ` (dont ${nombreEntier(simulees)} simulé${simulees === 1 ? '' : 's'})` : ''}`;
-  const manque = res.complete === false ? ' · paires sans réponse : —' : '';
-  enfants.push(txt(m.bw / 2, yPied, `Moyenne des notes, ${min} à ${max}`, { taille: m.fsNote, ancre: 'middle', couleur: '#495057' }));
-  enfants.push(txt(m.bw / 2, yPied + m.fsNote * 1.35, `${effectif}${manque}`, {
+  const manque = res.complete === false ? ' · — : paire sans réponse' : '';
+  enfants.push(txt(m.bw / 2, yPied, `${effectif}${manque}`, {
     taille: m.fsNote, graisse: 600, ancre: 'middle', couleur: simulees ? COULEURS.rouge : '#495057',
   }));
-  return racineSvg(m.bw, hauteur, enfants, { etiquette: opts.etiquette || 'Matrice de dissimilarité' });
+  if (opts.jouable) {
+    enfants.push(txt(m.bw / 2, yPied + m.fsNote * 1.35, 'Cliquez une case pour entendre la paire', {
+      taille: m.fsNote, ancre: 'middle', couleur: '#868e96',
+    }));
+  }
+  const dessin = racineSvg(m.bw, hauteur, enfants, { etiquette: opts.etiquette || 'Matrice de dissimilarité' });
+  if (opts.jouable) dessin.classList.add('jouable');
+  return dessin;
 }
 
 // Série. Disposition commune avec le formulaire (dispositionSerie) :
