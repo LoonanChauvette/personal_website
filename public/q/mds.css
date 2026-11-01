@@ -84,15 +84,15 @@ button {
   border: 0;
   border-radius: 0;
 }
+.bascule button {
+  white-space: nowrap;
+}
 .bascule button + button {
   border-left: 2px solid var(--marine);
 }
 .bascule button[aria-pressed="true"] {
   background: var(--marine);
   color: #fff;
-}
-.bascule button[data-source="simule"][aria-pressed="true"] {
-  background: var(--rouge);
 }
 button.discret {
   font-weight: 400;
@@ -110,6 +110,9 @@ button.discret {
 .source {
   font-size: 0.8em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
   color: var(--gris);
 }
 .source.simulee {
@@ -118,6 +121,9 @@ button.discret {
 .point {
   cursor: pointer;
   outline: none;
+}
+.point.muet {
+  cursor: default; /* pas de son fourni (données de la littérature) */
 }
 .chiffre,
 .point text {

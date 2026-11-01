@@ -219,7 +219,13 @@ function alea(graine) {
 // Solution de référence : SMACOF depuis Torgerson et depuis des départs au hasard (graine
 // fixe), meilleur stress gardé (évite les minima locaux), puis axes principaux.
 // En 1D, SMACOF reste souvent bloqué sur un mauvais ordre des points : plus de départs.
-export function mds(delta, { dim = 2, iterations = 1000, tolerance = 1e-10, departs = dim === 1 ? 80 : 24 } = {}) {
+// Au-delà de 8 sons (données de la littérature), 8 départs suffisent et restent rapides.
+function departsParDefaut(n, dim) {
+  if (n > 8) return 8;
+  return dim === 1 ? 80 : 24;
+}
+
+export function mds(delta, { dim = 2, iterations = 1000, tolerance = 1e-9, departs = departsParDefaut(delta.length, dim) } = {}) {
   if (![1, 2, 3].includes(dim)) throw new Error('Nombre de dimensions : 1, 2 ou 3.');
   verifier(delta);
   let meilleur = descendre(torgerson(delta, dim), delta, iterations, tolerance);

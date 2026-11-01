@@ -6,24 +6,29 @@
 //
 // Document hôte (tools/questions_cours7.py) :
 //   <base href="https://SITE/q/">
-//   <script type="application/json" id="config">{"id": "c7paires", "simule": "donnees/…json"}</script>
+//   <script type="application/json" id="config">{"id": "c7paires", "reference": "donnees/…json"}</script>
 //   <main id="mds"></main>
 //
-// Bascule Classe / Simulé : « Simulé » affiche un jeu fixe (tools/donnees_mds_simulees.mjs),
-// toujours disponible. Sans résultat de la classe, la diapositive part sur « Simulé ».
+// Bascule Classe / McAdams 1995 : « McAdams 1995 » affiche la matrice de dissimilarité de
+// McAdams et al. (1995), 18 timbres de synthèse (tools/donnees_reference.mjs), toujours
+// disponible. Sans résultat de la classe, la diapositive part sur ces données.
 // Bascule 1D / 2D / 3D : nombre de dimensions de la carte (le stress de chacune s'affiche).
-//   1D : points sur une droite, arcs au survol ; 3D : vue en perspective, glisser pour tourner.
+//   1D : points sur une droite, arcs au survol ; 3D : points dans une boîte (comme les figures
+//   d'espaces timbraux), glisser pour tourner.
 //   3D, « Vertical : D1 / D2 / D3 » : la vue tourne pour mettre cet axe à la verticale ; les
-//   tiges descendent le long de cet axe jusqu'au plan des deux autres (la coordonnée se lit
-//   à la longueur de la tige).
-// Survoler un point : traits vers les autres sons, avec la dissimilarité jugée.
-// Cliquer un point : l'instrument joue (un second clic arrête).
+//   tiges descendent le long de cet axe jusqu'au fond de la boîte (la coordonnée se lit à la
+//   longueur de la tige).
+// Survoler un point : traits vers les autres sons, avec la dissimilarité jugée (au-delà de
+// 8 sons : nom complet seulement, les points sont étiquetés par leur abréviation).
+// Cliquer un point : l'instrument joue (un second clic arrête), si le son est fourni.
 import { apiGarde, COULEURS, svg, txt, nombreEntier } from './commun.js';
 import { aligner, mds, pasGuttman, stress } from './mds.js';
 
 const conf = JSON.parse(document.getElementById('config').textContent);
 const ID = String(conf.id || 'c7paires');
-const URL_SIMULE = String(conf.simule || 'donnees/c7paires-simule.json');
+// La clé « simule » des premières versions de la diapositive est ignorée (fichier retiré).
+const URL_REFERENCE = String(conf.reference || 'donnees/mcadams1995.json');
+const BEAUCOUP = 8; // au-delà : abréviations, pas de traits au survol
 
 const L = 1000; // repère du SVG
 const H = 820;
@@ -39,7 +44,7 @@ racine.innerHTML = `
   <header class="barre">
     <div class="bascule" role="group" aria-label="Données">
       <button type="button" data-source="classe">Classe</button>
-      <button type="button" data-source="simule">Simulé</button>
+      <button type="button" data-source="reference" title="McAdams et al. (1995), 18 timbres de synthèse">McAdams</button>
     </div>
     <div class="bascule" role="group" aria-label="Nombre de dimensions">
       <button type="button" data-dim="1">1D</button>
@@ -73,7 +78,7 @@ const ui = {
   axes: [...racine.querySelectorAll('[data-axe]')],
 };
 
-const donnees = { classe: null, simule: null, erreurClasse: null };
+const donnees = { classe: null, reference: null, erreurClasse: null };
 let choix = null; // source choisie à la main (sinon : classe si elle existe)
 let dim = 2;
 let vue = null; // source et solution affichées (voir preparer)
@@ -168,7 +173,7 @@ function visible() {
 
 function source() {
   if (choix) return choix;
-  return donnees.classe ? 'classe' : 'simule';
+  return donnees.classe ? 'classe' : 'reference';
 }
 
 // ─── Données ───────────────────────────────────────────────────────────────
@@ -183,11 +188,11 @@ async function chargerClasse() {
   }
 }
 
-async function chargerSimule() {
-  if (donnees.simule) return;
-  const r = await fetch(URL_SIMULE, { cache: 'no-cache' });
-  if (!r.ok) throw new Error(`Données simulées introuvables (${r.status})`);
-  donnees.simule = await r.json();
+async function chargerReference() {
+  if (donnees.reference) return;
+  const r = await fetch(URL_REFERENCE, { cache: 'no-cache' });
+  if (!r.ok) throw new Error(`Données de McAdams et al. (1995) introuvables (${r.status})`);
+  donnees.reference = await r.json();
 }
 
 function preparer(g, cleSource) {
@@ -211,9 +216,11 @@ function preparer(g, cleSource) {
   if (dim === 1) v.echelle = (largeur / v.etendue) * 0.86;
   else if (dim === 2) v.echelle = Math.min(largeur / v.etendue, hauteur / v.etendue) * 0.86;
   else {
-    // 3D : rayon autour du centre, constant pendant la rotation.
-    v.rayon = Math.max(...points.map((p) => Math.hypot(...p.map((c, k) => c - v.centre[k]))), 1e-9);
-    v.echelle = (Math.min(largeur, hauteur) / 2 / v.rayon) * 0.95;
+    // 3D : boîte autour des points ; sa demi-diagonale tient dans le cadre quelle que soit la rotation.
+    const marge = 0.08 * v.etendue;
+    v.boite = etendues.map(([a, b]) => [a - marge, b + marge]);
+    v.rayon = 0.5 * Math.hypot(...v.boite.map(([a, b]) => b - a));
+    v.echelle = (Math.min(largeur, hauteur) / 2 / v.rayon) * 1.12; // coins hors cadre seulement aux angles extrêmes
   }
   return v;
 }
@@ -259,36 +266,57 @@ function axes(s, v) {
     s.appendChild(svg('line', { x1: ZONE.x0, y1: LIGNE_1D, x2: ZONE.x1, y2: LIGNE_1D, stroke: COULEURS.filet, 'stroke-width': 3 }));
     s.appendChild(txt(CENTRE[0], H - 22, 'Dimension 1', gris));
   } else {
-    // Trois axes depuis le centre (sans graduation : les dimensions n'ont pas encore de sens).
-    const o = versEcran(v, v.centre);
-    for (let k = 0; k < 3; k += 1) {
-      const bout = v.centre.map((c, j) => c + (j === k ? v.rayon * 1.1 : 0));
-      const moins = v.centre.map((c, j) => c - (j === k ? v.rayon * 1.1 : 0));
-      const [x2, y2] = versEcran(v, bout);
-      const [x1, y1] = versEcran(v, moins);
-      s.appendChild(svg('line', { x1, y1, x2, y2, stroke: COULEURS.filet, 'stroke-width': 3 }));
-      const dx = x2 - o[0];
-      const dy = y2 - o[1];
+    // Boîte autour des points (sans graduation : les dimensions n'ont pas encore de sens).
+    const k = axeVertical;
+    const coin = (bits) => versEcran(v, bits.map((bit, j) => v.boite[j][bit]));
+    const [a, b] = [0, 1, 2].filter((j) => j !== k);
+    const fond = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, w]) => {
+      const bits = [0, 0, 0];
+      bits[a] = u;
+      bits[b] = w;
+      return coin(bits);
+    });
+    s.appendChild(svg('polygon', { points: fond.map(([x, y]) => `${x},${y}`).join(' '), fill: '#e7f0fb', 'fill-opacity': 0.6, stroke: 'none' }));
+    const centreEcran = versEcran(v, v.centre);
+    for (let j = 0; j < 3; j += 1) {
+      const [p, q] = [0, 1, 2].filter((m) => m !== j);
+      const aretes = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([u, w]) => {
+        const bits = [0, 0, 0];
+        bits[p] = u;
+        bits[q] = w;
+        const haut = [...bits];
+        haut[j] = 1;
+        return { bits, A: coin(bits), B: coin(haut) };
+      });
+      for (const { A, B } of aretes) s.appendChild(svg('line', { x1: A[0], y1: A[1], x2: B[0], y2: B[1], stroke: '#ced4da', 'stroke-width': 2.5 }));
+      // Étiquette : arête verticale la plus à gauche ; sinon arête du fond la plus basse à l'écran.
+      const milieu = ({ A, B }) => [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
+      const candidates = j === k ? aretes : aretes.filter(({ bits }) => bits[k] === 0);
+      const choisie = candidates.reduce((m, c) => {
+        const [x, y] = milieu(c);
+        const [mx, my] = milieu(m);
+        return (j === k ? x < mx : y > my) ? c : m;
+      });
+      const [x, y] = milieu(choisie);
+      const dx = x - centreEcran[0];
+      const dy = y - centreEcran[1];
       const n = Math.hypot(dx, dy) || 1;
-      const actif = k === axeVertical;
-      s.appendChild(txt(x2 + (dx / n) * 34, y2 + (dy / n) * 34 + 11, `D${k + 1}`, { ...gris, graisse: actif ? 700 : 600, couleur: actif ? COULEURS.marine : GRIS }));
+      const actif = j === k;
+      s.appendChild(etiquetteBlanche(txt(x + (dx / n) * 38, y + (dy / n) * 38 + 11, `D${j + 1}`,
+        { ...gris, graisse: actif ? 700 : 600, couleur: actif ? COULEURS.marine : GRIS })));
     }
     s.appendChild(txt(ZONE.x1, H - 22, 'Glisser pour tourner', { taille: 28, ancre: 'end', couleur: GRIS }));
   }
 }
 
-// 3D : plan des deux autres axes (sol clair) et tige de chaque point jusqu'à ce plan, le
-// long de l'axe vertical choisi : la longueur de la tige est la coordonnée sur cet axe.
+// 3D : tige de chaque point jusqu'au fond de la boîte, le long de l'axe vertical choisi :
+// la longueur de la tige est la coordonnée sur cet axe.
 function tiges(s, v, X) {
   const k = axeVertical;
   const [a, b] = [0, 1, 2].filter((j) => j !== k);
-  const coin = (u, w) => versEcran(v, v.centre.map((c, j) => c + (j === a ? u : 0) + (j === b ? w : 0)));
-  const r = v.rayon * 1.1;
-  const sol = [coin(-r, -r), coin(r, -r), coin(r, r), coin(-r, r)].map(([x, y]) => `${x},${y}`).join(' ');
-  s.appendChild(svg('polygon', { points: sol, fill: '#e7f0fb', 'fill-opacity': 0.55, stroke: '#c5d6ee', 'stroke-width': 2 }));
-  const pas = v.rayon * 0.035; // ombre : petit disque dans le plan
+  const pas = v.rayon * 0.025; // ombre : petit disque sur le fond
   X.forEach((p) => {
-    const pied = p.map((c, j) => (j === k ? v.centre[k] : c));
+    const pied = p.map((c, j) => (j === k ? v.boite[k][0] : c));
     const [x1, y1] = versEcran(v, p);
     const [x2, y2] = versEcran(v, pied);
     s.appendChild(svg('line', { x1, y1, x2, y2, stroke: '#868e96', 'stroke-width': 2.5, 'stroke-dasharray': '6 6' }));
@@ -310,8 +338,14 @@ function tracer(v, X) {
   s.appendChild(st);
 
   // Survol : traits (arcs en 1D) vers les autres sons, sous les points ; chiffres au-dessus.
+  // Beaucoup de sons : nom complet du son survolé en haut à gauche, sans traits.
+  const nombreux = v.sons.length > BEAUCOUP;
   const chiffres = [];
-  if (survol !== null) {
+  if (survol !== null && nombreux) {
+    const son = v.sons[survol];
+    s.appendChild(etiquetteBlanche(txt(ZONE.x0 - 50, 44, son.abrege && son.nom ? `${son.abrege} : ${son.nom}` : nomDe(son),
+      { taille: 30, graisse: 700, couleur: COULEURS.marine })));
+  } else if (survol !== null) {
     const i = survol;
     v.sons.forEach((_, j) => {
       if (j === i) return;
@@ -333,20 +367,25 @@ function tracer(v, X) {
 
   // 1D : noms sous la droite, sur deux rangs alternés (de gauche à droite).
   const rang1D = new Map();
-  if (v.dim === 1) [...E.keys()].sort((a, b) => E[a][0] - E[b][0]).forEach((i, k) => rang1D.set(i, k % 2));
+  if (v.dim === 1) [...E.keys()].sort((a, b) => E[a][0] - E[b][0]).forEach((i, k) => rang1D.set(i, k % (nombreux ? 3 : 2)));
   // 3D : du plus loin au plus proche (les plus proches recouvrent).
   const ordre = [...E.keys()].sort((a, b) => E[a][2] - E[b][2]);
   for (const i of ordre) {
     const son = v.sons[i];
     const [x, y, z] = E[i];
-    const g = svg('g', { class: `point${enLecture === i ? ' joue' : ''}${survol === i ? ' survol' : ''}`, 'data-i': i, tabindex: 0, role: 'button', 'aria-label': `${nomDe(son)} : écouter` });
-    const r = v.dim === 3 ? 17 * (1 + 0.3 * z) : 17;
+    const g = svg('g', {
+      class: `point${enLecture === i ? ' joue' : ''}${survol === i ? ' survol' : ''}${son.fichier ? '' : ' muet'}`,
+      'data-i': i, tabindex: 0, role: son.fichier ? 'button' : 'img', 'aria-label': son.fichier ? `${nomDe(son)} : écouter` : nomDe(son),
+    });
+    const r0 = nombreux ? 13 : 17;
+    const r = v.dim === 3 ? r0 * (1 + 0.3 * z) : r0;
     g.appendChild(svg('circle', { cx: x, cy: y, r: 44, fill: 'transparent' })); // zone de clic
     g.appendChild(svg('circle', { class: 'disque', cx: x, cy: y, r, fill: COULEURS.marine, 'fill-opacity': v.dim === 3 ? 0.6 + 0.4 * (z + 1) / 2 : 1 }));
     let ty;
-    if (v.dim === 1) ty = y + 56 + 42 * rang1D.get(i);
+    if (v.dim === 1) ty = y + 56 + (nombreux ? 36 : 42) * rang1D.get(i);
     else ty = y - 34 > ZONE.y0 + 30 ? y - r - 15 : y + r + 41;
-    g.appendChild(etiquetteBlanche(txt(x, ty, nomDe(son), { taille: 36, ancre: 'middle', graisse: 600 })));
+    const nom = nombreux ? son.abrege || son.cle : nomDe(son);
+    g.appendChild(etiquetteBlanche(txt(x, ty, nom, { taille: nombreux ? 30 : 36, ancre: 'middle', graisse: 600 })));
     s.appendChild(g);
   }
   chiffres.forEach((c) => s.appendChild(c));
@@ -363,11 +402,10 @@ function formaterStress(v) {
 
 function majTexte(v) {
   const res = v.g.resultats;
-  const simule = source() === 'simule';
   const n = res.n || 0;
   const dont = res.simulees || 0;
-  ui.source.classList.toggle('simulee', simule || dont > 0);
-  if (simule) ui.source.textContent = `Simulé : ${nombreEntier(n)} participants fictifs`;
+  ui.source.classList.toggle('simulee', source() === 'classe' && dont > 0);
+  if (source() === 'reference') ui.source.textContent = `${v.g.titre || 'Littérature'}, ${v.sons.length} timbres`;
   else ui.source.textContent = `Classe : ${nombreEntier(n)} participant${n === 1 ? '' : 's'}${dont ? ` (${nombreEntier(dont)} simulés)` : ''}`;
 }
 
@@ -476,9 +514,9 @@ async function afficher({ rejouer = false } = {}) {
   ui.axeVertical.hidden = dim !== 3;
   let g;
   try {
-    if (src === 'simule') {
-      await chargerSimule();
-      g = donnees.simule;
+    if (src === 'reference') {
+      await chargerReference();
+      g = donnees.reference;
     } else {
       g = donnees.classe;
       if (!g) {
