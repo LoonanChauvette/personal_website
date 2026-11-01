@@ -623,6 +623,24 @@ function lignesPour(entree) {
     return lignes;
   }
 
+  if (type === 'paires') {
+    // Une ligne par paire (moyenne, médiane, effectif), puis une ligne par participant anonyme
+    // et par paire : les notes individuelles, pour refaire la matrice ou la MDS ailleurs.
+    for (const id of res.ordre || []) {
+      const p = (res.paires || {})[id] || {};
+      lignes.push([...base, `${id} moyenne`, nombreDecimal(p.moyenne, 2), Number(p.n) || 0, '', '']);
+      lignes.push([...base, `${id} mediane`, nombreDecimal(p.mediane, 2), Number(p.n) || 0, '', '']);
+    }
+    (res.individus || []).forEach((notes, i) => {
+      (res.ordre || []).forEach((id, j) => {
+        lignes.push([...base, `p${i + 1} ${id}`, notes[j] === null || notes[j] === undefined ? '' : notes[j], '', '', '']);
+      });
+    });
+    lignes.push([...base, 'participants', '', Number(res.n) || 0, '', '']);
+    if (Number(res.simulees)) lignes.push([...base, 'dont simulés', '', Number(res.simulees), '', '']);
+    return lignes;
+  }
+
   return lignes;
 }
 

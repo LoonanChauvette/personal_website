@@ -4,7 +4,7 @@
 // L'état public est mis en cache CDN une seconde ; les mutations et les résultats
 // enseignants ne sont jamais mis en cache.
 
-import { TYPES, agreger, normaliserGabarit, validerReponse } from "../lib/poll/core.mjs";
+import { TYPES, agreger, etapesPaires, melangerPaires, normaliserGabarit, validerReponse } from "../lib/poll/core.mjs";
 import { ErreurStockage, TTL_DEFAUT, creerStoreDepuisEnv } from "../lib/poll/store.mjs";
 import {
   DUREE_COURS_S,
@@ -57,6 +57,7 @@ const OPS_ENSEIGNANT = new Set([
   "nouvelle_seance",
   "effacer",
   "moderer",
+  "etape",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -83,6 +84,10 @@ const cleEtat = (salle) => `poll:${salle}:etat`;
 const cleRep = (salle, seance, id, tour) => `poll:${salle}:${seance}:${id}:${tour}:rep`;
 const cleN = (salle, seance, id, tour) => `poll:${salle}:${seance}:${id}:${tour}:n`;
 const cleMasques = (salle, seance, id, tour) => `poll:${salle}:${seance}:${id}:${tour}:masques`;
+// « paires » : nombre d'appareils ayant noté chaque paire (compteur de l'étape courante).
+const cleParPaire = (salle, seance, id, tour) => `poll:${salle}:${seance}:${id}:${tour}:par_paire`;
+// Appareils de simulation (tools/simuler_paires.mjs) : comptés à part dans les résultats.
+const PREFIXE_SIMULE = "simul-";
 const clePresence = (salle) => `poll:${salle}:presence`;
 // Résultats gardés : le dernier résultat révélé de chaque question, affiché par
 // sa diapositive même après le cours. Effacé seulement à la main (diapositive
@@ -256,12 +261,26 @@ function questionPublique(question, nbReponses, enseignant = false) {
     revision: question.revision,
     nb_reponses: nbReponses,
   };
+  if (question.type === "paires") vue.etape = Number.isInteger(question.etape) ? question.etape : 0;
   // Révéler = projeter : l'agrégat est public dès la révélation (l'écran n'a pas
   // besoin de la clé). « publie » dit seulement si les téléphones l'affichent aussi.
   if (question.statut === "revelee" && question.resultats) {
     vue.resultats = question.resultats;
     vue.publie = !!question.publie;
   }
+  return vue;
+}
+
+// « paires » : réponses à la paire de l'étape courante (null pendant un essai d'entraînement).
+async function ajouterCompteEtape(store, salle, etat, vue) {
+  if (!vue || vue.type !== "paires") return vue;
+  const etape = etapesPaires(etat.question.gabarit)[vue.etape];
+  if (!etape || etape.essai) {
+    vue.nb_etape = null;
+    return vue;
+  }
+  const comptes = await store.hgetall(cleParPaire(salle, etat.seance, etat.question.id, etat.question.tour));
+  vue.nb_etape = Number((comptes || {})[etape.id]) || 0;
   return vue;
 }
 
@@ -273,7 +292,7 @@ async function reponseEnseignant(store, salle, etat) {
   return {
     salle,
     seance: etat?.seance ?? null,
-    question: etat?.question ? questionPublique(etat.question, nb, true) : null,
+    question: etat?.question ? await ajouterCompteEtape(store, salle, etat, questionPublique(etat.question, nb, true)) : null,
     serveur_ms: Date.now(),
   };
 }
@@ -306,11 +325,14 @@ async function lireReponses(store, salle, seance, question) {
 }
 
 function agregerPublic(type, gabarit, valeurs) {
-  return agreger(
+  const resultats = agreger(
     type,
     gabarit,
     valeurs.filter((v) => !v.masque).map((v) => v.valeur),
   );
+  // Réponses simulées : signalées dans le résultat (et donc sur chaque graphique gardé).
+  if (type === "paires") resultats.simulees = valeurs.filter((v) => !v.masque && v.cle.startsWith(PREFIXE_SIMULE)).length;
+  return resultats;
 }
 
 // ---------------------------------------------------------------------------
@@ -336,7 +358,7 @@ async function operationEtat(req, res) {
     {
       salle,
       seance: etat?.seance ?? null,
-      question: etat?.question ? questionPublique(etat.question, nb, false) : null,
+      question: etat?.question ? await ajouterCompteEtape(store, salle, etat, questionPublique(etat.question, nb, false)) : null,
       serveur_ms: Date.now(),
     },
     { "Cache-Control": CACHE_ETAT },
@@ -368,13 +390,46 @@ async function operationRepondre(req, res) {
   if (!validation.ok) return erreur(res, 400, validation.erreur);
 
   const question = etat.question;
+  const paires = question.type === "paires";
+  let ids = [];
+  if (paires) {
+    // Une paire à la fois, déjà présentée (la paire courante, ou une précédente si la note
+    // arrive juste après le passage à la suivante) ; jamais une paire pas encore entendue.
+    ids = Object.keys(validation.valeur);
+    if (ids.length !== 1) return erreur(res, 400, "Une seule paire à la fois.");
+    const etape = etapesPaires(question.gabarit).find((e) => !e.essai && e.id === ids[0]);
+    const courante = Number.isInteger(question.etape) ? question.etape : 0;
+    if (!etape || etape.rang > courante) return erreur(res, 409, "Cette paire n'a pas encore été présentée.");
+  }
   const cleCompteur = cleN(salle, etat.seance, question.id, question.tour);
+  const plafond = paires ? MAX_ECRITURES * question.gabarit.paires.length : MAX_ECRITURES;
   const total = await store.hincrby(cleCompteur, appareil, 1, TTL_DEFAUT);
-  if (total > MAX_ECRITURES) {
-    return erreur(res, 429, "Limite de 30 envois atteinte pour cette question.");
+  if (total > plafond) {
+    return erreur(res, 429, `Limite de ${plafond} envois atteinte pour cette question.`);
   }
 
   const cleR = cleRep(salle, etat.seance, question.id, question.tour);
+  if (paires) {
+    // Fusion : la note de cette paire rejoint les notes déjà données par l'appareil.
+    const toutes = (await store.hgetall(cleR)) || {};
+    let avant = {};
+    try {
+      avant = toutes[appareil] ? JSON.parse(toutes[appareil]) : {};
+    } catch {
+      avant = {};
+    }
+    const commandes = [
+      ["hset", cleR, appareil, JSON.stringify({ ...avant, ...validation.valeur })],
+      ["expire", cleR, TTL_DEFAUT],
+    ];
+    if (avant[ids[0]] === undefined) {
+      const cleP = cleParPaire(salle, etat.seance, question.id, question.tour);
+      commandes.push(["hincrby", cleP, ids[0], 1], ["expire", cleP, TTL_DEFAUT]);
+    }
+    await store.pipeline(commandes);
+    await noterPresence(store, salle, appareil);
+    return envoyer(res, 200, { ok: true });
+  }
   await store.pipeline([
     validation.valeur instanceof Array && question.type === "nuage" && validation.valeur.length === 0
       ? ["hdel", cleR, appareil]
@@ -503,12 +558,17 @@ async function operationLancer(req, res) {
     cleRep(salle, etat.seance, id, 1),
     cleN(salle, etat.seance, id, 1),
     cleMasques(salle, etat.seance, id, 1),
+    cleParPaire(salle, etat.seance, id, 1),
   );
+  // Paires : nouvel ordre de présentation à chaque lancement, figé ensuite dans l'état
+  // (et dans le résultat gardé) : relancer, recharger ou un second écran n'y touchent pas.
+  if (type === "paires" && gabarit.melanger) gabarit = melangerPaires(gabarit);
   etat.question = {
     id,
     tour: 1,
     type,
     gabarit,
+    ...(type === "paires" ? { etape: 0 } : {}),
     statut: "ouverte",
     ouverte_a: Date.now(),
     revision,
@@ -559,11 +619,28 @@ async function operationMutation(req, res, op) {
 
     case "relancer": {
       question.tour += 1;
+      if (question.type === "paires") question.etape = 0;
       question.statut = "ouverte";
       question.ouverte_a = Date.now();
       question.revision += 1;
       question.publie = false;
       question.resultats = null;
+      break;
+    }
+
+    case "etape": {
+      // Paires : passer à l'étape demandée (numéro absolu : un double clic ne saute rien).
+      if (question.type !== "paires") return erreur(res, 409, "Cette question n'a pas d'étapes.");
+      if (question.statut !== "ouverte") return erreur(res, 409, "Question fermée.");
+      const n = Number(corps.etape);
+      const total = etapesPaires(question.gabarit).length;
+      if (!Number.isInteger(n) || n < 0 || n >= total) {
+        return erreur(res, 400, `Étape attendue entre 0 et ${total - 1}.`);
+      }
+      if (n !== question.etape) {
+        question.etape = n;
+        question.revision += 1;
+      }
       break;
     }
 
@@ -815,7 +892,8 @@ async function operationEffacerGarde(req, res) {
     const tour = etat.question?.id === id ? etat.question.tour : 1;
     const cles = [];
     for (let t = 1; t <= Math.max(1, tour); t += 1) {
-      cles.push(cleRep(salle, etat.seance, id, t), cleN(salle, etat.seance, id, t), cleMasques(salle, etat.seance, id, t));
+      cles.push(cleRep(salle, etat.seance, id, t), cleN(salle, etat.seance, id, t), cleMasques(salle, etat.seance, id, t),
+        cleParPaire(salle, etat.seance, id, t));
     }
     if (etat.seance) await store.del(...cles);
     etat.revelees = (Array.isArray(etat.revelees) ? etat.revelees : []).filter((x) => x !== id);

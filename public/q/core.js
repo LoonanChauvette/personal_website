@@ -15,6 +15,7 @@ export const TYPES = Object.freeze([
   "texte",
   "classement",
   "serie",
+  "paires",
 ]);
 
 // Une « série » regroupe plusieurs sous-questions sur une même diapositive (une seule
@@ -22,6 +23,14 @@ export const TYPES = Object.freeze([
 // « serie » (pas d'imbrication).
 const MIN_SOUS = 2;
 const MAX_SOUS = 9;
+
+// « paires » : jugements de dissimilarité. L'enseignant fait entendre les paires une à une
+// (étape courante de la question) ; chaque téléphone note la paire entendue sur un curseur.
+// La réponse d'un appareil est un objet {"A-B": note, …} complété paire après paire.
+const MIN_SONS = 2;
+const MAX_SONS = 8;
+const MAX_ESSAIS = 3;
+const SEP_PAIRE = "-";
 
 const LETTRES = Object.freeze("ABCDEF".split(""));
 const MIN_OPTIONS = 2;
@@ -266,9 +275,110 @@ export function normaliserGabarit(type, gabarit) {
       return { ...base, colonnes, titres_colonnes, titres_lignes, details_colonnes, questions };
     }
 
+    case "paires":
+      return { ...base, ...normaliserPaires(g) };
+
     default:
       throw new Error(`Type de question inconnu : « ${type} ».`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Paires (jugements de dissimilarité)
+// ---------------------------------------------------------------------------
+
+// Identifiant d'une paire non ordonnée : les deux clés dans l'ordre de la liste des sons.
+export function idPaire(sons, a, b) {
+  const rang = new Map(sons.map((s, i) => [s.cle, i]));
+  return rang.get(a) <= rang.get(b) ? `${a}${SEP_PAIRE}${b}` : `${b}${SEP_PAIRE}${a}`;
+}
+
+// Toutes les paires non ordonnées de sons distincts, dans l'ordre de la liste des sons.
+export function toutesLesPaires(sons) {
+  const paires = [];
+  for (let i = 0; i < sons.length; i += 1) {
+    for (let j = i + 1; j < sons.length; j += 1) paires.push([sons[i].cle, sons[j].cle]);
+  }
+  return paires;
+}
+
+function normaliserPaires(g) {
+  if (!Array.isArray(g.sons) || g.sons.length < MIN_SONS || g.sons.length > MAX_SONS) {
+    throw new Error(`Une question « paires » compte entre ${MIN_SONS} et ${MAX_SONS} sons.`);
+  }
+  const vues = new Set();
+  const sons = g.sons.map((s, i) => {
+    if (!estObjet(s)) throw new Error(`Son ${i + 1} invalide.`);
+    const cle = texteOu(s.cle).trim();
+    if (!/^[A-Za-z0-9]{1,4}$/.test(cle)) throw new Error(`Clé de son invalide « ${cle} ».`);
+    if (vues.has(cle)) throw new Error(`Clé de son en double : « ${cle} ».`);
+    vues.add(cle);
+    const fichier = texteOu(s.fichier).trim();
+    if (!fichier || fichier.length > 200 || /^[a-z]+:/i.test(fichier) || fichier.includes("..")) {
+      throw new Error(`Son ${cle} : chemin de fichier relatif attendu.`);
+    }
+    return { cle, fichier };
+  });
+  const liste = (brut, nom) => {
+    if (!Array.isArray(brut)) throw new Error(`« ${nom} » doit être une liste de paires.`);
+    return brut.map((p, i) => {
+      if (!Array.isArray(p) || p.length !== 2) throw new Error(`${nom} ${i + 1} : deux sons attendus.`);
+      const [a, b] = p.map((x) => texteOu(x).trim());
+      if (!vues.has(a) || !vues.has(b)) throw new Error(`${nom} ${i + 1} : son inconnu.`);
+      if (a === b) throw new Error(`${nom} ${i + 1} : deux sons distincts attendus.`);
+      return [a, b];
+    });
+  };
+  // Paires collectées, dans l'ordre de présentation (et le sens : premier son entendu en premier).
+  const paires = g.paires === undefined || g.paires === null ? toutesLesPaires(sons) : liste(g.paires, "Paire");
+  if (paires.length === 0) throw new Error("Au moins une paire est attendue.");
+  const ids = new Set();
+  for (const [a, b] of paires) {
+    const id = idPaire(sons, a, b);
+    if (ids.has(id)) throw new Error(`Paire en double : ${id}.`);
+    ids.add(id);
+  }
+  // Essais d'entraînement : joués avant les paires, jamais enregistrés.
+  const essais = g.essais === undefined || g.essais === null ? [] : liste(g.essais, "Essai");
+  if (essais.length > MAX_ESSAIS) throw new Error(`Au plus ${MAX_ESSAIS} essais d'entraînement.`);
+  const min = entierDans(g.min, 0, -1000, 1000, "Le minimum du curseur");
+  const max = entierDans(g.max, 100, -1000, 1000, "Le maximum du curseur");
+  if (min >= max) throw new Error("Le minimum du curseur doit être inférieur au maximum.");
+  return {
+    sons,
+    paires,
+    essais,
+    melanger: g.melanger !== false,
+    min,
+    max,
+    ancre_min: texteOu(g.ancre_min, "Très semblables").trim(),
+    ancre_max: texteOu(g.ancre_max, "Très différents").trim(),
+    pause_ms: entierDans(g.pause_ms, 500, 0, 5000, "La pause entre les deux sons"),
+  };
+}
+
+// Étapes jouées par l'enseignant : les essais, puis les paires collectées.
+// → [{rang, essai, a, b, id, numero, total}]
+export function etapesPaires(gabarit) {
+  const g = estObjet(gabarit) && Array.isArray(gabarit.sons) ? gabarit : {};
+  const sons = Array.isArray(g.sons) ? g.sons : [];
+  const essais = Array.isArray(g.essais) ? g.essais : [];
+  const paires = Array.isArray(g.paires) ? g.paires : [];
+  return [
+    ...essais.map(([a, b], i) => ({ essai: true, a, b, id: idPaire(sons, a, b), numero: i + 1, total: essais.length })),
+    ...paires.map(([a, b], i) => ({ essai: false, a, b, id: idPaire(sons, a, b), numero: i + 1, total: paires.length })),
+  ].map((e, rang) => ({ rang, ...e }));
+}
+
+// Ordre de présentation tiré au hasard au lancement : ordre des paires et sens de chaque
+// paire (quel son est entendu en premier). Les essais gardent leur ordre. alea() ∈ [0, 1).
+export function melangerPaires(gabarit, alea = Math.random) {
+  const paires = gabarit.paires.map((p) => (alea() < 0.5 ? [p[1], p[0]] : [p[0], p[1]]));
+  for (let i = paires.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(alea() * (i + 1));
+    [paires[i], paires[j]] = [paires[j], paires[i]];
+  }
+  return { ...gabarit, paires };
 }
 
 // ---------------------------------------------------------------------------
@@ -403,6 +513,23 @@ export function validerReponse(type, gabarit, reponse) {
         valeur[cle] = r.valeur;
       }
       if (Object.keys(valeur).length === 0) return refus("Répondez à au moins une question.");
+      return { ok: true, valeur };
+    }
+
+    case "paires": {
+      // Réponse = objet {"A-B": note} ; une seule paire à la fois depuis le téléphone,
+      // l'objet complet une fois fusionné par le serveur.
+      if (!estObjet(reponse)) return refus("Un objet {paire: note} est attendu.");
+      const ids = new Set(g.paires.map(([a, b]) => idPaire(g.sons, a, b)));
+      const valeur = {};
+      for (const [id, brute] of Object.entries(reponse)) {
+        if (!ids.has(id)) return refus(`« ${id} » n'est pas une paire de cette question.`);
+        const n = typeof brute === "number" ? brute : Number(String(brute ?? "").trim().replace(",", "."));
+        if (brute === "" || brute === null || !Number.isFinite(n)) return refus(`Paire ${id} : un nombre est attendu.`);
+        if (n < g.min || n > g.max) return refus(`Paire ${id} : la note doit être comprise entre ${g.min} et ${g.max}.`);
+        valeur[id] = arrondir(n, 1);
+      }
+      if (Object.keys(valeur).length === 0) return refus("Notez au moins une paire.");
       return { ok: true, valeur };
     }
 
@@ -634,6 +761,36 @@ export function agreger(type, gabarit, valeurs = []) {
         parties[sq.cle] = agreger(sq.type, sous, vals);
       }
       return { n, parties };
+    }
+
+    case "paires": {
+      // Par paire : notes observées, moyenne, médiane. Une paire non notée reste absente
+      // (jamais remplacée par 0). Matrice symétrique des moyennes, diagonale nulle.
+      // individus : une ligne anonyme par appareil (notes dans l'ordre de « ordre »),
+      // pour les graphiques suivants (accord entre participants, cartes individuelles…).
+      const cles = g.sons.map((s) => s.cle);
+      const ordre = toutesLesPaires(g.sons)
+        .map(([a, b]) => idPaire(g.sons, a, b))
+        .filter((id) => g.paires.some(([a, b]) => idPaire(g.sons, a, b) === id));
+      const paires = {};
+      for (const id of ordre) {
+        const triees = propres.map((p) => p.valeur[id]).filter((v) => v !== undefined).sort((a, b) => a - b);
+        paires[id] = { n: triees.length, valeurs: triees, moyenne: moyenne(triees), mediane: mediane(triees) };
+      }
+      const matrice = cles.map((a) => cles.map((b) => {
+        if (a === b) return 0;
+        const r = paires[idPaire(g.sons, a, b)];
+        return r && r.n ? r.moyenne : null;
+      }));
+      return {
+        n,
+        sons: cles,
+        ordre,
+        paires,
+        matrice,
+        complete: ordre.every((id) => paires[id].n > 0),
+        individus: propres.map((p) => ordre.map((id) => (p.valeur[id] === undefined ? null : p.valeur[id]))),
+      };
     }
 
     default:

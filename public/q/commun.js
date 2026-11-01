@@ -414,6 +414,10 @@ export function formaterReponse(type, gabarit, valeur) {
       .join(', ');
   }
   if (type === 'echelle' || type === 'curseur') return formaterNombre(valeur, { max: 3 });
+  if (type === 'paires') {
+    const notes = valeur && typeof valeur === 'object' ? Object.entries(valeur) : [];
+    return notes.map(([id, v]) => `${id} ${formaterNombre(v, { max: 3 })}`).join(' · ');
+  }
   if (type === 'nombre') return `${formaterNombre(valeur, { max: 6 })}${g.unite ? ' ' + g.unite : ''}`;
   if (type === 'nuage') return Array.isArray(valeur) ? valeur.join(' · ') : String(valeur);
   if (type === 'texte') return String(valeur);
@@ -1260,12 +1264,83 @@ export function rendreResultats(type, gabarit, resultats, opts = {}) {
         return rendreClassement(gabarit, res, opts);
       case 'serie':
         return rendreSerie(gabarit, res, opts);
+      case 'paires':
+        return rendreMatrice(gabarit, res, opts);
       default:
         return vide('Type de résultats non pris en charge', opts);
     }
   } catch (err) {
     return vide('Résultats indisponibles', opts);
   }
+}
+
+// Paires : matrice de dissimilarité de la classe. Symétrique, diagonale nulle par définition ;
+// chaque case = moyenne des notes observées (« — » : paire sans réponse). Teinte : du blanc
+// (très semblables) au marine (très différents) ; le nombre reste écrit dans la case.
+function melangeCouleur(t) {
+  const de = [255, 255, 255];
+  const a = [0x1a, 0x35, 0x56];
+  const c = de.map((v, i) => Math.round(v + (a[i] - v) * Math.min(1, Math.max(0, t))));
+  return `rgb(${c.join(',')})`;
+}
+
+function rendreMatrice(gabarit, res, opts) {
+  const m = mesures(opts);
+  const g = gabaritNormalise('paires', gabarit);
+  const cles = Array.isArray(res.sons) ? res.sons.map(String) : [];
+  const matrice = Array.isArray(res.matrice) ? res.matrice : [];
+  const k = cles.length;
+  if (!k || matrice.length !== k) return vide('Résultats indisponibles', opts);
+  const min = Number.isFinite(Number(g.min)) ? Number(g.min) : 0;
+  const max = Number.isFinite(Number(g.max)) ? Number(g.max) : 100;
+
+  const fsEtiquette = m.fsChiffre;
+  const marge = Math.round(fsEtiquette * 1.6);
+  const hautPied = m.fsNote * 3.2;
+  const cote = Math.floor(Math.min((m.bw - 2 * m.pad - marge) / k, (m.bw * 0.8 - marge) / k));
+  const x0 = Math.round((m.bw - (marge + cote * k)) / 2) + marge;
+  const y0 = m.pad + marge;
+  const hauteur = y0 + cote * k + hautPied + m.pad;
+  const fsCase = Math.round(Math.min(cote * 0.38, m.fsChiffre * 1.1));
+  const enfants = [];
+
+  cles.forEach((cle, i) => {
+    enfants.push(txt(x0 + cote * i + cote / 2, y0 - fsEtiquette * 0.45, cle, { taille: fsEtiquette, graisse: 700, ancre: 'middle' }));
+    enfants.push(txt(x0 - fsEtiquette * 0.5, y0 + cote * i + cote / 2 + fsEtiquette * 0.35, cle, { taille: fsEtiquette, graisse: 700, ancre: 'end' }));
+  });
+  for (let i = 0; i < k; i += 1) {
+    for (let j = 0; j < k; j += 1) {
+      const v = i === j ? 0 : matrice[i]?.[j];
+      const connu = v !== null && v !== undefined && Number.isFinite(Number(v));
+      const t = connu ? (Number(v) - min) / (max - min || 1) : 0;
+      const x = x0 + cote * j;
+      const y = y0 + cote * i;
+      const rect = svg('rect', {
+        x, y, width: cote, height: cote,
+        fill: i === j ? '#f1f3f5' : connu ? melangeCouleur(t) : COULEURS.fond,
+        stroke: COULEURS.filet, 'stroke-width': 2,
+      });
+      if (i !== j) rect.appendChild(svg('title', {}, [`${cles[i]}–${cles[j]} : ${connu ? nombreDecimal(v, 1) : 'aucune réponse'}`]));
+      enfants.push(rect);
+      enfants.push(txt(x + cote / 2, y + cote / 2 + fsCase * 0.35, i === j ? '0' : connu ? nombreEntier(Math.round(Number(v))) : '—', {
+        taille: fsCase,
+        graisse: i === j ? 400 : 600,
+        ancre: 'middle',
+        couleur: i === j ? '#868e96' : t > 0.55 ? COULEURS.fond : COULEURS.encre,
+      }));
+    }
+  }
+
+  const n = Number(res.n) || 0;
+  const simulees = Number(res.simulees) || 0;
+  const yPied = y0 + cote * k + m.fsNote * 1.5;
+  const effectif = `${nombreEntier(n)} participant${n === 1 ? '' : 's'}${simulees ? ` (dont ${nombreEntier(simulees)} simulé${simulees === 1 ? '' : 's'})` : ''}`;
+  const manque = res.complete === false ? ' · paires sans réponse : —' : '';
+  enfants.push(txt(m.bw / 2, yPied, `Moyenne des notes, ${min} à ${max}`, { taille: m.fsNote, ancre: 'middle', couleur: '#495057' }));
+  enfants.push(txt(m.bw / 2, yPied + m.fsNote * 1.35, `${effectif}${manque}`, {
+    taille: m.fsNote, graisse: 600, ancre: 'middle', couleur: simulees ? COULEURS.rouge : '#495057',
+  }));
+  return racineSvg(m.bw, hauteur, enfants, { etiquette: opts.etiquette || 'Matrice de dissimilarité' });
 }
 
 // Série. Disposition commune avec le formulaire (dispositionSerie) :

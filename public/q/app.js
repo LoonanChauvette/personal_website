@@ -1,4 +1,4 @@
-import { corriger } from './core.js';
+import { corriger, etapesPaires } from './core.js';
 // Page étudiante : un seul écran, un seul gabarit à la fois, états écrits en clair.
 import {
   apiEtat,
@@ -111,6 +111,8 @@ function consigne(type) {
       return 'Placez les éléments dans l’ordre, puis Envoyer.';
     case 'serie':
       return 'Répondez à chaque question, puis Envoyer.';
+    case 'paires':
+      return 'Écoutez la paire, puis placez le curseur.';
     default:
       return 'Répondez ci-dessous.';
   }
@@ -229,7 +231,7 @@ function controleEchelle(q) {
   return { element: conteneur, lire: () => valeurInitiale };
 }
 
-function controleCurseur(q) {
+function controleCurseur(q, initiale = reponseLocale?.reponse) {
   const envoi = envoyerSous;
   const g = q.gabarit || {};
   const min = Number.isFinite(Number(g.min)) ? Number(g.min) : 0;
@@ -273,8 +275,8 @@ function controleCurseur(q) {
     afficherValeur();
   }
 
-  if (reponseLocale && reponseLocale.reponse !== null && reponseLocale.reponse !== undefined) {
-    const restauree = Number(reponseLocale.reponse);
+  if (initiale !== null && initiale !== undefined) {
+    const restauree = Number(initiale);
     if (Number.isFinite(restauree)) {
       piste.value = String(Math.min(max, Math.max(min, restauree)));
       marquerTouche();
@@ -545,8 +547,48 @@ function construireControles(q) {
       return controleClassement(q);
     case 'serie':
       return controleSerie(q);
+    case 'paires':
+      return controlePaires(q);
     default:
       return { element: element('p', 'aide', 'Type de question inconnu.'), lire: () => null };
+  }
+}
+
+// Paires : l'enseignant fait entendre une paire à la fois (étape de la question) ; le
+// téléphone montre un curseur neuf à chaque paire, et envoie la note dès qu'il est réglé.
+// Les essais d'entraînement se notent aussi, mais rien n'est envoyé.
+const notesEssais = new Map(); // séance:id:tour:rang → note d'entraînement (mémoire seulement)
+
+function etapeCourante(q) {
+  return etapesPaires(q.gabarit || {})[Number(q.etape) || 0] || null;
+}
+
+function controlePaires(q) {
+  const etape = etapeCourante(q);
+  const conteneur = element('div', 'zone-controles paires');
+  if (!etape) return { element: conteneur, lire: () => null };
+  const tete = element('p', `paires-etape${etape.essai ? ' essai' : ''}`);
+  tete.append(
+    element('span', 'paires-numero', etape.essai ? `Entraînement ${etape.numero} sur ${etape.total}` : `Paire ${etape.numero} sur ${etape.total}`),
+  );
+  conteneur.appendChild(tete);
+  const cleEssai = `${seance}:${q.id}:${q.tour}:${etape.rang}`;
+  const initiale = etape.essai ? notesEssais.get(cleEssai) : reponseLocale?.reponse?.[etape.id];
+  const avant = envoyerSous;
+  envoyerSous = etape.essai
+    ? async (v) => {
+      notesEssais.set(cleEssai, v);
+      messageLocal = 'Entraînement : note non enregistrée';
+      majStatut();
+      return true;
+    }
+    : (v) => envoyer({ [etape.id]: v });
+  try {
+    const curseur = controleCurseur(q, initiale);
+    conteneur.appendChild(curseur.element);
+    return { element: conteneur, lire: curseur.lire };
+  } finally {
+    envoyerSous = avant;
   }
 }
 
@@ -716,6 +758,14 @@ function majMaReponse() {
     return;
   }
   ui.maReponse.hidden = false;
+  if (question.type === 'paires') {
+    const total = Array.isArray(question.gabarit?.paires) ? question.gabarit.paires.length : 0;
+    const notees = reponseLocale?.reponse && typeof reponseLocale.reponse === 'object' ? Object.keys(reponseLocale.reponse).length : 0;
+    ui.maReponse.classList.remove('juste', 'faux', 'partiel');
+    ui.maReponse.classList.toggle('vide', notees === 0);
+    ui.maReponse.textContent = `Paires notées : ${notees} sur ${total}`;
+    return;
+  }
   if (!reponseLocale || !reponseLocale.envoye) {
     ui.maReponse.textContent = question.statut === 'ouverte' ? 'Modifiable jusqu’à la fermeture.' : 'Aucune réponse envoyée.';
     ui.maReponse.classList.add('vide');
@@ -819,6 +869,13 @@ function majStatut() {
     ecrireEtat(erreurLocale, { erreur: true });
     return;
   }
+  if (question.statut === 'ouverte' && question.type === 'paires') {
+    const etape = etapeCourante(question);
+    const notee = etape && !etape.essai && reponseLocale?.reponse?.[etape.id] !== undefined;
+    if (messageLocal) ecrireEtat(messageLocal);
+    else ecrireEtat(notee ? 'Note enregistrée ✓ (modifiable)' : consigne('paires'));
+    return;
+  }
   if (question.statut === 'ouverte') {
     if (messageLocal) ecrireEtat(messageLocal);
     else if (reponseLocale && reponseLocale.envoye) ecrireEtat('Réponse envoyée ✓');
@@ -867,7 +924,8 @@ function appliquer(etat) {
     return;
   }
 
-  const sig = [q.id, q.tour, q.type, JSON.stringify(q.gabarit || {})].join('|');
+  // Paires : chaque étape (nouvelle paire entendue) reconstruit le curseur.
+  const sig = [q.id, q.tour, q.type, JSON.stringify(q.gabarit || {}), q.type === 'paires' ? q.etape : ''].join('|');
   const cle = `${q.id}:${q.tour}`;
   if (sig !== signature) {
     const nouvelle = cle !== questionPrecedente && q.statut === 'ouverte';
@@ -893,14 +951,24 @@ function appliquer(etat) {
 }
 
 // ─── Envoi ───
+let enAttente = null; // paires : note réglée pendant un envoi, envoyée juste après
 async function envoyer(reponse) {
+  if (question?.type === 'paires' && envoiEnCours && estOuverte()) {
+    enAttente = reponse;
+    return false;
+  }
   if (!question || !estOuverte() || envoiEnCours) return false;
   envoiEnCours = true;
   essaiEnvoi = { reponse };
   messageLocal = 'Envoi…';
   erreurLocale = null;
   ecrireEtat('Envoi…');
-  garderReponseLocale(seance, question.id, question.tour, reponse, false);
+  // Paires : la note d'une paire rejoint les notes déjà envoyées (le serveur fusionne aussi).
+  const fusion = question.type === 'paires';
+  const dejaEnvoyees = fusion && reponseLocale?.envoye && reponseLocale.reponse && typeof reponseLocale.reponse === 'object'
+    ? reponseLocale.reponse : {};
+  const locale = fusion ? { ...dejaEnvoyees, ...reponse } : reponse;
+  if (!fusion) garderReponseLocale(seance, question.id, question.tour, reponse, false);
   try {
     await apiRepondre({
       seance,
@@ -910,16 +978,16 @@ async function envoyer(reponse) {
       reponse,
     });
     essaiEnvoi = null;
-    messageLocal = 'Réponse envoyée ✓';
-    reponseLocale = { reponse, envoye: true, quand: Date.now() };
-    garderReponseLocale(seance, question.id, question.tour, reponse, true);
+    messageLocal = fusion ? 'Note enregistrée ✓ (modifiable)' : 'Réponse envoyée ✓';
+    reponseLocale = { reponse: locale, envoye: true, quand: Date.now() };
+    garderReponseLocale(seance, question.id, question.tour, locale, true);
     ui.reessai.hidden = true;
     majStatut();
     majMaReponse();
     return true;
   } catch (err) {
     if (err && err.statut === 409) {
-      messageLocal = 'Question fermée';
+      messageLocal = fusion ? messageErreur(err) : 'Question fermée';
       essaiEnvoi = null;
       ui.reessai.hidden = true;
       ecrireEtat('Question fermée');
@@ -939,6 +1007,11 @@ async function envoyer(reponse) {
     }
   } finally {
     envoiEnCours = false;
+    if (enAttente) {
+      const suivante = enAttente;
+      enAttente = null;
+      setTimeout(() => envoyer(suivante), 0);
+    }
   }
   return false;
 }

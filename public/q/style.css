@@ -624,3 +624,19 @@ textarea:focus-visible {
 .verdict.juste { color: #1c5233; }
 .verdict.faux { color: #c92a2a; }
 .verdict.partiel { color: #1A3556; }
+
+/* Paires : « Paire 4 sur 15 » au-dessus d'un curseur neuf à chaque paire. */
+.paires {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.paires-etape {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--marine, #1a3556);
+}
+.paires-etape.essai {
+  color: #6b7078;
+}

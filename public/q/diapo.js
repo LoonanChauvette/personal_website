@@ -29,6 +29,7 @@ import {
   urlSalle,
   qrSvg,
 } from './commun.js';
+import { etapesPaires } from './core.js';
 
 const conf = JSON.parse(document.getElementById('question').textContent);
 const Q = { id: String(conf.id), type: conf.type, gabarit: conf.gabarit || {} };
@@ -90,6 +91,7 @@ function surVisibilite() {
   clearTimeout(minuterieAffichage);
   if (!affichee) {
     dejaAgi = false;
+    if (PAIRES) arreterLecture();
     return;
   }
   interroger();
@@ -119,11 +121,14 @@ function phase() {
 function rendreVue() {
   const p = phase();
   const q = p.q;
-  const sig = [ROLE, p.nom, p.autre, q?.tour, q?.statut === 'revelee' ? JSON.stringify(q.resultats) : '', blocage, confirmerEffacer].join('|');
+  const sig = [ROLE, p.nom, p.autre, q?.tour, q?.statut === 'revelee' ? JSON.stringify(q.resultats) : '', blocage, confirmerEffacer,
+    PAIRES ? q?.etape : ''].join('|');
   if (sig === signature) return majDynamique();
   signature = sig;
   ui.corps.replaceChildren();
+  ui.corps.className = 'corps';
   bouton(null);
+  racine.classList.toggle('paires-ouverte', PAIRES && p.nom === 'ouverte');
   // « Effacer » : seulement sur la diapositive enseignant, quand un résultat est affiché.
   ui.effacer.hidden = LECTURE || !(p.nom === 'revelee' || p.nom === 'gardee');
   ui.effacer.textContent = confirmerEffacer ? 'Confirmer l’effacement' : 'Effacer';
@@ -138,7 +143,9 @@ function rendreVue() {
       majDynamique();
       return;
     }
-    if (p.nom === 'ouverte' || p.nom === 'fermee') {
+    if (PAIRES && p.nom === 'ouverte') {
+      rendrePaires(q);
+    } else if (p.nom === 'ouverte' || p.nom === 'fermee') {
       const bloc = el('div', 'compteur');
       bloc.append(el('span', 'nombre', '0'), el('span', 'unite', 'réponses'));
       ui.corps.append(bloc, el('p', 'chrono', ''));
@@ -211,7 +218,8 @@ function majDynamique() {
   if (!q) return;
   const nombre = ui.corps.querySelector('.nombre');
   if (nombre) {
-    const n = Number(q.nb_reponses) || 0;
+    // Paires : réponses à la paire en cours (pas au total de la question).
+    const n = Number(PAIRES && q.statut === 'ouverte' ? q.nb_etape : q.nb_reponses) || 0;
     nombre.textContent = nombreEntier(n);
     ui.corps.querySelector('.unite').textContent = n === 1 ? 'réponse' : 'réponses';
   }
@@ -221,6 +229,181 @@ function majDynamique() {
     chrono.textContent = q.statut === 'ouverte' && Number.isFinite(debut) ? formaterDuree(Date.now() + deltaServeur - debut) : '';
   }
 }
+
+// ─── Paires : l'enseignant fait entendre chaque paire, les téléphones la notent ───────
+// L'ordre (tiré au lancement) vient de l'état du serveur, jamais de Q.gabarit. Le son ne part
+// que d'un clic sur Écouter ou Suivante (geste requis par le navigateur), et seulement une
+// fois l'étape acceptée par le serveur : un passage refusé ne fait jamais entendre une autre
+// paire que celle que notent les téléphones.
+const PAIRES = Q.type === 'paires';
+const sons = new Map();
+let lecture = { jeton: 0, etat: null, erreur: null, annuler: null };
+
+function audioDe(cle) {
+  if (!sons.has(cle)) {
+    const son = (Q.gabarit.sons || []).find((s) => s.cle === cle);
+    const a = new Audio(son ? new URL(son.fichier, document.baseURI).href : '');
+    a.preload = 'auto';
+    sons.set(cle, a);
+  }
+  return sons.get(cle);
+}
+if (PAIRES) for (const s of Q.gabarit.sons || []) audioDe(s.cle);
+
+function arreterLecture() {
+  lecture.jeton += 1;
+  // Un son mis en pause ne déclenche jamais « ended » : la lecture en attente est close ici.
+  if (lecture.annuler) lecture.annuler();
+  lecture.annuler = null;
+  for (const a of sons.values()) {
+    a.pause();
+    a.currentTime = 0;
+  }
+  lecture.etat = null;
+}
+
+function jouerSon(a) {
+  return new Promise((fin, echec) => {
+    const finir = () => {
+      a.removeEventListener('ended', finir);
+      a.removeEventListener('error', rater);
+      lecture.annuler = null;
+      fin();
+    };
+    lecture.annuler = finir;
+    const rater = () => {
+      a.removeEventListener('ended', finir);
+      a.removeEventListener('error', rater);
+      echec(new Error('Son introuvable'));
+    };
+    a.addEventListener('ended', finir);
+    a.addEventListener('error', rater);
+    a.currentTime = 0;
+    a.play().catch((e) => {
+      a.removeEventListener('ended', finir);
+      a.removeEventListener('error', rater);
+      echec(e);
+    });
+  });
+}
+
+async function jouerEtape(etape, gabarit) {
+  arreterLecture();
+  const jeton = lecture.jeton;
+  lecture.erreur = null;
+  const pause = Number.isFinite(Number(gabarit.pause_ms)) ? Number(gabarit.pause_ms) : 500;
+  try {
+    lecture.etat = 1;
+    majLecture();
+    await jouerSon(audioDe(etape.a));
+    if (jeton !== lecture.jeton) return;
+    lecture.etat = 'pause';
+    majLecture();
+    await new Promise((r) => setTimeout(r, pause));
+    if (jeton !== lecture.jeton) return;
+    lecture.etat = 2;
+    majLecture();
+    await jouerSon(audioDe(etape.b));
+    if (jeton !== lecture.jeton) return;
+    lecture.etat = null;
+  } catch (err) {
+    if (jeton !== lecture.jeton) return;
+    lecture.etat = null;
+    lecture.erreur = err && err.name === 'NotAllowedError' ? 'Lecture refusée : cliquez Écouter' : 'Son introuvable';
+  }
+  majLecture();
+}
+
+function majLecture() {
+  const zone = ui.corps.querySelector('.lecture');
+  if (!zone) return;
+  for (const n of [1, 2]) zone.querySelector(`[data-son="${n}"]`)?.classList.toggle('actif', lecture.etat === n);
+  const ecouter = ui.corps.querySelector('[data-paires="ecouter"]');
+  if (ecouter) ecouter.textContent = lecture.etat ? 'Arrêter' : 'Écouter';
+  if (lecture.erreur) {
+    ui.statut.textContent = lecture.erreur;
+    ui.statut.classList.add('erreur');
+  }
+}
+
+function rendrePaires(q) {
+  const etapes = etapesPaires(q.gabarit || {});
+  const n = Number(q.etape) || 0;
+  const etape = etapes[n];
+  if (!etape) return;
+  ui.corps.classList.add('paires');
+  ui.corps.append(el('p', `paires-titre${etape.essai ? ' essai' : ''}`,
+    etape.essai ? `Entraînement ${etape.numero} sur ${etape.total}` : `Paire ${etape.numero} sur ${etape.total}`));
+  if (etape.essai) {
+    ui.corps.append(el('p', 'paires-note', 'Réponses non enregistrées'));
+  } else {
+    const bloc = el('div', 'compteur');
+    bloc.append(el('span', 'nombre', '0'), el('span', 'unite', 'réponses'));
+    ui.corps.append(bloc);
+  }
+  const lect = el('p', 'lecture');
+  lect.append(el('span', 'son', 'Son 1'), el('span', 'fleche', '→'), el('span', 'son', 'Son 2'));
+  lect.children[0].dataset.son = '1';
+  lect.children[2].dataset.son = '2';
+  ui.corps.append(lect);
+  if (!LECTURE) {
+    const cmd = el('div', 'commandes');
+    const derniere = n === etapes.length - 1;
+    const precedente = el('button', 'discret', '◀');
+    precedente.type = 'button';
+    precedente.dataset.paires = 'precedente';
+    precedente.disabled = n === 0;
+    precedente.title = 'Étape précédente';
+    const ecouter = el('button', null, 'Écouter');
+    ecouter.type = 'button';
+    ecouter.dataset.paires = 'ecouter';
+    const suivante = el('button', 'principal', derniere ? 'Terminer' : etapes[n + 1].essai || etape.essai === etapes[n + 1].essai ? 'Suivante' : 'Commencer');
+    suivante.type = 'button';
+    suivante.dataset.paires = derniere ? 'terminer' : 'suivante';
+    cmd.append(precedente, ecouter, suivante);
+    ui.corps.append(cmd);
+  }
+  ui.statut.textContent = blocage || (etape.essai ? 'Entraînement' : '');
+  majLecture();
+}
+
+async function agirPaires(action) {
+  const q = etat && etat.question;
+  if (!q || q.id !== Q.id || q.statut !== 'ouverte' || occupe) return;
+  const etapes = etapesPaires(q.gabarit || {});
+  const n = Number(q.etape) || 0;
+  if (action === 'ecouter') {
+    if (lecture.etat) {
+      arreterLecture();
+      majLecture();
+    } else jouerEtape(etapes[n], q.gabarit);
+    return;
+  }
+  occupe = true;
+  for (const b of ui.corps.querySelectorAll('button')) b.disabled = true;
+  try {
+    arreterLecture();
+    if (action === 'terminer') {
+      if (await envoyer('fermer')) await envoyer('reveler');
+    } else {
+      const cible = action === 'precedente' ? Math.max(0, n - 1) : Math.min(etapes.length - 1, n + 1);
+      // Le son ne part qu'une fois l'étape acceptée : téléphones et salle entendent la même paire.
+      if (await envoyer('etape', { etape: cible })) {
+        const nouvelle = etat?.question?.id === Q.id ? etapesPaires(etat.question.gabarit || {})[Number(etat.question.etape) || 0] : null;
+        if (nouvelle && action === 'suivante') jouerEtape(nouvelle, etat.question.gabarit);
+      }
+    }
+  } finally {
+    occupe = false;
+    signature = null;
+    rendreVue();
+  }
+}
+
+ui.corps.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-paires]');
+  if (b && !b.disabled) agirPaires(b.dataset.paires);
+});
 
 // Bouton de secours : cliquable dans l'éditeur (et en présentation si Excalidraw+ le permet).
 function bouton(texte, op, discret = false) {

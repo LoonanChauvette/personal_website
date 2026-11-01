@@ -247,3 +247,50 @@ button.discret.confirmer {
   color: #e03131;
   border-color: #e03131;
 }
+/* Paires : écoute pilotée par l'enseignant (numéro de la paire, réponses, son en cours, commandes). */
+.corps.paires {
+  gap: 1.2vh;
+}
+.paires-titre {
+  margin: 0;
+  font-size: 1.4em;
+  font-weight: 700;
+  color: var(--marine);
+}
+.paires-titre.essai,
+.paires-note {
+  color: var(--gris);
+}
+.paires-note {
+  margin: 0;
+  font-size: 1.1em;
+}
+.corps.paires .compteur .nombre {
+  font-size: 3.6em;
+}
+.lecture {
+  margin: 0;
+  display: flex;
+  gap: 0.6em;
+  align-items: center;
+  color: var(--gris);
+}
+.lecture .son {
+  padding: 0.1em 0.6em;
+  border-radius: 999px;
+  border: 2px solid var(--filet);
+}
+.lecture .son.actif {
+  color: #fff;
+  background: var(--marine);
+  border-color: var(--marine);
+}
+.commandes {
+  display: flex;
+  gap: 0.8vw;
+  align-items: center;
+}
+button.principal {
+  color: #fff;
+  background: var(--marine);
+}
