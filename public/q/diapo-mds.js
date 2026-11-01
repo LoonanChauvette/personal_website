@@ -266,45 +266,64 @@ function axes(s, v) {
     s.appendChild(svg('line', { x1: ZONE.x0, y1: LIGNE_1D, x2: ZONE.x1, y2: LIGNE_1D, stroke: COULEURS.filet, 'stroke-width': 3 }));
     s.appendChild(txt(CENTRE[0], H - 22, 'Dimension 1', gris));
   } else {
-    // Boîte autour des points (sans graduation : les dimensions n'ont pas encore de sens).
+    // Boîte ouverte (comme les figures d'espaces timbraux) : seulement le fond et les deux
+    // parois du fond de la scène (les plus éloignées du spectateur, recalculées quand la vue
+    // tourne). Une arête de devant porte le nom de chaque dimension.
     const k = axeVertical;
-    const coin = (bits) => versEcran(v, bits.map((bit, j) => v.boite[j][bit]));
     const [a, b] = [0, 1, 2].filter((j) => j !== k);
-    const fond = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, w]) => {
+    const coin = (bits) => versEcran(v, bits.map((bit, j) => v.boite[j][bit]));
+    const bitsDe = (fixes) => {
       const bits = [0, 0, 0];
-      bits[a] = u;
-      bits[b] = w;
-      return coin(bits);
-    });
-    s.appendChild(svg('polygon', { points: fond.map(([x, y]) => `${x},${y}`).join(' '), fill: '#e7f0fb', 'fill-opacity': 0.6, stroke: 'none' }));
-    const centreEcran = versEcran(v, v.centre);
-    for (let j = 0; j < 3; j += 1) {
-      const [p, q] = [0, 1, 2].filter((m) => m !== j);
-      const aretes = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([u, w]) => {
-        const bits = [0, 0, 0];
-        bits[p] = u;
-        bits[q] = w;
-        const haut = [...bits];
-        haut[j] = 1;
-        return { bits, A: coin(bits), B: coin(haut) };
-      });
-      for (const { A, B } of aretes) s.appendChild(svg('line', { x1: A[0], y1: A[1], x2: B[0], y2: B[1], stroke: '#ced4da', 'stroke-width': 2.5 }));
-      // Étiquette : arête verticale la plus à gauche ; sinon arête du fond la plus basse à l'écran.
-      const milieu = ({ A, B }) => [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
-      const candidates = j === k ? aretes : aretes.filter(({ bits }) => bits[k] === 0);
-      const choisie = candidates.reduce((m, c) => {
-        const [x, y] = milieu(c);
-        const [mx, my] = milieu(m);
-        return (j === k ? x < mx : y > my) ? c : m;
-      });
-      const [x, y] = milieu(choisie);
-      const dx = x - centreEcran[0];
-      const dy = y - centreEcran[1];
-      const n = Math.hypot(dx, dy) || 1;
+      for (const [j, bit] of fixes) bits[j] = bit;
+      return bits;
+    };
+    // Paroi perpendiculaire à j : côté 0 ou 1, le plus loin du spectateur (profondeur moindre).
+    const fond = (j) => {
+      const profondeur = (bit) => versEcran(v, v.centre.map((c, m) => (m === j ? v.boite[j][bit] : c)))[2];
+      return profondeur(0) < profondeur(1) ? 0 : 1;
+    };
+    const [fa, fb] = [fond(a), fond(b)];
+    const sol = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, w]) => coin(bitsDe([[a, u], [b, w], [k, 0]])));
+    s.appendChild(svg('polygon', { points: sol.map(([x, y]) => `${x},${y}`).join(' '), fill: '#e7f0fb', 'fill-opacity': 0.6, stroke: 'none' }));
+    const arete = (b1, b2, attrs) => {
+      const [A, B] = [coin(b1), coin(b2)];
+      s.appendChild(svg('line', { x1: A[0], y1: A[1], x2: B[0], y2: B[1], stroke: '#adb5bd', 'stroke-width': 2.5, ...attrs }));
+      return [A, B];
+    };
+    // Fond : arêtes arrière (contre les parois) ; arêtes avant = axes nommés, plus loin.
+    arete(bitsDe([[a, fa], [b, 0], [k, 0]]), bitsDe([[a, fa], [b, 1], [k, 0]]));
+    arete(bitsDe([[b, fb], [a, 0], [k, 0]]), bitsDe([[b, fb], [a, 1], [k, 0]]));
+    // Parois : arête verticale commune (au fond), arêtes verticales extérieures, arêtes du haut.
+    arete(bitsDe([[a, fa], [b, fb], [k, 0]]), bitsDe([[a, fa], [b, fb], [k, 1]]));
+    arete(bitsDe([[a, fa], [b, 1 - fb], [k, 0]]), bitsDe([[a, fa], [b, 1 - fb], [k, 1]]));
+    arete(bitsDe([[a, 1 - fa], [b, fb], [k, 0]]), bitsDe([[a, 1 - fa], [b, fb], [k, 1]]));
+    arete(bitsDe([[a, fa], [b, 0], [k, 1]]), bitsDe([[a, fa], [b, 1], [k, 1]]));
+    arete(bitsDe([[b, fb], [a, 0], [k, 1]]), bitsDe([[b, fb], [a, 1], [k, 1]]));
+    // Axes nommés : les deux arêtes avant du fond, et l'arête verticale extérieure la plus à gauche.
+    const nommer = ([A, B], j) => {
       const actif = j === k;
-      s.appendChild(etiquetteBlanche(txt(x + (dx / n) * 38, y + (dy / n) * 38 + 11, `D${j + 1}`,
-        { ...gris, graisse: actif ? 700 : 600, couleur: actif ? COULEURS.marine : GRIS })));
-    }
+      s.appendChild(svg('line', { x1: A[0], y1: A[1], x2: B[0], y2: B[1], stroke: actif ? COULEURS.marine : '#495057', 'stroke-width': 4.5, 'stroke-linecap': 'round' }));
+      const [mx, my] = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
+      let angle = (Math.atan2(B[1] - A[1], B[0] - A[0]) * 180) / Math.PI;
+      if (angle > 90) angle -= 180;
+      if (angle <= -90) angle += 180;
+      // Décalage perpendiculaire à l'arête, du côté opposé au centre de la boîte.
+      const c = versEcran(v, v.centre);
+      const lg = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1;
+      let [nx, ny] = [-(B[1] - A[1]) / lg, (B[0] - A[0]) / lg];
+      if (nx * (mx - c[0]) + ny * (my - c[1]) < 0) [nx, ny] = [-nx, -ny];
+      const t = txt(0, 0, `Dimension ${j + 1}`, { taille: 30, ancre: 'middle', graisse: 700, couleur: actif ? COULEURS.marine : '#495057' });
+      t.setAttribute('transform', `translate(${mx + nx * 30} ${my + ny * 30}) rotate(${angle}) translate(0 10)`);
+      s.appendChild(etiquetteBlanche(t));
+    };
+    nommer(arete(bitsDe([[a, 1 - fa], [b, 0], [k, 0]]), bitsDe([[a, 1 - fa], [b, 1], [k, 0]])), b);
+    nommer(arete(bitsDe([[b, 1 - fb], [a, 0], [k, 0]]), bitsDe([[b, 1 - fb], [a, 1], [k, 0]])), a);
+    const exterieures = [bitsDe([[a, fa], [b, 1 - fb]]), bitsDe([[a, 1 - fa], [b, fb]])].map((bits) => {
+      const haut = [...bits];
+      haut[k] = 1;
+      return [coin(bits), coin(haut)];
+    });
+    nommer(exterieures[0][0][0] < exterieures[1][0][0] ? exterieures[0] : exterieures[1], k);
     s.appendChild(txt(ZONE.x1, H - 22, 'Glisser pour tourner', { taille: 28, ancre: 'end', couleur: GRIS }));
   }
 }
