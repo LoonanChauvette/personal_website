@@ -396,6 +396,18 @@ function redessiner() {
   if (vue) tracer(vue, vue.courant || vue.final);
 }
 
+// Survol : redessin à l'image suivante, jamais pendant l'événement. Redessiner remplace le
+// SVG ; fait pendant « pointerover », il détacherait l'élément visé par l'appui qui suit
+// aussitôt (même geste), et cet appui n'atteindrait plus la carte.
+let redessinPrevu = 0;
+function redessinerBientot() {
+  if (redessinPrevu) return;
+  redessinPrevu = requestAnimationFrame(() => {
+    redessinPrevu = 0;
+    redessiner();
+  });
+}
+
 function formaterStress(v) {
   return v.toLocaleString('fr-CA', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 }
@@ -588,19 +600,19 @@ ui.carte.addEventListener('pointerover', (e) => {
   const i = pointDe(e);
   if (i === null || i === survol || !vue || glissement) return;
   survol = i;
-  redessiner();
+  redessinerBientot();
 });
 ui.carte.addEventListener('pointerleave', () => {
   if (survol === null || !vue) return;
   survol = null;
-  redessiner();
+  redessinerBientot();
 });
 ui.carte.addEventListener('pointerout', (e) => {
   if (!vue || survol === null) return;
   const vers = e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.point');
   if (vers) return;
   survol = null;
-  redessiner();
+  redessinerBientot();
 });
 // 3D : glisser hors des points fait tourner la vue (la conteneur garde la capture,
 // le SVG étant redessiné à chaque image).
@@ -632,9 +644,16 @@ for (const fin of ['pointerup', 'pointercancel']) {
     ui.carte.classList.remove('tourne');
   });
 }
-ui.carte.addEventListener('click', (e) => {
+// Appui puis relâchement sur le même son (et non « click ») : le SVG est redessiné au survol et
+// à chaque image d'animation, et un clic dont l'élément est remplacé entre les deux est perdu.
+let appui = null;
+ui.carte.addEventListener('pointerdown', (e) => {
+  appui = e.button === 0 ? pointDe(e) : null;
+});
+ui.carte.addEventListener('pointerup', (e) => {
   const i = pointDe(e);
-  if (i !== null) jouer(i);
+  if (i !== null && i === appui) jouer(i);
+  appui = null;
 });
 ui.carte.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' && e.key !== ' ') return;

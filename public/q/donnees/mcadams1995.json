@@ -9,91 +9,109 @@
   "sons": [
    {
     "cle": "hrn",
+    "fichier": "sons/mcadams1995/hrn.wav",
     "abrege": "hrn",
     "nom": "Cor"
    },
    {
     "cle": "tpt",
+    "fichier": "sons/mcadams1995/tpt.wav",
     "abrege": "tpt",
     "nom": "Trompette"
    },
    {
     "cle": "tbn",
+    "fichier": "sons/mcadams1995/tbn.wav",
     "abrege": "tbn",
     "nom": "Trombone"
    },
    {
     "cle": "hrp",
+    "fichier": "sons/mcadams1995/hrp.wav",
     "abrege": "hrp",
     "nom": "Harpe"
    },
    {
     "cle": "tpr",
+    "fichier": "sons/mcadams1995/tpr.wav",
     "abrege": "tpr",
     "nom": "Trumpar (trompette + guitare)"
    },
    {
     "cle": "ols",
+    "fichier": "sons/mcadams1995/ols.wav",
     "abrege": "ols",
     "nom": "Oboleste (hautbois + célesta)"
    },
    {
     "cle": "vbs",
+    "fichier": "sons/mcadams1995/vbs.wav",
     "abrege": "vbs",
     "nom": "Vibraphone"
    },
    {
     "cle": "sno",
+    "fichier": "sons/mcadams1995/sno.wav",
     "abrege": "sno",
     "nom": "Striano (cordes frottées + piano)"
    },
    {
     "cle": "hcd",
+    "fichier": "sons/mcadams1995/hcd.wav",
     "abrege": "hcd",
     "nom": "Clavecin"
    },
    {
     "cle": "can",
+    "fichier": "sons/mcadams1995/can.wav",
     "abrege": "can",
     "nom": "Cor anglais"
    },
    {
     "cle": "bsn",
+    "fichier": "sons/mcadams1995/bsn.wav",
     "abrege": "bsn",
     "nom": "Basson"
    },
    {
     "cle": "cnt",
+    "fichier": "sons/mcadams1995/cnt.wav",
     "abrege": "cnt",
     "nom": "Clarinette"
    },
    {
     "cle": "vbn",
+    "fichier": "sons/mcadams1995/vbn.wav",
     "abrege": "vbn",
     "nom": "Vibrone (vibraphone + trombone)"
    },
    {
     "cle": "obc",
+    "fichier": "sons/mcadams1995/obc.wav",
     "abrege": "obc",
     "nom": "Obochord (hautbois + clavecin)"
    },
    {
     "cle": "gtr",
+    "fichier": "sons/mcadams1995/gtr.wav",
     "abrege": "gtr",
     "nom": "Guitare"
    },
    {
     "cle": "stg",
+    "fichier": "sons/mcadams1995/stg.wav",
     "abrege": "stg",
     "nom": "Cordes frottées"
    },
    {
     "cle": "pno",
+    "fichier": "sons/mcadams1995/pno.wav",
     "abrege": "pno",
     "nom": "Piano"
    },
    {
     "cle": "gtn",
+    "fichier": "sons/mcadams1995/gtn.wav",
     "abrege": "gtn",
     "nom": "Guitarnet (guitare + clarinette)"
    }
