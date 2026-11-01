@@ -46,6 +46,7 @@ body {
 .carte svg {
   width: 100%;
   height: 100%;
+  touch-action: none;
 }
 .message {
   color: var(--gris);
@@ -90,8 +91,10 @@ button.discret {
   color: var(--gris);
 }
 .stress {
-  color: var(--gris);
   font-variant-numeric: tabular-nums;
+}
+.carte.tourne {
+  cursor: grabbing;
 }
 .source {
   font-size: 0.8em;

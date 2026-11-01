@@ -2,15 +2,14 @@
 // Utilisé par la diapositive MDS du Cours 7 (diapo-mds.js) et par les tests (Node).
 //
 // Entrée : matrice de dissimilarité n × n, symétrique, diagonale 0, `null` pour une
-// paire sans note (poids nul : jamais remplacée par 0). Sortie : n points en 2D.
+// paire sans note (poids nul : jamais remplacée par 0). Sortie : n points en `dim`
+// dimensions (1, 2 ou 3 ; 2 par défaut).
 //
-//   - torgerson(delta)      : MDS classique (double centrage, deux premiers vecteurs propres) ;
+//   - torgerson(delta, dim) : MDS classique (double centrage, premiers vecteurs propres) ;
 //   - pasGuttman(X, delta)  : une itération SMACOF (transformée de Guttman, poids 0/1) ;
-//   - mds(delta)            : SMACOF (Torgerson + départs au hasard à graine fixe), axes principaux ;
+//   - mds(delta, {dim})     : SMACOF (Torgerson + départs au hasard à graine fixe), axes principaux ;
 //   - stress(X, delta)      : stress-1 de Kruskal (forme métrique) ;
 //   - aligner(X, ref)       : Procrustes (translation, rotation, symétrie, échelle) vers ref.
-
-const DIM = 2;
 
 function distance(p, q) {
   let s = 0;
@@ -24,7 +23,7 @@ function connue(v) {
 
 export function centrer(X) {
   const n = X.length;
-  const m = Array.from({ length: DIM }, (_, k) => X.reduce((s, p) => s + p[k], 0) / n);
+  const m = Array.from({ length: X[0].length }, (_, k) => X.reduce((s, p) => s + p[k], 0) / n);
   return X.map((p) => p.map((v, k) => v - m[k]));
 }
 
@@ -61,7 +60,7 @@ export function pasGuttman(X, delta) {
     }
     B[i][i] = -B[i].reduce((s, v) => s + v, 0);
   }
-  const BX = B.map((ligne) => Array.from({ length: DIM }, (_, k) => ligne.reduce((s, b, j) => s + b * X[j][k], 0)));
+  const BX = B.map((ligne) => Array.from({ length: X[0].length }, (_, k) => ligne.reduce((s, b, j) => s + b * X[j][k], 0)));
   if (complet) return BX.map((p) => p.map((v) => v / n));
   return multiplier(pseudoInverseV(delta), BX);
 }
@@ -101,8 +100,47 @@ function inverser(A) {
   return M.map((l) => l.slice(n));
 }
 
+// Valeurs et vecteurs propres d'une matrice symétrique (Jacobi), valeurs décroissantes.
+// vecteurs[k] : k-ième vecteur propre (norme 1).
+export function propres(S) {
+  const n = S.length;
+  const A = S.map((l) => l.slice());
+  const V = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 1 : 0)));
+  for (let balayage = 0; balayage < 100; balayage += 1) {
+    let hors = 0;
+    for (let p = 0; p < n; p += 1) for (let q = p + 1; q < n; q += 1) hors += A[p][q] ** 2;
+    if (hors < 1e-22) break;
+    for (let p = 0; p < n; p += 1) {
+      for (let q = p + 1; q < n; q += 1) {
+        if (Math.abs(A[p][q]) < 1e-300) continue;
+        const theta = (A[q][q] - A[p][p]) / (2 * A[p][q]);
+        const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+        const c = 1 / Math.sqrt(t * t + 1);
+        const s = t * c;
+        for (let k = 0; k < n; k += 1) {
+          const [akp, akq] = [A[k][p], A[k][q]];
+          A[k][p] = c * akp - s * akq;
+          A[k][q] = s * akp + c * akq;
+        }
+        for (let k = 0; k < n; k += 1) {
+          const [apk, aqk] = [A[p][k], A[q][k]];
+          A[p][k] = c * apk - s * aqk;
+          A[q][k] = s * apk + c * aqk;
+        }
+        for (let k = 0; k < n; k += 1) {
+          const [vkp, vkq] = [V[k][p], V[k][q]];
+          V[k][p] = c * vkp - s * vkq;
+          V[k][q] = s * vkp + c * vkq;
+        }
+      }
+    }
+  }
+  const ordre = Array.from({ length: n }, (_, i) => i).sort((i, j) => A[j][j] - A[i][i]);
+  return { valeurs: ordre.map((i) => A[i][i]), vecteurs: ordre.map((i) => V.map((l) => l[i])) };
+}
+
 // MDS classique. Les paires manquantes prennent la moyenne des paires connues (départ seulement).
-export function torgerson(delta) {
+export function torgerson(delta, dim = 2) {
   const n = delta.length;
   const connues = [];
   for (let i = 0; i < n; i += 1) for (let j = i + 1; j < n; j += 1) if (connue(delta[i][j])) connues.push(delta[i][j]);
@@ -111,68 +149,46 @@ export function torgerson(delta) {
   const ml = D2.map((l) => l.reduce((s, v) => s + v, 0) / n);
   const mt = ml.reduce((s, v) => s + v, 0) / n;
   const Bc = D2.map((l, i) => l.map((v, j) => -0.5 * (v - ml[i] - ml[j] + mt)));
-  const vecteurs = [];
-  const valeurs = [];
-  for (let k = 0; k < DIM; k += 1) {
-    // Puissance itérée avec déflation ; départ fixe (résultat reproductible).
-    let v = Array.from({ length: n }, (_, i) => Math.cos(1 + i * (k + 2)));
-    let lambda = 0;
-    for (let it = 0; it < 500; it += 1) {
-      let w = Bc.map((l) => l.reduce((s, b, j) => s + b * v[j], 0));
-      vecteurs.forEach((u, m) => {
-        const p = u.reduce((s, x, j) => s + x * v[j], 0);
-        w = w.map((x, j) => x - valeurs[m] * p * u[j]);
-      });
-      const norme = Math.sqrt(w.reduce((s, x) => s + x * x, 0));
-      if (norme < 1e-12) break;
-      lambda = w.reduce((s, x, j) => s + x * v[j], 0);
-      v = w.map((x) => x / norme);
-    }
-    vecteurs.push(v);
-    valeurs.push(Math.max(lambda, 0));
-  }
-  return Array.from({ length: n }, (_, i) => vecteurs.map((u, k) => u[i] * Math.sqrt(valeurs[k])));
+  const { valeurs, vecteurs } = propres(Bc);
+  // Valeur propre nulle ou négative : petite dispersion (SMACOF a besoin d'un départ non dégénéré).
+  return Array.from({ length: n }, (_, i) => Array.from({ length: dim }, (_, k) => (
+    vecteurs[k][i] * Math.sqrt(Math.max(valeurs[k], 1e-6 * Math.abs(valeurs[0]) + 1e-9)))));
 }
 
-// Axes principaux de la configuration, sens fixé par le premier son (en bas à gauche).
+// Axes principaux de la configuration (dimension 1 = plus grande étendue), sens fixé par le
+// premier son (côté négatif de chaque axe : à gauche, en bas, devant).
 export function orienter(X) {
   const C = centrer(X);
-  const sxx = C.reduce((s, p) => s + p[0] * p[0], 0);
-  const syy = C.reduce((s, p) => s + p[1] * p[1], 0);
-  const sxy = C.reduce((s, p) => s + p[0] * p[1], 0);
-  const theta = 0.5 * Math.atan2(2 * sxy, sxx - syy);
-  const [c, s] = [Math.cos(theta), Math.sin(theta)];
-  let R = C.map(([x, y]) => [c * x + s * y, -s * x + c * y]);
-  if (R[0][0] > 0) R = R.map(([x, y]) => [-x, y]);
-  if (R[0][1] > 0) R = R.map(([x, y]) => [x, -y]);
+  const dim = C[0].length;
+  const cov = Array.from({ length: dim }, (_, a) => Array.from({ length: dim }, (_, b) => C.reduce((s, p) => s + p[a] * p[b], 0)));
+  const { vecteurs } = propres(cov);
+  const R = C.map((p) => vecteurs.map((u) => u.reduce((s, x, k) => s + x * p[k], 0)));
+  for (let k = 0; k < dim; k += 1) {
+    if (R[0][k] > 1e-12) R.forEach((p) => { p[k] = -p[k]; });
+  }
   return R;
 }
 
-// Procrustes : translation, rotation (ou symétrie) et échelle qui rapprochent X de ref.
+// Procrustes : translation, transformation orthogonale (rotation ou symétrie) et échelle
+// qui rapprochent X de ref. Q = U Vᵀ pour AᵀB = U Σ Vᵀ, calculé comme M (MᵀM)^(-1/2).
 export function aligner(X, ref) {
   const A = centrer(X);
   const B = centrer(ref);
-  let meilleur = null;
-  for (const miroir of [1, -1]) {
-    const M = A.map(([x, y]) => [x, miroir * y]);
-    let a = 0;
-    let b = 0;
-    let norme = 0;
-    M.forEach(([x, y], i) => {
-      a += x * B[i][0] + y * B[i][1];
-      b += x * B[i][1] - y * B[i][0];
-      norme += x * x + y * y;
-    });
-    const r = Math.hypot(a, b);
-    if (!meilleur || r > meilleur.r) meilleur = { r, miroir, c: a / r, s: b / r, norme };
-  }
-  const { miroir, c, s, r, norme } = meilleur;
-  const echelle = norme > 0 ? r / norme : 1;
-  const mref = Array.from({ length: DIM }, (_, k) => ref.reduce((t, p) => t + p[k], 0) / ref.length);
-  return A.map(([x, y0]) => {
-    const y = miroir * y0;
-    return [echelle * (c * x - s * y) + mref[0], echelle * (s * x + c * y) + mref[1]];
-  });
+  const dim = A[0].length;
+  const M = Array.from({ length: dim }, (_, a) => Array.from({ length: dim }, (_, b) => A.reduce((s, p, i) => s + p[a] * B[i][b], 0)));
+  const MtM = Array.from({ length: dim }, (_, a) => Array.from({ length: dim }, (_, b) => M.reduce((s, l) => s + l[a] * l[b], 0)));
+  const { valeurs, vecteurs } = propres(MtM);
+  const plafond = Math.max(valeurs[0], 1e-300);
+  // (MᵀM)^(-1/2) = Σ_k v_k v_kᵀ / √λ_k (λ quasi nul : direction ignorée).
+  const racineInv = Array.from({ length: dim }, (_, a) => Array.from({ length: dim }, (_, b) => vecteurs.reduce(
+    (s, u, k) => (valeurs[k] > 1e-12 * plafond ? s + (u[a] * u[b]) / Math.sqrt(valeurs[k]) : s), 0)));
+  const Q = M.map((l) => Array.from({ length: dim }, (_, b) => l.reduce((s, m, k) => s + m * racineInv[k][b], 0)));
+  let trace = 0;
+  for (let a = 0; a < dim; a += 1) for (let b = 0; b < dim; b += 1) trace += Q[a][b] * M[a][b];
+  const norme = A.reduce((s, p) => s + p.reduce((t, v) => t + v * v, 0), 0);
+  const echelle = norme > 0 ? trace / norme : 1;
+  const mref = Array.from({ length: dim }, (_, k) => ref.reduce((t, p) => t + p[k], 0) / ref.length);
+  return A.map((p) => Array.from({ length: dim }, (_, b) => echelle * p.reduce((s, v, a) => s + v * Q[a][b], 0) + mref[b]));
 }
 
 // Descente SMACOF depuis X jusqu'à convergence.
@@ -202,14 +218,16 @@ function alea(graine) {
 
 // Solution de référence : SMACOF depuis Torgerson et depuis des départs au hasard (graine
 // fixe), meilleur stress gardé (évite les minima locaux), puis axes principaux.
-export function mds(delta, { iterations = 1000, tolerance = 1e-10, departs = 24 } = {}) {
+// En 1D, SMACOF reste souvent bloqué sur un mauvais ordre des points : plus de départs.
+export function mds(delta, { dim = 2, iterations = 1000, tolerance = 1e-10, departs = dim === 1 ? 80 : 24 } = {}) {
+  if (![1, 2, 3].includes(dim)) throw new Error('Nombre de dimensions : 1, 2 ou 3.');
   verifier(delta);
-  let meilleur = descendre(torgerson(delta), delta, iterations, tolerance);
+  let meilleur = descendre(torgerson(delta, dim), delta, iterations, tolerance);
   const connues = delta.flat().filter(connue);
   const etendue = Math.max(...connues, 1e-9);
   const hasard = alea(7);
   for (let k = 0; k < departs; k += 1) {
-    const X0 = delta.map(() => [(hasard() - 0.5) * etendue, (hasard() - 0.5) * etendue]);
+    const X0 = delta.map(() => Array.from({ length: dim }, () => (hasard() - 0.5) * etendue));
     const r = descendre(X0, delta, iterations, tolerance);
     if (r.s < meilleur.s - 1e-9) meilleur = r;
   }
