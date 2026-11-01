@@ -1,0 +1,123 @@
+/* Diapositive MDS du Cours 7 (diapo-mds.js), dans un élément HTML d'Excalidraw+.
+   Les tailles suivent la boîte de l'élément (vh/vw = taille sur la diapositive). */
+:root {
+  --encre: #16181d;
+  --marine: #1a3556;
+  --filet: #d7dae0;
+  --gris: #6b7078;
+  --rouge: #c92a2a;
+  --police: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --t: min(5.2vh, 4vw);
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #fff;
+  color: var(--encre);
+  font-family: var(--police);
+  font-size: var(--t);
+  line-height: 1.25;
+  overflow: hidden;
+}
+#mds {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 1vh;
+  padding: 1.5vh 1.5vw;
+}
+.barre,
+.pied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+}
+.carte {
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.carte svg {
+  width: 100%;
+  height: 100%;
+}
+.message {
+  color: var(--gris);
+  text-align: center;
+  max-width: 22em;
+}
+.bascule {
+  display: inline-flex;
+  border: 2px solid var(--marine);
+  border-radius: 8px;
+  overflow: hidden;
+}
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 0.2em 0.8em;
+  border-radius: 8px;
+  border: 2px solid var(--marine);
+  background: #fff;
+  color: var(--marine);
+  cursor: pointer;
+}
+.bascule button {
+  border: 0;
+  border-radius: 0;
+}
+.bascule button + button {
+  border-left: 2px solid var(--marine);
+}
+.bascule button[aria-pressed="true"] {
+  background: var(--marine);
+  color: #fff;
+}
+.bascule button[data-source="simule"][aria-pressed="true"] {
+  background: var(--rouge);
+}
+button.discret {
+  font-weight: 400;
+  font-size: 0.85em;
+  border-width: 1px;
+  border-color: var(--filet);
+  color: var(--gris);
+}
+.stress {
+  color: var(--gris);
+  font-variant-numeric: tabular-nums;
+}
+.source {
+  font-size: 0.8em;
+  white-space: nowrap;
+  color: var(--gris);
+}
+.source.simulee {
+  color: var(--rouge);
+}
+.point {
+  cursor: pointer;
+  outline: none;
+}
+.chiffre,
+.point text {
+  pointer-events: none;
+}
+.point:hover .disque,
+.point.survol .disque,
+.point:focus-visible .disque {
+  stroke: #2f6fd6;
+  stroke-width: 6;
+}
+.point.joue .disque {
+  fill: #e8590c;
+  stroke: #e8590c;
+  stroke-width: 10;
+  stroke-opacity: 0.35;
+}
