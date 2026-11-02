@@ -33,6 +33,7 @@ body {
   -webkit-user-select: none;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr); /* le pied ne doit jamais élargir la diapositive */
   gap: 1vh;
   padding: 1.5vh 1.5vw;
 }
@@ -150,6 +151,14 @@ button.discret {
   gap: 0.4em;
   font-size: 0.75em;
   color: var(--gris);
+}
+.etendue {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  font-size: 0.75em;
+  color: var(--gris);
+  flex: none;
 }
 .bascule.petite button {
   padding: 0.1em 0.55em;

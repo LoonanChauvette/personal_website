@@ -6,12 +6,16 @@
 //
 // Document hôte (tools/questions_cours7.py) :
 //   <base href="https://SITE/q/">
-//   <script type="application/json" id="config">{"id": "c7paires", "reference": "donnees/…json"}</script>
+//   <script type="application/json" id="config">{"id": "c7paires", "reference": "donnees/…json",
+//     "sous_ensemble": ["tpt", …]}</script>
 //   <main id="mds"></main>
 //
 // Bascule Classe / McAdams 1995 : « McAdams 1995 » affiche la matrice de dissimilarité de
 // McAdams et al. (1995), 18 timbres de synthèse (tools/donnees_reference.mjs), toujours
 // disponible. Sans résultat de la classe, la diapositive part sur ces données.
+// « sous_ensemble » : les timbres de McAdams entendus par la classe, dans l'ordre de ses sons
+// (tools/cours7_paires.json). McAdams montre alors ces seuls timbres (sous-matrice publiée),
+// tournés sur la carte de la classe quand elle porte les mêmes sons ; « 18 sons » : tout le jeu.
 // Bascule 1D / 2D / 3D : nombre de dimensions de la carte (le stress de chacune s'affiche).
 //   1D : points sur une droite, arcs au survol ; 3D : points dans une boîte (comme les figures
 //   d'espaces timbraux), glisser pour tourner.
@@ -28,6 +32,7 @@ const conf = JSON.parse(document.getElementById('config').textContent);
 const ID = String(conf.id || 'c7paires');
 // La clé « simule » des premières versions de la diapositive est ignorée (fichier retiré).
 const URL_REFERENCE = String(conf.reference || 'donnees/mcadams1995.json');
+const SOUS = Array.isArray(conf.sous_ensemble) ? conf.sous_ensemble.map(String) : [];
 const BEAUCOUP = 8; // au-delà : abréviations, pas de traits au survol
 
 const L = 1000; // repère du SVG
@@ -44,7 +49,7 @@ racine.innerHTML = `
   <header class="barre">
     <div class="bascule" role="group" aria-label="Données">
       <button type="button" data-source="classe">Classe</button>
-      <button type="button" data-source="reference" title="McAdams et al. (1995), 18 timbres de synthèse">McAdams</button>
+      <button type="button" data-source="reference" title="McAdams et al. (1995), timbres de synthèse">McAdams</button>
     </div>
     <div class="bascule" role="group" aria-label="Nombre de dimensions">
       <button type="button" data-dim="1">1D</button>
@@ -65,6 +70,13 @@ racine.innerHTML = `
   </div>
   <footer class="pied">
     <span class="source" id="source"></span>
+    <div class="etendue" id="etendue" hidden>
+      <div class="bascule petite" role="group" aria-label="Timbres de McAdams">
+        <button type="button" data-tous="0" title="Les timbres entendus en classe">${SOUS.length}</button>
+        <button type="button" data-tous="1" title="Les 18 timbres de l'article">18</button>
+      </div>
+      <span>timbres</span>
+    </div>
     <button type="button" id="rejouer" class="discret" title="Repartir de positions au hasard">Recalculer</button>
   </footer>`;
 
@@ -76,11 +88,14 @@ const ui = {
   dims: [...racine.querySelectorAll('[data-dim]')],
   axeVertical: document.getElementById('axe-vertical'),
   axes: [...racine.querySelectorAll('[data-axe]')],
+  etendue: document.getElementById('etendue'),
+  tous: [...racine.querySelectorAll('[data-tous]')],
 };
 
 const donnees = { classe: null, reference: null, erreurClasse: null };
 let choix = null; // source choisie à la main (sinon : classe si elle existe)
 let dim = 2;
+let tous = !SOUS.length; // McAdams : les 18 timbres, ou ceux entendus en classe
 let vue = null; // source et solution affichées (voir preparer)
 const solutions = new Map(); // `${cleSource}|${dim}` → { points, stress } (la 3D coûte ~0,3 s)
 let animation = 0;
@@ -195,6 +210,43 @@ async function chargerReference() {
   donnees.reference = await r.json();
 }
 
+// Sous-matrice de McAdams pour les timbres entendus en classe (null si l'un manque).
+let sousReference = null;
+function referenceAffichee() {
+  const g = donnees.reference;
+  if (tous || !SOUS.length) return g;
+  if (sousReference?.de === g) return sousReference.g;
+  const idx = SOUS.map((c) => g.resultats.sons.indexOf(c));
+  if (idx.some((i) => i < 0)) return g;
+  const sous = { ...g, resultats: { ...g.resultats, sons: SOUS, matrice: idx.map((i) => idx.map((j) => g.resultats.matrice[i][j])) } };
+  sousReference = { de: g, g: sous };
+  return sous;
+}
+
+// La classe a-t-elle entendu ces mêmes timbres, dans le même ordre (comparaison point à point) ?
+function memesSons(g, classe) {
+  if (!classe) return false;
+  const noms = (x) => {
+    const parCle = new Map((x.gabarit?.sons || []).map((s) => [s.cle, s.nom]));
+    return x.resultats.sons.map((c) => parCle.get(c));
+  };
+  const [a, b] = [noms(g), noms(classe)];
+  return a.length === b.length && a.every((n, i) => n && n === b[i]);
+}
+
+// Tourne (et retourne) X sur la carte ref sans changer son échelle : le stress reste le même.
+function tournerSur(X, ref) {
+  const centre = (P) => P[0].map((_, k) => P.reduce((s, p) => s + p[k], 0) / P.length);
+  const norme = (P) => {
+    const c = centre(P);
+    return Math.sqrt(P.reduce((s, p) => s + p.reduce((t, v, k) => t + (v - c[k]) ** 2, 0), 0));
+  };
+  const A = aligner(X, ref);
+  const f = norme(X) / (norme(A) || 1);
+  const c = centre(A);
+  return A.map((p) => p.map((v, k) => (v - c[k]) * f));
+}
+
 function preparer(g, cleSource) {
   const res = g.resultats;
   const parCle = new Map((g.gabarit?.sons || []).map((s) => [s.cle, s]));
@@ -202,7 +254,13 @@ function preparer(g, cleSource) {
   const delta = res.matrice;
   const cle = `${cleSource}|${dim}`;
   if (!solutions.has(cle)) solutions.set(cle, mds(delta, { dim }));
-  const { points, stress: s } = solutions.get(cle);
+  let { points, stress: s } = solutions.get(cle);
+  if (cleSource.startsWith('reference|') && memesSons(g, donnees.classe)) {
+    const c = donnees.classe;
+    const cleClasse = `classe|${c.revele_a || ''}|${c.resultats.n}|${JSON.stringify(c.resultats.matrice)}|${dim}`;
+    if (!solutions.has(cleClasse)) solutions.set(cleClasse, mds(c.resultats.matrice, { dim }));
+    points = tournerSur(points, solutions.get(cleClasse).points);
+  }
   const v = { g, cleSource, dim, sons, delta, final: points, stressFinal: s };
   // Échelle commune à tous les axes (les distances doivent rester comparables).
   const etendues = Array.from({ length: dim }, (_, k) => {
@@ -436,7 +494,7 @@ function majTexte(v) {
   const n = res.n || 0;
   const dont = res.simulees || 0;
   ui.source.classList.toggle('simulee', source() === 'classe' && dont > 0);
-  if (source() === 'reference') ui.source.textContent = `${v.g.titre || 'Littérature'}, ${v.sons.length} timbres`;
+  if (source() === 'reference') ui.source.textContent = `${v.g.titre || 'Littérature'}`;
   else ui.source.textContent = `Classe : ${nombreEntier(n)} participant${n === 1 ? '' : 's'}${dont ? ` (${nombreEntier(dont)} simulés)` : ''}`;
 }
 
@@ -543,11 +601,13 @@ async function afficher({ rejouer = false } = {}) {
   ui.dims.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.dim) === dim)));
   ui.axes.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.axe) === axeVertical)));
   ui.axeVertical.hidden = dim !== 3;
+  ui.etendue.hidden = src !== 'reference' || !SOUS.length;
+  ui.tous.forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.tous === '1') === tous)));
   let g;
   try {
     if (src === 'reference') {
       await chargerReference();
-      g = donnees.reference;
+      g = referenceAffichee();
     } else {
       g = donnees.classe;
       if (!g) {
@@ -690,6 +750,10 @@ ui.dims.forEach((b) => b.addEventListener('click', () => {
   afficher({ rejouer: true });
 }));
 ui.axes.forEach((b) => b.addEventListener('click', () => virer(Number(b.dataset.axe))));
+ui.tous.forEach((b) => b.addEventListener('click', () => {
+  tous = b.dataset.tous === '1';
+  afficher({ rejouer: true });
+}));
 ui.rejouer.addEventListener('click', () => afficher({ rejouer: true }));
 
 // À chaque affichage de la diapositive : relire le résultat gardé, puis rejouer le placement.
