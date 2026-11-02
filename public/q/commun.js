@@ -1431,8 +1431,11 @@ function lignesSousQuestion(sq, sous, mienne, revele) {
     if (mienne !== undefined && !lignes.some((l) => l.vous)) {
       lignes.push({ libelle: fmtV(Number(mienne)) + unite, v: 0, bonne: estBonne(Number(mienne)), vous: true, horsListe: true });
     }
-  } else if (type === 'echelle' && sous && sous.comptes) {
-    lignes = Object.entries(sous.comptes).map(([k, v]) => ({ libelle: k, v: Number(v) || 0, bonne: false, vous: String(mienne) === k }));
+  } else if (type === 'echelle' && ((sous && sous.comptes) || (gab.bonnes || []).length)) {
+    const bonnes = new Set((gab.bonnes || []).map(String));
+    const comptes = { ...(sous && sous.comptes) };
+    for (const b of bonnes) if (!(b in comptes)) comptes[b] = 0;
+    lignes = Object.entries(comptes).map(([k, v]) => ({ libelle: k, v: Number(v) || 0, bonne: bonnes.has(k), vous: mienne !== undefined && String(mienne) === k }));
   }
   if (!lignes) return null;
   lignes.sort((a, b) => b.v - a.v);
@@ -1514,6 +1517,11 @@ function rendreSerie(gabarit, res, opts) {
       const bloc = element2('div', 'serie-bloc');
       bloc.style.gridColumn = String(Math.floor(i / nLignes) + 2);
       bloc.style.gridRow = String((i % nLignes) + 2);
+      // Sans titres de lignes, chaque case nomme sa sous-question (ex. « B et C » sous « Diffèrent sur… »).
+      if (!tLig.length) {
+        bloc.classList.add('avec-nom');
+        bloc.appendChild(element2('div', 'serie-nom', nomDe(sq, i)));
+      }
       bloc.appendChild(valeurs(sq));
       conteneur.appendChild(bloc);
     });

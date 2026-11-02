@@ -204,6 +204,8 @@ function controleEchelle(q) {
   const valeurInitiale = reponseLocale && reponseLocale.reponse !== null && reponseLocale.reponse !== undefined
     ? Number(reponseLocale.reponse)
     : null;
+  // Valeur touchée : lue par une série à l'envoi commun (sinon la réponse touchée serait perdue).
+  let courante = valeurInitiale;
   const tous = [];
 
   for (let i = 0; i < nombrePoints; i += 1) {
@@ -216,6 +218,7 @@ function controleEchelle(q) {
     bouton.addEventListener('click', () => {
       if (!estOuverte()) return;
       tous.forEach((b) => b.setAttribute('aria-pressed', b === bouton ? 'true' : 'false'));
+      courante = valeur;
       envoi(valeur);
     });
     tous.push(bouton);
@@ -228,7 +231,7 @@ function controleEchelle(q) {
   ancres.appendChild(element('span', null, String(g.ancre_min || '')));
   ancres.appendChild(element('span', null, String(g.ancre_max || '')));
   if (g.ancre_min || g.ancre_max) conteneur.appendChild(ancres);
-  return { element: conteneur, lire: () => valeurInitiale };
+  return { element: conteneur, lire: () => courante };
 }
 
 function controleCurseur(q, initiale = reponseLocale?.reponse) {
@@ -777,7 +780,7 @@ function majMaReponse() {
   // Série révélée : chaque réponse est déjà marquée « vous » dans la grille ; la ligne donne le score.
   // Diapositive révélée : la réponse est marquée sur le graphique ; la ligne garde le verdict
   // (types corrigés seulement : un nuage garde « Vos mots : … »).
-  const corrigeable = ['choix', 'vraifaux', 'multiple', 'nombre'].includes(question.type) && (question.gabarit?.bonnes || []).length;
+  const corrigeable = ['choix', 'vraifaux', 'multiple', 'nombre', 'echelle'].includes(question.type) && (question.gabarit?.bonnes || []).length;
   if (question.statut === 'revelee' && (question.type === 'serie' || (DIAPO && corrigeable))) ui.maReponse.textContent = question.type === 'serie' ? 'Vos réponses' : 'Votre réponse';
   if (question.statut === 'revelee') {
     const correction = corriger(question.type, question.gabarit, reponseLocale.reponse);
@@ -789,7 +792,7 @@ function majMaReponse() {
       } else if (correction.statut === 'faux') {
         const bonnes = question.gabarit?.bonnes || [];
         // Diapositive : lettre seule (les libellés sont sur la diapositive), sinon le verdict déborde.
-        const bonne = DIAPO && question.type !== 'nombre'
+        const bonne = DIAPO && !['nombre', 'echelle'].includes(question.type)
           ? bonnes.map((b) => (question.type === 'vraifaux' ? (b === 'V' ? 'Vrai' : 'Faux') : b)).join(', ')
           : formaterReponse(question.type, question.gabarit, question.type === 'multiple' ? bonnes : bonnes[0]);
         verdict = bonnes.length ? `✗ Bonne réponse : ${bonne}` : '✗ Réponse incorrecte';

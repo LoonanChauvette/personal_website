@@ -115,6 +115,16 @@ body {
 .serie-bloc {
   min-height: 0;
 }
+.serie-bloc.avec-nom {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 0.8em;
+  align-items: baseline;
+}
+.serie-nom {
+  font-size: 0.85em;
+  white-space: nowrap;
+}
 .serie-groupe {
   display: flex;
   flex-direction: column;

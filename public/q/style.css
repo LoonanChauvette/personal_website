@@ -241,6 +241,18 @@ body {
   width: 2.2em;
   font-size: 16px;
 }
+/* Échelle dans une série : boutons 1, 2, 3… sur une seule ligne, comme les lettres d'un choix. */
+.serie-controle .grille {
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 8px;
+}
+.serie-controle .grille .touche {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 4px;
+  font-size: 18px;
+}
 .serie-controle .liste-options {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
