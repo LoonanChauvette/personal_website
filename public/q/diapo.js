@@ -346,7 +346,7 @@ function matricePaires(q) {
   });
   const n = Number(res.n) || 0;
   const sim = Number(res.simulees) || 0;
-  statutMatrice = `${nombreEntier(n)} participant${n <= 1 ? '' : 's'}${sim ? ` (${nombreEntier(sim)} simulés)` : ''}`;
+  statutMatrice = `${nombreEntier(n)} participant${n <= 1 ? '' : 's'}${sim ? (sim === n ? ' (simulés)' : ` (${nombreEntier(sim)} simulés)`) : ''}`;
   ui.statut.classList.toggle('simulee', sim > 0);
   return s;
 }

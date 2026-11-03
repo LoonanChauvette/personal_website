@@ -405,12 +405,16 @@ button.principal {
 /* Pied : statut et petites commandes, alignés sur une ligne de 26 px. */
 .theme-excali .pied {
   min-height: 26px;
-  gap: 8px;
+  gap: 20px; /* commandes distinctes : au moins 20 px (règle des démos) */
   font-size: 14px;
   line-height: 18px;
 }
 .theme-excali .statut {
   color: var(--gris);
+  min-width: 0;
+  white-space: nowrap; /* une ligne : jamais deux lignes à côté des boutons */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .theme-excali .statut.erreur {
   color: #e03131;
@@ -522,7 +526,7 @@ button.principal {
   color: var(--gris);
 }
 .theme-excali .commandes {
-  gap: 12px;
+  gap: 20px;
 }
 .theme-excali .commandes button {
   min-width: 112px;

@@ -101,22 +101,28 @@ export function icone(type, taille = 12, cle = 'i') {
 }
 
 /**
- * Bouton dessiné (contour rough), largeur fixe. bascule=true : état aria-pressed (hachures bleu
- * clair). jouer=true : icône ▶ dessinée, lecture(enCours) bascule ▶ / ■.
+ * Bouton dessiné (contour rough). La largeur s'ajuste au texte : au moins `largeur`, et au moins
+ * texte + PAD de chaque côté (PAD_COMPACT si compact) ; le contour est retracé à la taille
+ * réelle (police chargée, texte changé). bascule=true : état aria-pressed (hachures bleu clair).
+ * jouer=true : icône ▶ dessinée, lecture(enCours) bascule ▶ / ■. Même règle que teaching-demos
+ * (shared/pitch/kit.js, commit ea84b1e).
  */
-export function bouton(parent, texte, action, { largeur = 110, hauteur = 32, bascule = false, actif = false, jouer = false, titre = null, couleur = '#1e1e1e', fond = '#a5d8ff' } = {}) {
+export const PAD = 12, PAD_COMPACT = 6, ECART_GROUPE = 4, ECART_COMMANDES = 20;
+export function bouton(parent, texte, action, { largeur = 0, hauteur = 32, bascule = false, actif = false, jouer = false, titre = null, couleur = '#1e1e1e', fond = '#a5d8ff', compact = false } = {}) {
   const b = H('button', 'btn', null, parent);
   b.type = 'button';
-  b.style.width = largeur + 'px';
+  b.style.minWidth = largeur + 'px';
   b.style.height = hauteur + 'px';
-  const f = S('svg', { class: 'fond', width: largeur, height: hauteur }, b);
-  const a = S('g', { class: 'actif' }, f);
-  R('rectangle', a, [2, 2, largeur - 4, hauteur - 4], { cle: 'ba' + texte + largeur, stroke: 'none', fill: fond, hachureGap: 5, fillWeight: 1.2 });
-  R('rectangle', f, [1.5, 1.5, largeur - 3, hauteur - 3], { cle: 'b' + texte + largeur, stroke: couleur });
+  b.style.padding = texte ? `0 ${compact ? PAD_COMPACT : PAD}px` : '0';
+  b.couleurs = [couleur, fond];
+  b.cleForme = texte + largeur;
+  S('svg', { class: 'fond' }, b);
   let ic = null;
   if (jouer) { ic = icone('jouer', 11, texte); b.appendChild(ic); }
-  const t = H('span', 'texte', texte, b);
-  if (couleur !== '#1e1e1e') t.style.color = couleur;
+  if (texte) {
+    const t = H('span', 'texte', texte, b);
+    if (couleur !== '#1e1e1e') t.style.color = couleur;
+  }
   if (titre) b.title = titre;
   if (bascule) b.setAttribute('aria-pressed', String(actif));
   b.addEventListener('click', () => action(b));
@@ -126,20 +132,53 @@ export function bouton(parent, texte, action, { largeur = 110, hauteur = 32, bas
     ic.replaceWith(n); ic = n;
   };
   b.actif = (v) => b.setAttribute('aria-pressed', String(!!v));
+  suivreTaille(b);
   return b;
 }
 
-/** Rangée de boutons exclusifs de même largeur. → élément avec .valeur(v) et .boutons. */
-export function choix(parent, options, valeur, action, { largeur = 90, hauteur = 32, ecart = 2 } = {}) {
+function tracerFond(b) {
+  const l = b.offsetWidth, h = b.offsetHeight;
+  const cle = [l, h, ...b.couleurs].join('|');
+  if (!l || !h || b.tailleTracee === cle) return;
+  b.tailleTracee = cle;
+  const f = b.querySelector(':scope > svg.fond');
+  f.setAttribute('width', l);
+  f.setAttribute('height', h);
+  f.replaceChildren();
+  const a = S('g', { class: 'actif' }, f);
+  R('rectangle', a, [2, 2, l - 4, h - 4], { cle: 'ba' + b.cleForme, stroke: 'none', fill: b.couleurs[1], hachureGap: 5, fillWeight: 1.2 });
+  R('rectangle', f, [1.5, 1.5, l - 3, h - 3], { cle: 'b' + b.cleForme, stroke: b.couleurs[0] });
+}
+const OBS_TAILLE = window.ResizeObserver ? new ResizeObserver((es) => es.forEach((e) => tracerFond(e.target))) : null;
+function suivreTaille(b) {
+  if (OBS_TAILLE) OBS_TAILLE.observe(b);
+  requestAnimationFrame(() => tracerFond(b));
+}
+if (document.fonts) document.fonts.ready.then(() => document.querySelectorAll('.btn').forEach(tracerFond));
+
+/**
+ * Rangée de boutons exclusifs : écart serré (ECART_GROUPE), même largeur (celle du plus large)
+ * si egal. → élément avec .valeur(v) et .boutons.
+ */
+export function choix(parent, options, valeur, action, { largeur = 0, hauteur = 32, ecart = ECART_GROUPE, egal = true, compact = false } = {}) {
   const g = H('div', null, null, parent);
   g.style.display = 'flex';
   g.style.gap = ecart + 'px';
   g.boutons = options.map((o) => {
-    const b = bouton(g, o.texte, () => { if (!b.disabled) { g.valeur(o.valeur); action(o.valeur); } }, { bascule: true, actif: o.valeur === valeur, largeur: o.largeur || largeur, hauteur, titre: o.titre });
+    const b = bouton(g, o.texte, () => { if (!b.disabled) { g.valeur(o.valeur); action(o.valeur); } }, { bascule: true, actif: o.valeur === valeur, largeur: o.largeur || largeur, hauteur, titre: o.titre, compact });
     b.valeurChoix = o.valeur;
     return b;
   });
   g.valeur = (v) => g.boutons.forEach((b) => b.actif(b.valeurChoix === v));
+  const egaliser = () => {
+    g.boutons.forEach((b) => { b.style.minWidth = (b.largeurMin ??= parseFloat(b.style.minWidth) || 0) + 'px'; });
+    const l = Math.max(...g.boutons.map((b) => b.offsetWidth));
+    if (l > 0) g.boutons.forEach((b) => { b.style.minWidth = l + 'px'; });
+  };
+  if (egal) {
+    requestAnimationFrame(egaliser);
+    if (document.fonts) document.fonts.ready.then(egaliser);
+  }
   return g;
 }
 

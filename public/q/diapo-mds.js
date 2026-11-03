@@ -29,7 +29,7 @@
 // 8 sons : nom complet seulement, les points sont étiquetés par leur abréviation).
 // Cliquer un point : l'instrument joue (un second clic arrête), si le son est fourni.
 import { apiGarde, nombreEntier } from './commun.js';
-import { ajuster, bouton, choix, H, placer, S, T } from './excali/excali.js';
+import { ajuster, bouton, choix, ECART_COMMANDES, H, placer, R, S, T } from './excali/excali.js';
 import { aligner, mds, pasGuttman, stress } from './mds.js';
 
 const conf = JSON.parse(document.getElementById('config').textContent);
@@ -67,7 +67,7 @@ document.head.appendChild(style);
 const racine = document.getElementById('demo');
 const barre = placer(H('div', null, null, racine), 0, 0);
 barre.style.display = 'flex';
-barre.style.gap = '28px'; // groupes séparés, boutons d'un même groupe serrés
+barre.style.gap = ECART_COMMANDES + 'px'; // groupes séparés, boutons d'un même groupe serrés
 const cSource = choix(barre, [{ texte: 'Classe', valeur: 'classe' },
   { texte: 'McAdams', valeur: 'reference', titre: 'McAdams et al. (1995), timbres de synthèse' }], null,
 (v) => { choix_ = v; afficher({ rejouer: true }); }, { largeur: 80 });
@@ -80,14 +80,14 @@ carte.style.height = H_ + 'px';
 const axeVerticalUi = placer(H('div', null, null, racine), 0, 40);
 axeVerticalUi.style.display = 'flex';
 axeVerticalUi.style.alignItems = 'center';
-axeVerticalUi.style.gap = '6px';
+axeVerticalUi.style.gap = '8px';
 H('span', 'indice-html', 'Vertical', axeVerticalUi);
-const cAxe = choix(axeVerticalUi, [0, 1, 2].map((k) => ({ texte: `D${k + 1}`, valeur: k })), 1, (k) => virer(k), { largeur: 34, hauteur: 26 });
+const cAxe = choix(axeVerticalUi, [0, 1, 2].map((k) => ({ texte: `D${k + 1}`, valeur: k })), 1, (k) => virer(k), { largeur: 34, hauteur: 28 });
 // Pied : source, étendue (McAdams), recalculer.
 const pied = placer(H('div', null, null, racine), 0, HD - 28, LD);
 pied.style.display = 'flex';
 pied.style.alignItems = 'center';
-pied.style.gap = '10px';
+pied.style.gap = ECART_COMMANDES + 'px';
 pied.style.height = '28px';
 const sourceUi = H('span', 'indice-html', null, pied);
 sourceUi.style.overflow = 'hidden';
@@ -96,12 +96,17 @@ sourceUi.style.flex = '1';
 const etendueUi = H('div', null, null, pied);
 etendueUi.style.display = 'flex';
 etendueUi.style.alignItems = 'center';
-etendueUi.style.gap = '6px';
+etendueUi.style.gap = '8px';
+H('span', 'indice-html', 'Timbres', etendueUi); // libellé avant le groupe, comme « Vertical »
 const cTous = choix(etendueUi, [{ texte: String(SOUS.length), valeur: false, titre: 'Les timbres entendus en classe' },
   { texte: '18', valeur: true, titre: "Les 18 timbres de l'article" }], !SOUS.length,
-(v) => { tous = v; afficher({ rejouer: true }); }, { largeur: 34, hauteur: 26 });
-H('span', 'indice-html', 'timbres', etendueUi);
-bouton(pied, 'Recalculer', () => afficher({ rejouer: true }), { largeur: 96, hauteur: 26, titre: 'Repartir de positions au hasard' });
+(v) => { tous = v; afficher({ rejouer: true }); }, { largeur: 34, hauteur: 28 });
+// Recalculer : icône ↻ dessinée (même icône que « Nouvel essai » dans les démos), carrée.
+const bRecalc = bouton(pied, '', () => afficher({ rejouer: true }), { largeur: 28, hauteur: 28, titre: 'Recalculer (repartir de positions au hasard)' });
+bRecalc.setAttribute('aria-label', 'Recalculer');
+const icRecalc = S('svg', { class: 'icone', width: 18, height: 18, viewBox: '0 0 24 24', 'aria-hidden': 'true' }, bRecalc);
+R('path', icRecalc, ['M 19 9 A 8 8 0 1 0 20 15'], { cle: 'rafraichir-arc', strokeWidth: 1.8, roughness: 0.7 });
+R('polygon', icRecalc, [[[20, 12], [14, 7], [22, 5]]], { cle: 'rafraichir-pointe', fill: '#1e1e1e', fillStyle: 'solid', strokeWidth: 1, roughness: 0.5 });
 
 const ui = { carte, source: sourceUi };
 const donnees = { classe: null, reference: null, erreurClasse: null };

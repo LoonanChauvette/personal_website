@@ -35,7 +35,7 @@ svg text { font-family: var(--police); fill: var(--encre); paint-order: stroke; 
 
 /* Bouton dessiné : contour rough.js ; actif = hachures bleu clair ; survol = texte bleu. */
 .btn {
-  position: relative; font: inherit; font-family: var(--police-main); font-size: 16px; color: var(--encre); background: transparent;
+  position: relative; flex: none; font: inherit; font-family: var(--police-main); font-size: 16px; color: var(--encre); background: transparent;
   border: 0; padding: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
   gap: 7px; white-space: nowrap; -webkit-tap-highlight-color: transparent;
 }

@@ -18,7 +18,7 @@
 //   <base href="https://SITE/q/"> <link rel="stylesheet" href="…/q/excali/excali.css">
 //   <script src="…/q/excali/rough.js"></script> <div id="demo" class="demo"></div>
 //   <script type="application/json" id="config">{"id": "c7paires", "sous_ensemble": ["tpt", …]}</script>
-import { ajuster, axes, bouton, chemin, choix, echelle, H, placer, R, S, T } from './excali/excali.js';
+import { ajuster, axes, bouton, chemin, choix, ECART_COMMANDES, echelle, H, placer, R, S, T } from './excali/excali.js';
 import { creerDonnees, creerLecteur } from './correlats-donnees.js';
 
 const L = 786, HT = 384;
@@ -36,7 +36,7 @@ const source = () => etat.choix || (donnees.d.classe ? 'classe' : 'reference');
 const demo = document.getElementById('demo');
 const barre = placer(H('div', null, null, demo), 0, 0);
 barre.style.display = 'flex';
-barre.style.gap = '28px'; // groupes bien séparés, boutons d'un même groupe serrés (choix)
+barre.style.gap = ECART_COMMANDES + 'px'; // groupes séparés, boutons d'un même groupe serrés (choix)
 const cVue = choix(barre, [{ texte: 'Corrélations', valeur: 'correlations' }, { texte: 'Comparer', valeur: 'comparer' }], etat.vue,
   (v) => { etat.vue = v; rendre(); }, { largeur: 112 });
 const cSource = choix(barre, [{ texte: 'Classe', valeur: 'classe' }, { texte: 'McAdams', valeur: 'reference', titre: 'McAdams et al. (1995), 18 timbres de synthèse' }], null,
