@@ -1,5 +1,4 @@
-// Données communes aux diapositives « corrélats acoustiques » du Cours 7 (diapo-correlats.js,
-// diapo-paire.js) : McAdams et al. (1995), descripteurs, résultat gardé de la classe, cartes MDS.
+// Données de la diapositive « corrélats acoustiques » du Cours 7 (diapo-correlats.js) : McAdams et al. (1995), descripteurs, résultat gardé de la classe, cartes MDS.
 // La carte est calculée comme sur la diapositive MDS (mds.js, mêmes départs) : mêmes axes.
 import { apiGarde } from './commun.js';
 import { mds } from './mds.js';
@@ -90,43 +89,4 @@ export function creerLecteur() {
     arreter() { if (lecture) { lecture.a.pause(); lecture = null; } },
     enCours: () => lecture?.son ?? null,
   };
-}
-
-// Relit le résultat de la classe à chaque affichage de la diapositive (Excalidraw remet
-// l'élément à sa taille) ; coupe le son quand on la quitte.
-export function surAffichage(rafraichir, couper) {
-  let visible = window.innerWidth > 8;
-  const verifier = async () => {
-    const v = window.innerWidth > 8 && window.innerHeight > 8 && !document.hidden;
-    if (v && !visible) await rafraichir();
-    if (!v) couper();
-    visible = v;
-  };
-  addEventListener('resize', verifier);
-  document.addEventListener('visibilitychange', verifier);
-}
-
-export const virgule = (v, d = 2) => (v === null || v === undefined ? '—' : v.toFixed(d).replace('-', '−').replace('.', ','));
-
-// Points étiquetés d'un nuage (SVG) : étiquette à droite, à gauche, au-dessus ou au-dessous, la
-// première place libre. bornes : [gauche, droite] du repère. surClic(son), classe(son) facultatifs.
-export function pointsEtiquetes(svg, txt, sons, px, py, { bornes = [0, 1000], surClic = () => {}, classe = () => '' } = {}) {
-  const occupe = sons.map((_, i) => [px[i] - 13, py[i] - 13, px[i] + 13, py[i] + 13]);
-  const chevauche = (b) => occupe.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
-  return sons.map((son, i) => {
-    const w = son.etiquette.length * 15 + 4, h = 26;
-    const essais = [[px[i] + 18, py[i] + 10, 'start'], [px[i] - 18, py[i] + 10, 'end'], [px[i], py[i] - 20, 'middle'], [px[i], py[i] + 40, 'middle']];
-    const boite = ([x, y, a]) => { const g = a === 'start' ? x : a === 'end' ? x - w : x - w / 2; return [g, y - h + 4, g + w, y + 4]; };
-    const [lx, ly, ancre] = essais.find((e) => { const b = boite(e); return b[0] >= bornes[0] && b[2] <= bornes[1] && !chevauche(b); }) || essais[0];
-    occupe.push(boite([lx, ly, ancre]));
-    const g = svg('g', { class: `point ${classe(son)}`.trim(), tabindex: 0, role: 'button', 'aria-label': son.nom }, [
-      svg('circle', { class: 'disque', cx: px[i], cy: py[i], r: 13, fill: '#1a3556', stroke: '#fff', 'stroke-width': 3 }),
-      txt(lx, ly, son.etiquette, { taille: 28, couleur: '#1a3556', ancre }),
-    ]);
-    const t = svg('title', {});
-    t.textContent = son.nom;
-    g.appendChild(t);
-    g.addEventListener('click', () => surClic(son));
-    return g;
-  });
 }
