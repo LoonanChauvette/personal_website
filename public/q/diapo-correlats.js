@@ -24,6 +24,7 @@
 //   <script type="application/json" id="config">{"id": "c7paires", "sous_ensemble": ["tpt", …]}</script>
 import { ajuster, axes, bouton, chemin, choix, ECART_COMMANDES, echelle, H, placer, R, S, T } from './excali/excali.js';
 import { creerDonnees, creerLecteur } from './correlats-donnees.js';
+import { tracerSpectreBruit } from './spectre-bruit.js';
 
 const L = 786, HT = 384;
 const COUL = { A: '#1971c2', B: '#f08c00' };
@@ -264,7 +265,7 @@ function formatDesc(d, v, court = false, pas = null) {
 // B. Légende en haut à droite (panneau A seulement) : le tracé commence 16 px plus bas.
 const P = { g: 50, d: 404, h: 8, b: 112 };
 // Fréquence : toujours en échelle log (harmoniques de ~311 Hz à ~6,2 kHz ; bruit jusqu'à 10 kHz).
-const F_MIN = 250, F_MAX = 8000, F_MIN_BRUIT = 100;
+const F_MIN = 250, F_MAX = 8000;
 const TICKS_F = [100, 250, 500, 1000, 2000, 4000, 8000];
 const fmtF = (f) => (f >= 8000 ? `${f / 1000} kHz` : f >= 1000 ? `${f / 1000}k` : String(f));
 const HAUT = P.h + 16;
@@ -479,26 +480,7 @@ function tracer(g, d, c, coul, e, p, avecLegende) {
       leg([{ type: 'ligne', couleur: coul, texte: 'onde (10 ms)' }, { type: 'point', texte: 'passage par zéro' }]);
       return;
     }
-    const sp = c.spectre, X = echelle(F_MIN_BRUIT, 10000, P.g, P.d, true), Y = echelle(-110, 0, P.b, HAUT);
-    axes(g, { x: X, y: Y, ticksX: [...TICKS_F.slice(0, -1), 10000], ticksY: [-100, -50, 0], formatX: fmtF, formatY: fDb });
-    const visibles = (vs) => vs.map((v, i) => [(i + 0.5) * sp.df, v]).filter(([f, v]) => f >= F_MIN_BRUIT && v !== null).map(([f, v]) => [X(f), Y(Math.max(-110, v))]);
-    if (d.cle === 'rapport_bruit') { // bruit : le spectre hors des harmoniques (trous comblés)
-      const pts = visibles(sp.bruit);
-      S('path', { d: chemin([[pts[0][0], P.b], ...pts, [pts[pts.length - 1][0], P.b]]) + 'Z', fill: '#ced4da', stroke: 'none' }, g);
-    }
-    courbe(visibles(sp.db), 1);
-    if (d.cle === 'crete' || d.cle === 'platitude') {
-      const [haut, bas] = d.cle === 'crete' ? [0, sp.arith] : [sp.arith, sp.geo];
-      S('line', { x1: P.g, x2: P.d, y1: Y(haut), y2: Y(haut), stroke: '#1e1e1e', 'stroke-width': 1.5, 'stroke-dasharray': d.cle === 'crete' ? '4 3' : null }, g);
-      S('line', { x1: P.g, x2: P.d, y1: Y(bas), y2: Y(bas), stroke: '#1e1e1e', 'stroke-width': 1.5, 'stroke-dasharray': d.cle === 'crete' ? null : '4 3' }, g);
-      // Écart entre les deux droites (la valeur du descripteur), à droite.
-      const xe = P.d - 8;
-      S('line', { x1: xe, x2: xe, y1: Y(haut), y2: Y(bas), stroke: '#1e1e1e', 'stroke-width': 1.5 }, g);
-      for (const y of [Y(haut), Y(bas)]) S('line', { x1: xe - 4, x2: xe + 4, y1: y, y2: y, stroke: '#1e1e1e', 'stroke-width': 1.5 }, g);
-    }
-    leg({ rapport_bruit: [{ type: 'ligne', couleur: coul, texte: 'spectre' }, { type: 'plein', couleur: '#ced4da', texte: 'hors des harmoniques (bruit)' }],
-      crete: [{ type: 'tiret', texte: 'maximum' }, { type: 'ligne', texte: 'moyenne' }, { type: 'ecart', texte: 'crête' }],
-      platitude: [{ type: 'ligne', texte: 'moy. arithmétique' }, { type: 'tiret', texte: 'moy. géométrique' }, { type: 'ecart', texte: 'écart' }] }[d.cle]);
+    leg(tracerSpectreBruit(g, d.cle, c.spectre, { g: P.g, d: P.d, h: HAUT, b: P.b }, coul));
     return;
   }
 

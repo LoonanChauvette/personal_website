@@ -157,8 +157,8 @@
    "nom": "Crête spectrale",
    "unite": "dB",
    "famille": "bruit",
-   "attribut": "Résonant / bruité",
-   "definition": "Maximum du spectre sur sa moyenne arithmétique (0 à 10 kHz)"
+   "attribut": "Tonal (pics) / bruité",
+   "definition": "Énergie maximale sur l'énergie moyenne, dans chaque bande d'octave (250 Hz à 8 kHz), moyennée"
   },
   {
    "cle": "platitude",
@@ -166,7 +166,7 @@
    "unite": "",
    "famille": "bruit",
    "attribut": "Bruité / tonal",
-   "definition": "Moyenne géométrique / moyenne arithmétique du spectre (0 à 10 kHz)"
+   "definition": "Moyenne géométrique / moyenne arithmétique de l'énergie, dans chaque bande d'octave (250 Hz à 8 kHz), moyennée"
   },
   {
    "cle": "flux",
@@ -203,8 +203,8 @@
    "irregularite": 3.0309,
    "inharmonicite": 0.0060507,
    "rapport_bruit": -28.745,
-   "crete": 48.394,
-   "platitude": 0.00492,
+   "crete": 18.026,
+   "platitude": 0.0021759,
    "zcr": 1228.5,
    "flux": 0.0017813,
    "variation_centroide": 94.832
@@ -226,8 +226,8 @@
    "irregularite": 0.077941,
    "inharmonicite": 0.0089858,
    "rapport_bruit": -21.868,
-   "crete": 43.949,
-   "platitude": 0.024067,
+   "crete": 17.686,
+   "platitude": 0.00059641,
    "zcr": 823.32,
    "flux": 0.00083315,
    "variation_centroide": 81.761
@@ -249,8 +249,8 @@
    "irregularite": 0.62288,
    "inharmonicite": 0.010394,
    "rapport_bruit": -25.727,
-   "crete": 45.04,
-   "platitude": 0.011095,
+   "crete": 18.185,
+   "platitude": 0.0018926,
    "zcr": 1235.4,
    "flux": 0.008415,
    "variation_centroide": 107.23
@@ -272,8 +272,8 @@
    "irregularite": 1.5976,
    "inharmonicite": 0.28821,
    "rapport_bruit": -18.848,
-   "crete": 50.175,
-   "platitude": 0.034889,
+   "crete": 17.223,
+   "platitude": 0.011445,
    "zcr": 1606.3,
    "flux": 0.0012936,
    "variation_centroide": 115.63
@@ -295,8 +295,8 @@
    "irregularite": 0.21268,
    "inharmonicite": 0.0060012,
    "rapport_bruit": -15.862,
-   "crete": 42.075,
-   "platitude": 0.060533,
+   "crete": 17.477,
+   "platitude": 0.001991,
    "zcr": 1183.1,
    "flux": 0.00031619,
    "variation_centroide": 55.006
@@ -318,8 +318,8 @@
    "irregularite": 7.9515,
    "inharmonicite": 0.29922,
    "rapport_bruit": -21.575,
-   "crete": 49.584,
-   "platitude": 0.029666,
+   "crete": 19.95,
+   "platitude": 0.0018067,
    "zcr": 1609.2,
    "flux": 0.0026433,
    "variation_centroide": 184.89
@@ -341,8 +341,8 @@
    "irregularite": 16.718,
    "inharmonicite": 0.10459,
    "rapport_bruit": -24.076,
-   "crete": 55.153,
-   "platitude": 0.024978,
+   "crete": 19.791,
+   "platitude": 0.007339,
    "zcr": 1134.8,
    "flux": 0.00032227,
    "variation_centroide": 166.55
@@ -364,8 +364,8 @@
    "irregularite": 3.9805,
    "inharmonicite": 0.0088757,
    "rapport_bruit": -22.73,
-   "crete": 48.732,
-   "platitude": 0.018737,
+   "crete": 17.927,
+   "platitude": 0.00026172,
    "zcr": 1267.9,
    "flux": 0.00012244,
    "variation_centroide": 69.294
@@ -387,8 +387,8 @@
    "irregularite": 2.4175,
    "inharmonicite": 0.0076406,
    "rapport_bruit": -11.75,
-   "crete": 42.167,
-   "platitude": 0.14703,
+   "crete": 18.18,
+   "platitude": 0.0095425,
    "zcr": 2836.2,
    "flux": 0.0068797,
    "variation_centroide": 117.34
@@ -410,8 +410,8 @@
    "irregularite": 4.6785,
    "inharmonicite": 0.0049745,
    "rapport_bruit": -26.359,
-   "crete": 44.556,
-   "platitude": 0.035681,
+   "crete": 18.541,
+   "platitude": 0.0071751,
    "zcr": 1937.5,
    "flux": 0.00037973,
    "variation_centroide": 16.291
@@ -433,8 +433,8 @@
    "irregularite": 1.9237,
    "inharmonicite": 0.0073234,
    "rapport_bruit": -27.398,
-   "crete": 44.517,
-   "platitude": 0.013869,
+   "crete": 17.842,
+   "platitude": 0.0099983,
    "zcr": 2024.6,
    "flux": 0.000055439,
    "variation_centroide": 18.394
@@ -456,8 +456,8 @@
    "irregularite": 13.512,
    "inharmonicite": 0.010782,
    "rapport_bruit": -28.054,
-   "crete": 51.846,
-   "platitude": 0.0052205,
+   "crete": 19.964,
+   "platitude": 0.00092876,
    "zcr": 731.41,
    "flux": 0.0000028115,
    "variation_centroide": 3.887
@@ -479,8 +479,8 @@
    "irregularite": 2.1933,
    "inharmonicite": 0.29184,
    "rapport_bruit": -15.17,
-   "crete": 47.706,
-   "platitude": 0.026671,
+   "crete": 15.905,
+   "platitude": 0.016033,
    "zcr": 1825.4,
    "flux": 0.010291,
    "variation_centroide": 194.53
@@ -502,8 +502,8 @@
    "irregularite": 3.8777,
    "inharmonicite": 0.14535,
    "rapport_bruit": -24.86,
-   "crete": 46.891,
-   "platitude": 0.086245,
+   "crete": 17.909,
+   "platitude": 0.017044,
    "zcr": 2717.8,
    "flux": 0.0016307,
    "variation_centroide": 55.013
@@ -525,8 +525,8 @@
    "irregularite": 6.9856,
    "inharmonicite": 0.027193,
    "rapport_bruit": -18.923,
-   "crete": 52.485,
-   "platitude": 0.042474,
+   "crete": 18.811,
+   "platitude": 0.0005877,
    "zcr": 1336.8,
    "flux": 0.00023665,
    "variation_centroide": 171.81
@@ -548,8 +548,8 @@
    "irregularite": 0.99655,
    "inharmonicite": 0.031953,
    "rapport_bruit": -19.218,
-   "crete": 46.553,
-   "platitude": 0.027418,
+   "crete": 17.543,
+   "platitude": 0.00037985,
    "zcr": 631.11,
    "flux": 0.00042015,
    "variation_centroide": 286.18
@@ -571,8 +571,8 @@
    "irregularite": 1.7026,
    "inharmonicite": 0.16092,
    "rapport_bruit": -20.241,
-   "crete": 51.04,
-   "platitude": 0.019614,
+   "crete": 18.548,
+   "platitude": 0.0016991,
    "zcr": 1071.4,
    "flux": 0.0010308,
    "variation_centroide": 171.07
@@ -594,8 +594,8 @@
    "irregularite": 7.8936,
    "inharmonicite": 0.0031481,
    "rapport_bruit": -29.03,
-   "crete": 53.879,
-   "platitude": 0.015662,
+   "crete": 19.099,
+   "platitude": 0.00078876,
    "zcr": 632.56,
    "flux": 0.000020332,
    "variation_centroide": 122.87

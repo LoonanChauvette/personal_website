@@ -4,7 +4,7 @@
 // Passages par zéro (zero-crossing rate) : deux sons contrastés par catégorie (parole, musique,
 // environnement), une catégorie à la fois (bascule en haut), les deux sons l'un sous l'autre sur
 // toute la largeur. Pour chaque son : 10 ms d'onde représentatives, les passages par zéro marqués
-// d'un point, leur nombre dans la fenêtre, et le taux moyen sur tout le son (passages par
+// d'un point, et le taux moyen sur tout le son (passages par
 // seconde). Bleu : peu de passages ; orange : beaucoup. Cliquer ▶ ou l'onde : le son joue.
 // Données : donnees/zcr-sons.json (tools/zcr_sons.mjs) ; sons : sons/zcr/ et la clarinette de
 // McAdams et al. (1995). Source et licence de chaque son dans l'infobulle de son nom.
@@ -44,7 +44,7 @@ function rendre() {
   [donnees.categories[categorie]].forEach((c) => {
     c.sons.forEach((s, i) => {
       const y0 = i * RANG, coul = COUL[i];
-      // Ligne de lecture : ▶, nom (source en infobulle), passages dans la fenêtre et taux moyen à droite.
+      // Ligne de lecture : ▶, nom (source en infobulle), taux moyen à droite.
       const tete = placer(H('div', 'lecture', null, demo), 0, HAUT_BARRE + y0, L);
       tete.style.display = 'flex';
       tete.style.alignItems = 'center';
@@ -55,19 +55,14 @@ function rendre() {
       const nom = H('span', null, s.nom, tete);
       nom.style.color = coul;
       nom.title = source(s);
-      const n = passages(s.onde.v);
-      const fen = H('span', null, `${n} passage${n > 1 ? 's' : ''} en 10 ms ·`, tete);
-      fen.style.marginLeft = 'auto';
-      fen.style.color = GRIS;
-      const val = H('span', null, `${milliers(s.zcr)} par seconde`, tete);
+      const val = H('span', null, `${milliers(s.zcr)} passages par seconde`, tete);
+      val.style.marginLeft = 'auto';
       val.style.color = coul;
       val.title = 'Passages par zéro par seconde, en moyenne sur tout le son';
       tracer(S('g', { transform: `translate(0 ${y0 + HAUT_RANG})`, class: 'cliquable' }, svg), s, coul);
     });
   });
 }
-
-const passages = (v) => v.reduce((n, x, k) => n + (k > 0 && (v[k - 1] < 0) !== (x < 0)), 0);
 
 // 10 ms d'onde (amplitude ramenée à son maximum), ligne du zéro, un point par passage.
 function tracer(g, s, coul) {
