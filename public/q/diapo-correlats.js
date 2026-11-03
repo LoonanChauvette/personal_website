@@ -521,10 +521,10 @@ function tracer(g, d, c, coul, e, p, avecLegende) {
     const tr = c.trames;
     const moy = tr.reduce((a, q) => a + q[1] * q[2] ** 2, 0) / tr.reduce((a, q) => a + q[2] ** 2, 0);
     const yb = Y(Math.max(0, moy - vals.variation_centroide)), yh = Y(Math.min((nh + 0.5) * f0, moy + vals.variation_centroide));
-    R('rectangle', g, [P.g, yh, P.d - P.g, Math.max(3, yb - yh)], { cle: 'vc' + p, stroke: 'none', fill: p === 'A' ? '#74c0fc' : '#ffc078', hachureGap: 3.5, fillWeight: 1.2 });
+    R('rectangle', g, [P.g, yh, P.d - P.g, Math.max(3, yb - yh)], { cle: 'vc' + p, stroke: 'none', fill: '#dee2e6', hachureGap: 4, fillWeight: 1 }); // gris hachuré, comme la première version
     S('line', { x1: P.g, x2: P.d, y1: Y(moy), y2: Y(moy), stroke: '#1e1e1e', 'stroke-width': 1, 'stroke-dasharray': '5 4' }, g);
     courbe(tr.map(([t, f]) => [tX(t), Y(f)]), 2);
-    leg([{ type: 'plein', couleur: '#868e96', texte: 'harmoniques' }, { type: 'ligne', couleur: coul, texte: 'centroïde' }, { type: 'zone', couleur: '#74c0fc', texte: '± 1 écart type' }]);
+    leg([{ type: 'plein', couleur: '#868e96', texte: 'harmoniques' }, { type: 'ligne', couleur: coul, texte: 'centroïde' }, { type: 'zone', couleur: '#ced4da', texte: '± 1 écart type' }]);
     return;
   }
   // Flux : spectres successifs superposés (chacun ramené à son maximum : la corrélation ne
