@@ -53,7 +53,7 @@ info.style.left = 'auto';
 info.style.textAlign = 'right';
 
 const gauche = placer(S('svg', { width: 450, height: HT - 44 }), 0, 44);
-const droite = placer(S('svg', { width: 330, height: HT - 44 }), L - 330, 44);
+const droite = placer(S('svg', { width: 346, height: HT - 44 }), L - 346, 44); // nuage : jusqu'au bord droit et au bas des panneaux
 demo.append(gauche, droite);
 const panneaux = ['A', 'B'].map((p, i) => {
   const tete = placer(H('div', 'lecture', null, demo), 0, 46 + i * 170, 440);
@@ -179,32 +179,32 @@ function rendreNuage(v, d, surComparer) {
   const ys = v.points.map((p) => p[etat.k]);
   const marge = (a) => { const lo = Math.min(...a), hi = Math.max(...a), m = (hi - lo) * 0.12 || 1; return [lo - m, hi + m]; };
   const [x0, x1] = marge(xs), [y0, y1] = marge(ys);
-  const X = echelle(x0, x1, 46, 306), Y = echelle(y0, y1, 280, 52); // marge à droite : la dernière graduation reste entière
+  const X = echelle(x0, x1, 46, 326), Y = echelle(y0, y1, 298, 52); // marge à droite : la dernière graduation reste entière
   let ticksX = [], pasX = null;
   if (d.cle === 'attaque') ticksX = [2, 5, 10, 20, 50, 100, 200].map((ms) => Math.log10(ms / 1000)).filter((t) => t >= x0 && t <= x1);
   else { pasX = nicePas(x1 - x0); for (let t = Math.ceil(x0 / pasX) * pasX; t <= x1 + pasX * 1e-9; t += pasX) ticksX.push(t); }
   axes(g, { x: X, y: Y, ticksX, formatX: (t) => formatDesc(d, t, true, pasX), titreX: `${d.nom}${d.cle === 'attaque' ? ' (ms, échelle log)' : d.unite ? ` (${d.unite})` : ''}` });
   // Titre vertical près de l'axe (pas de graduations à gauche).
-  T(g, 34, 166, `Dimension ${etat.k + 1}`, 'titre-axe', 'middle', { transform: 'rotate(-90 34 166)' });
+  T(g, 34, 175, `Dimension ${etat.k + 1}`, 'titre-axe', 'middle', { transform: 'rotate(-90 34 175)' });
   // Ligne d'en-tête : r en bleu (une seule taille), ramenée à la largeur du cadre.
-  const tete = T(g, 176, 18, '', 'lecture-svg'); // centré sur le tracé (46 → 306) ; accents dans le cadre
+  const tete = T(g, 186, 18, '', 'lecture-svg'); // centré sur le tracé (46 → 326) ; accents dans le cadre
   tete.append(`${d.nom} × D${etat.k + 1} : r = `);
   const val = S('tspan', { fill: Math.abs(r ?? 0) >= v.analyse.seuil ? '#1971c2' : GRIS }, tete);
   val.textContent = nb(r);
-  ajusterTexte(tete, 320, 16);
-  const attr = T(g, 176, 37, d.attribut.toLowerCase(), 'indice');
-  ajusterTexte(attr, 320, 14);
+  ajusterTexte(tete, 340, 16);
+  const attr = T(g, 186, 37, d.attribut.toLowerCase(), 'indice');
+  ajusterTexte(attr, 340, 14);
   // Droite de régression (propre, pointillée).
   const n = xs.length, mx = xs.reduce((a, b) => a + b) / n, my = ys.reduce((a, b) => a + b) / n;
   const pente = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0) / (xs.reduce((a, x) => a + (x - mx) ** 2, 0) || 1);
   const clip = S('clipPath', { id: 'zone' }, g);
-  S('rect', { x: 46, y: 52, width: 260, height: 228 }, clip);
+  S('rect', { x: 46, y: 52, width: 280, height: 246 }, clip);
   S('line', { x1: X(x0), y1: Y(my + pente * (x0 - mx)), x2: X(x1), y2: Y(my + pente * (x1 - mx)), stroke: GRIS, 'stroke-width': 1.2, 'stroke-dasharray': '6 5', 'clip-path': 'url(#zone)' }, g);
   // Points : disques noirs pleins ; A et B en couleur.
   const px = xs.map(X), py = ys.map(Y);
   const occupe = px.map((x, i) => [x - 5, py[i] - 5, x + 5, py[i] + 5]);
   const chevauche = (b) => occupe.reduce((t, o) => t + Math.max(0, Math.min(b[2], o[2]) - Math.max(b[0], o[0])) * Math.max(0, Math.min(b[3], o[3]) - Math.max(b[1], o[1])), 0);
-  const dedans = (b) => b[0] >= 50 && b[2] <= 326 && b[1] >= 44 && b[3] <= 284; // jamais sur les axes ni hors du cadre
+  const dedans = (b) => b[0] >= 50 && b[2] <= 344 && b[1] >= 44 && b[3] <= 302; // jamais sur les axes ni hors du cadre
   v.sons.forEach((son, i) => {
     const role = surComparer && (son.desc === etat.A ? 'A' : son.desc === etat.B ? 'B' : null);
     const c = role ? COUL[role] : '#1e1e1e';
