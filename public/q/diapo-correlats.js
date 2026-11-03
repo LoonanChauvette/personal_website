@@ -109,29 +109,30 @@ function rendreNuage(v, d, surComparer) {
   const ys = v.points.map((p) => p[etat.k]);
   const marge = (a) => { const lo = Math.min(...a), hi = Math.max(...a), m = (hi - lo) * 0.12 || 1; return [lo - m, hi + m]; };
   const [x0, x1] = marge(xs), [y0, y1] = marge(ys);
-  const X = echelle(x0, x1, 46, 322), Y = echelle(y0, y1, 280, 52);
+  const X = echelle(x0, x1, 46, 306), Y = echelle(y0, y1, 280, 52); // marge à droite : la dernière graduation reste entière
   let ticksX = [];
   if (d.cle === 'attaque') ticksX = [2, 5, 10, 20, 50, 100, 200].map((ms) => Math.log10(ms / 1000)).filter((t) => t >= x0 && t <= x1);
   else { const pasX = nicePas(x1 - x0); for (let t = Math.ceil(x0 / pasX) * pasX; t <= x1; t += pasX) ticksX.push(t); }
   axes(g, { x: X, y: Y, ticksX, formatX: (t) => formatDesc(d, t, true), titreX: `${d.nom}${d.unite && d.cle !== 'attaque' ? ` (${d.unite})` : d.cle === 'attaque' ? ' (ms, échelle log)' : ''}`, titreY: `Dimension ${etat.k + 1}` });
   // Ligne d'en-tête : r en bleu (une seule taille).
-  const tete = T(g, 184, 16, '', 'lecture-svg');
+  const tete = T(g, 176, 16, '', 'lecture-svg'); // centré sur le tracé (46 → 306)
   tete.setAttribute('font-size', 16);
   tete.append(`${d.nom} × D${etat.k + 1} : r = `);
   const val = S('tspan', { fill: Math.abs(r ?? 0) >= v.analyse.seuil ? '#1971c2' : GRIS }, tete);
   val.textContent = nb(r);
-  const attr = T(g, 184, 36, d.attribut.toLowerCase(), 'indice');
+  const attr = T(g, 176, 36, d.attribut.toLowerCase(), 'indice');
   attr.setAttribute('font-size', 14);
   // Droite de régression (propre, pointillée).
   const n = xs.length, mx = xs.reduce((a, b) => a + b) / n, my = ys.reduce((a, b) => a + b) / n;
   const pente = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0) / (xs.reduce((a, x) => a + (x - mx) ** 2, 0) || 1);
   const clip = S('clipPath', { id: 'zone' }, g);
-  S('rect', { x: 46, y: 52, width: 276, height: 228 }, clip);
+  S('rect', { x: 46, y: 52, width: 260, height: 228 }, clip);
   S('line', { x1: X(x0), y1: Y(my + pente * (x0 - mx)), x2: X(x1), y2: Y(my + pente * (x1 - mx)), stroke: GRIS, 'stroke-width': 1.2, 'stroke-dasharray': '6 5', 'clip-path': 'url(#zone)' }, g);
   // Points : disques noirs pleins ; A et B en couleur.
   const px = xs.map(X), py = ys.map(Y);
   const occupe = px.map((x, i) => [x - 5, py[i] - 5, x + 5, py[i] + 5]);
-  const libre = (b) => b[0] >= 40 && b[2] <= 336 && !occupe.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
+  const chevauche = (b) => occupe.reduce((t, o) => t + Math.max(0, Math.min(b[2], o[2]) - Math.max(b[0], o[0])) * Math.max(0, Math.min(b[3], o[3]) - Math.max(b[1], o[1])), 0);
+  const dedans = (b) => b[0] >= 50 && b[2] <= 330 && b[1] >= 44; // jamais sur l'axe vertical (x = 46)
   v.sons.forEach((son, i) => {
     const role = surComparer && (son.desc === etat.A ? 'A' : son.desc === etat.B ? 'B' : null);
     const c = role ? COUL[role] : '#1e1e1e';
@@ -139,9 +140,14 @@ function rendreNuage(v, d, surComparer) {
     S('circle', { cx: px[i], cy: py[i], r: 12, fill: 'transparent' }, p);
     S('circle', { cx: px[i], cy: py[i], r: role ? 6 : 3.5, fill: c }, p);
     const w = son.etiquette.length * 7.5 + 2;
-    const essais = [[px[i] + 8, py[i] + 4, 'start'], [px[i] - 8, py[i] + 4, 'end'], [px[i], py[i] - 9, 'middle'], [px[i], py[i] + 17, 'middle']];
+    // Étiquette : à droite, à gauche, au-dessus, au-dessous, puis en diagonale ; sinon la place
+    // la moins recouverte (deux points presque confondus).
+    const essais = [[px[i] + 8, py[i] + 4, 'start'], [px[i] - 8, py[i] + 4, 'end'], [px[i], py[i] - 9, 'middle'], [px[i], py[i] + 17, 'middle'],
+      [px[i] + 6, py[i] - 7, 'start'], [px[i] - 6, py[i] - 7, 'end'], [px[i] + 6, py[i] + 15, 'start'], [px[i] - 6, py[i] + 15, 'end']];
     const boite = ([x, y, a]) => { const gx = a === 'start' ? x : a === 'end' ? x - w : x - w / 2; return [gx, y - 11, gx + w, y + 2]; };
-    const [lx, ly, a] = essais.find((e) => libre(boite(e))) || essais[0];
+    const possibles = essais.filter((e) => dedans(boite(e)));
+    const [lx, ly, a] = possibles.find((e) => chevauche(boite(e)) === 0)
+      || [...possibles].sort((e1, e2) => chevauche(boite(e1)) - chevauche(boite(e2)))[0] || essais[0];
     occupe.push(boite([lx, ly, a]));
     const t = T(p, lx, ly, son.etiquette, 'graduation', a);
     if (role) t.setAttribute('fill', c);
@@ -166,7 +172,11 @@ function nicePas(etendue) {
 
 // Valeur lisible d'un descripteur (graduation ou en-tête).
 function formatDesc(d, v, court = false) {
-  if (d.cle === 'attaque') { const ms = 10 ** v * 1000; return `${ms < 10 ? nb(ms, 1) : Math.round(ms)}${court ? '' : ' ms'}`; }
+  if (d.cle === 'attaque') {
+    const ms = 10 ** v * 1000;
+    const t = ms < 10 ? (court && Math.abs(ms - Math.round(ms)) < 0.05 ? String(Math.round(ms)) : nb(ms, 1)) : Math.round(ms);
+    return `${t}${court ? '' : ' ms'}`;
+  }
   if (d.unite === 'Hz') return `${Math.round(v)}${court ? '' : ' Hz'}`;
   if (d.unite === 's') return `${nb(v, 2)}${court ? '' : ' s'}`;
   if (['flux', 'platitude'].includes(d.cle)) return nb(v, court ? 3 : 4);

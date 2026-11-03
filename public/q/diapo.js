@@ -23,6 +23,7 @@ import {
   apiEffacerGarde,
   messageErreur,
   dessinerResultats,
+  couleurChaleur,
   nombreEntier,
   formaterDuree,
   adresseCourte,
@@ -43,6 +44,55 @@ const LECTURE = !(typeof jeton === 'string' && jeton);
 const DELAI_AFFICHAGE_MS = 700; // la diapositive doit rester affichée un instant
 
 const racine = document.getElementById('diapo');
+
+// Thème « excali » (decks du Cours 7) : style des démos. Le document charge aussi
+// excali/polices.css et rough.js (tools/deck_demo.py, doc_projecteur(theme="excali")).
+// Chaque bouton (et chaque pastille Son 1 / Son 2) reçoit un contour dessiné à sa taille,
+// hachuré en bleu clair quand il est principal ou actif ; retracé quand il change.
+const EXCALI = conf.theme === 'excali' && !!window.rough;
+const R = EXCALI ? (await import('./excali/excali.js')).R : null;
+function habiller() {
+  for (const b of racine.querySelectorAll('button, .lecture .son')) {
+    const w = b.offsetWidth;
+    const h = b.offsetHeight;
+    if (!w || !h) continue;
+    const plein = b.classList.contains('principal') || b.classList.contains('actif');
+    const pale = b.disabled || b.classList.contains('discret') || b.classList.contains('son');
+    const rouge = b.classList.contains('confirmer');
+    const texte = [...b.childNodes].filter((n) => !(n.nodeType === 1 && n.classList.contains('fond'))).map((n) => n.textContent).join('');
+    const sens = b.dataset.paires === 'precedente' ? 'g' : b.dataset.paires === 'avancer' ? 'd' : null;
+    const cle = [w, h, texte, plein, pale, rouge, sens].join('|');
+    if (b.dataset.habit === cle && b.querySelector(':scope > svg.fond')) continue;
+    b.dataset.habit = cle;
+    b.querySelector(':scope > svg.fond')?.remove();
+    const f = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    f.setAttribute('class', 'fond');
+    f.setAttribute('width', w);
+    f.setAttribute('height', h);
+    if (sens) {
+      // Flèche d'étape : un triangle dessiné, sans cadre (comme l'icône ▶ des boutons).
+      const [c, m] = [h / 2, 7];
+      const pts = sens === 'g' ? [[c + m, c - m - 1], [c - m, c], [c + m, c + m + 1]] : [[c - m, c - m - 1], [c + m, c], [c - m, c + m + 1]];
+      R('polygon', f, [pts], { cle: 'f' + sens, fill: '#1e1e1e', fillStyle: 'solid', stroke: '#1e1e1e', strokeWidth: 1, roughness: 0.6 });
+      b.prepend(f);
+      continue;
+    }
+    if (plein) R('rectangle', f, [2, 2, w - 4, h - 4], { cle: 'p' + texte + w, stroke: 'none', fill: '#a5d8ff', hachureGap: 5, fillWeight: 1.2 });
+    R('rectangle', f, [1.5, 1.5, w - 3, h - 3], { cle: 'b' + texte + w, stroke: rouge ? '#e03131' : pale ? '#ced4da' : '#1e1e1e', strokeWidth: pale ? 1 : 1.3 });
+    b.prepend(f);
+  }
+}
+if (EXCALI) {
+  document.documentElement.classList.add('theme-excali');
+  // « alignement » : "gauche" quand l'élément est dans une colonne de texte de la diapositive.
+  if (conf.alignement === 'gauche') document.documentElement.classList.add('aligne-gauche');
+  let prevu = 0;
+  const bientot = () => {
+    if (!prevu) prevu = requestAnimationFrame(() => { prevu = 0; habiller(); });
+  };
+  new MutationObserver(bientot).observe(racine, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'hidden', 'disabled'] });
+  new ResizeObserver(bientot).observe(document.documentElement);
+}
 const afficherQr = conf.qr !== false;
 racine.className = `diapo role-${ROLE}`;
 racine.innerHTML = `
@@ -127,6 +177,8 @@ function rendreVue() {
   signature = sig;
   ui.corps.replaceChildren();
   ui.corps.className = 'corps';
+  statutMatrice = '';
+  ui.statut.classList.remove('simulee');
   bouton(null);
   racine.classList.toggle('paires-ouverte', PAIRES && p.nom === 'ouverte');
   // « Effacer » : seulement sur la diapositive enseignant, quand un résultat est affiché.
@@ -139,7 +191,7 @@ function rendreVue() {
     if (p.nom === 'gardee') {
       tracerGraphique(q);
       const n = Number(q.nb_reponses) || 0;
-      ui.statut.textContent = blocage || `${nombreEntier(n)} réponse${n === 1 ? '' : 's'} · ${dateCourte(garde.revele_a)}`;
+      ui.statut.textContent = blocage || (PAIRES ? [statutMatrice, dateCourte(garde.revele_a)].filter(Boolean).join(' · ') : `${nombreEntier(n)} réponse${n === 1 ? '' : 's'} · ${dateCourte(garde.revele_a)}`);
       majDynamique();
       return;
     }
@@ -154,7 +206,7 @@ function rendreVue() {
     } else if (p.nom === 'revelee') {
       tracerGraphique(q);
       const n = Number(q.nb_reponses) || 0;
-      ui.statut.textContent = `${nombreEntier(n)} réponse${n === 1 ? '' : 's'}`;
+      ui.statut.textContent = PAIRES ? statutMatrice : `${nombreEntier(n)} réponse${n === 1 ? '' : 's'}`; // paires : effectif dans la matrice
       bouton('Relancer', 'relancer', true);
     } else {
       ui.corps.append(el('p', 'grand', 'Question prête'));
@@ -197,10 +249,117 @@ function dateCourte(ms) {
   return Number.isFinite(d.getTime()) ? d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long' }) : '';
 }
 
+// Thème excali, série de petites échelles (Cours 7, c7espace) : une ligne par sous-question, une
+// case par valeur (% des réponses), la bonne valeur hachurée en vert. Tout tient sur une ligne
+// par paire, en colonnes fixes ; sinon (autres séries) : rendu commun.
+function grilleSerie(q) {
+  const g = q.gabarit || {};
+  const sousQ = g.questions || [];
+  if (!EXCALI || q.type !== 'serie' || !sousQ.length) return null;
+  const echelles = sousQ.every((sq) => sq.type === 'echelle' && Number.isInteger(sq.min) && Number.isInteger(sq.max) && sq.max - sq.min <= 4);
+  if (!echelles) return null;
+  const valeurs = [];
+  for (let v = sousQ[0].min; v <= sousQ[0].max; v += 1) valeurs.push(v);
+  const colonnes = Math.max(1, Math.min(3, Number(g.colonnes) || 1));
+  const parCol = Math.ceil(sousQ.length / colonnes);
+  const grille = el('div', 'grille');
+  for (let c = 0; c < colonnes; c += 1) {
+    const groupe = el('div', 'grille-groupe');
+    groupe.style.setProperty('--n', String(valeurs.length));
+    groupe.append(el('div', 'grille-titre', (g.titres_colonnes || [])[c] || ''));
+    groupe.append(el('div', 'grille-entete', ''), ...valeurs.map((v) => el('div', 'grille-entete', `D${v}`)));
+    for (const sq of sousQ.slice(c * parCol, (c + 1) * parCol)) {
+      const sous = (q.resultats.parties || {})[sq.cle] || {};
+      const n = Number(sous.n) || 0;
+      const bonnes = new Set((sq.bonnes || []).map(String));
+      groupe.append(el('div', 'grille-nom', sq.texte || sq.cle));
+      for (const v of valeurs) {
+        const k = Number((sous.comptes || {})[v] ?? (sous.comptes || {})[String(v)]) || 0;
+        const bonne = bonnes.has(String(v));
+        const caseV = el('div', `grille-case${bonne ? ' bonne' : ''}`, n ? `${nombreEntier((100 * k) / n)} %` : '-');
+        caseV.title = `${sq.texte || sq.cle}, dimension ${v} : ${nombreEntier(k)} réponse${k === 1 ? '' : 's'}${bonne ? ' (bonne réponse)' : ''}`;
+        if (bonne) {
+          const f = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          f.setAttribute('width', 44);
+          f.setAttribute('height', 24);
+          R('rectangle', f, [4, 2, 36, 20], { cle: 'g' + sq.cle, stroke: 'none', fill: '#b2f2bb', hachureGap: 4, fillWeight: 1.2 });
+          caseV.prepend(f);
+        }
+        groupe.append(caseV);
+      }
+    }
+    grille.append(groupe);
+  }
+  return grille;
+}
+
+// Thème excali, paires révélées : matrice en unités de la diapositive (texte 14 px, cases de
+// 34 px), même palette « chaleur » que le rendu commun ; l'effectif va dans le pied.
+let statutMatrice = ''; // effectif de la matrice (thème excali), affiché dans le pied
+function matricePaires(q) {
+  if (!EXCALI || !PAIRES) return null;
+  const res = q.resultats;
+  const g = q.gabarit || {};
+  const cles = Array.isArray(res.sons) ? res.sons.map(String) : [];
+  const k = cles.length;
+  if (!k || !Array.isArray(res.matrice) || res.matrice.length !== k) return null;
+  const [min, max] = [Number.isFinite(Number(g.min)) ? Number(g.min) : 0, Number.isFinite(Number(g.max)) ? Number(g.max) : 100];
+  const son = (c) => (g.sons || []).find((x) => x.cle === c) || {};
+  const NS = 'http://www.w3.org/2000/svg';
+  const S = (tag, attrs, parent, texte) => {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (texte !== undefined) e.textContent = texte;
+    parent?.appendChild(e);
+    return e;
+  };
+  const c = 34;
+  const gauche = 84; // noms des lignes, alignés à droite contre la matrice
+  const haut = 26; // titre
+  const L = gauche + c * k + 12 + 10 + 34;
+  const H = haut + c * k + 22;
+  const s = S('svg', { width: L, height: H, viewBox: `0 0 ${L} ${H}`, class: 'jouable matrice-excali', role: 'img', 'aria-label': 'Matrice de dissimilarité' });
+  S('text', { x: gauche + (c * k) / 2, y: 15, 'text-anchor': 'middle', 'font-size': 16 }, s, 'Dissimilarité perçue');
+  cles.forEach((cle, i) => {
+    S('text', { x: gauche - 8, y: haut + c * i + c / 2 + 5, 'text-anchor': 'end', 'font-size': 14 }, s, son(cle).nom || cle);
+    S('text', { x: gauche + c * i + c / 2, y: haut + c * k + 17, 'text-anchor': 'middle', 'font-size': 14 }, s, son(cle).abrege || cle);
+    cles.forEach((cle2, j) => {
+      const v = i === j ? null : res.matrice[i]?.[j];
+      const connu = v !== null && v !== undefined && Number.isFinite(Number(v));
+      const t = connu ? (Number(v) - min) / (max - min || 1) : 0;
+      const r = S('rect', { x: gauche + c * j, y: haut + c * i, width: c, height: c, fill: connu ? couleurChaleur(t) : '#fff',
+        stroke: '#fff', 'stroke-width': 1.5, class: 'case-paire', 'data-a': cle, 'data-b': cle2 }, s);
+      S('title', {}, r, i === j ? son(cle).nom || cle : `${son(cle).nom || cle} – ${son(cle2).nom || cle2} : ${connu ? nombreEntier(Number(v)) : 'aucune réponse'}`);
+      if (i !== j) S('text', { x: gauche + c * j + c / 2, y: haut + c * i + c / 2 + 5, 'text-anchor': 'middle', 'font-size': 13, fill: t > 0.62 ? '#fff' : '#1e1e1e' }, s, connu ? nombreEntier(Math.round(Number(v))) : '-');
+    });
+  });
+  S('rect', { x: gauche, y: haut, width: c * k, height: c * k, fill: 'none', stroke: '#1e1e1e', 'stroke-width': 1 }, s);
+  // Barre de couleur : même hauteur que la matrice, graduée 0, milieu, max.
+  const xb = gauche + c * k + 12;
+  const id = 'chaleur-diapo';
+  const grad = S('linearGradient', { id, x1: 0, y1: 1, x2: 0, y2: 0 }, S('defs', {}, s));
+  for (let m = 0; m <= 10; m += 1) S('stop', { offset: m / 10, 'stop-color': couleurChaleur(m / 10) }, grad);
+  S('rect', { x: xb, y: haut, width: 10, height: c * k, fill: `url(#${id})`, stroke: '#1e1e1e', 'stroke-width': 1 }, s);
+  [[min, haut + c * k], [Math.round((min + max) / 2), haut + (c * k) / 2], [max, haut]].forEach(([v, y]) => {
+    S('line', { x1: xb + 10, x2: xb + 14, y1: y, y2: y, stroke: '#1e1e1e', 'stroke-width': 1 }, s);
+    S('text', { x: xb + 17, y: y + 4.5, 'font-size': 13 }, s, nombreEntier(v));
+  });
+  const n = Number(res.n) || 0;
+  const sim = Number(res.simulees) || 0;
+  statutMatrice = `${nombreEntier(n)} participant${n <= 1 ? '' : 's'}${sim ? ` (${nombreEntier(sim)} simulés)` : ''}`;
+  ui.statut.classList.toggle('simulee', sim > 0);
+  return s;
+}
+
 function tracerGraphique(q) {
   const zone = el('div', 'graphique');
   ui.corps.appendChild(zone);
   if (!q.resultats) return;
+  const grille = grilleSerie(q) || matricePaires(q);
+  if (grille) {
+    zone.append(grille);
+    return;
+  }
   // Les libellés des options sont sur la diapositive : les lettres suffisent.
   const gabarit = Array.isArray(q.gabarit?.options)
     ? { ...q.gabarit, options: q.gabarit.options.map((o) => ({ ...o, texte: '' })) }
@@ -222,7 +381,7 @@ function majDynamique() {
     // Paires : réponses à la paire en cours (pas au total de la question).
     const n = Number(PAIRES && q.statut === 'ouverte' ? q.nb_etape : q.nb_reponses) || 0;
     nombre.textContent = nombreEntier(n);
-    ui.corps.querySelector('.unite').textContent = n === 1 ? 'réponse' : 'réponses';
+    ui.corps.querySelector('.unite').textContent = n <= 1 ? 'réponse' : 'réponses';
   }
   const chrono = ui.corps.querySelector('.chrono');
   if (chrono) {
@@ -382,7 +541,7 @@ function rendrePaires(q) {
     cmd.append(ecouter, suivante);
     ui.corps.append(cmd);
   }
-  ui.statut.textContent = blocage || (etape.essai ? 'Entraînement' : '');
+  ui.statut.textContent = blocage || ''; // « Entraînement » est déjà dans le titre
   majLecture();
 }
 

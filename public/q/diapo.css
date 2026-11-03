@@ -340,3 +340,273 @@ button.principal {
 .graphique svg.jouable text {
   pointer-events: none;
 }
+
+/* ─── Thème « excali » (opt-in : "theme": "excali" dans la config, decks du Cours 7) ──────
+   Style des démos et des diapositives (teaching-demos, shared/pitch/STYLE.md) : texte en
+   Nunito (police « Normal »), commandes dessinées en Excalifont (contour rough.js ajouté par
+   diapo.js), palette Excalidraw, valeurs en bleu, pas de gras, une seule taille par ligne.
+   Tailles fixes : 1 px CSS = 1 unité de la diapositive (comme les démos) ; marge intérieure
+   de 2 px seulement : le contenu s'aligne sur les bords de l'élément, donc sur le texte de la
+   diapositive. Polices : excali/polices.css. */
+:root.theme-excali {
+  --encre: #1e1e1e;
+  --marine: #1e1e1e;
+  --filet: #ced4da;
+  --gris: #868e96;
+  --vert: #2f9e44;
+  --bleu: #1971c2;
+  --police: "Nunito Excalidraw", "Nunito", "Segoe UI", sans-serif;
+  --police-main: "Excalifont", "Segoe Print", "Comic Sans MS", sans-serif;
+  --t: 16px;
+}
+.theme-excali body {
+  font-weight: 500;
+  line-height: 1.25;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.theme-excali b,
+.theme-excali strong {
+  font-weight: inherit;
+}
+.theme-excali .diapo {
+  padding: 2px; /* le trait dessiné des boutons déborde d'un pixel : rien n'est coupé au bord */
+  gap: 8px;
+}
+.theme-excali .grand {
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--encre);
+}
+/* Compteur : nombre et « réponses » sur une ligne, même taille ; le nombre en bleu. */
+.theme-excali .compteur {
+  gap: 8px;
+}
+.theme-excali .compteur .nombre,
+.theme-excali .compteur .unite,
+.theme-excali .corps.paires .compteur .nombre {
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 36px;
+}
+.theme-excali .compteur .nombre {
+  color: var(--bleu);
+}
+.theme-excali .chrono {
+  margin: 4px 0 0;
+  font-size: 16px;
+  line-height: 20px;
+}
+.theme-excali svg text {
+  font-family: var(--police);
+  font-weight: 500;
+}
+/* Pied : statut et petites commandes, alignés sur une ligne de 26 px. */
+.theme-excali .pied {
+  min-height: 26px;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 18px;
+}
+.theme-excali .statut {
+  color: var(--gris);
+}
+.theme-excali .statut.erreur {
+  color: #e03131;
+  border: 0;
+  padding: 0;
+}
+/* Commandes dessinées : le contour (svg.fond) est tracé par diapo.js à la taille du bouton. */
+.theme-excali button,
+.theme-excali .lecture .son {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--police-main);
+  font-weight: 400;
+  color: var(--encre);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  white-space: nowrap;
+}
+.theme-excali button {
+  height: 34px;
+  padding: 0 16px;
+  font-size: 17px;
+}
+.theme-excali .pied button,
+.theme-excali button.discret {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 14px;
+}
+.theme-excali svg.fond {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: visible;
+}
+.theme-excali button.discret {
+  color: var(--gris);
+}
+.theme-excali button.discret.confirmer {
+  color: #e03131;
+}
+.theme-excali button.principal {
+  color: var(--encre);
+  background: transparent;
+}
+.theme-excali button:hover:not(:disabled) {
+  color: var(--bleu);
+}
+.theme-excali button:disabled {
+  opacity: 1;
+  color: var(--filet);
+}
+.theme-excali button:focus {
+  outline: none;
+}
+/* Paires : ◀ Paire n sur N ▶ (triangles dessinés), réponses, Son 1 → Son 2, commandes. */
+.theme-excali .corps.paires {
+  justify-content: space-evenly;
+}
+.theme-excali .paires-tete {
+  gap: 12px;
+}
+.theme-excali .paires-titre {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 500;
+  color: var(--encre); /* seul le compteur, valeur qui change, est en bleu */
+}
+.theme-excali .paires-titre.essai {
+  color: var(--gris);
+}
+.theme-excali .paires-note {
+  font-size: 16px;
+  line-height: 36px; /* même hauteur que le compteur : rien ne saute à la fin de l'entraînement */
+  color: var(--gris);
+}
+.theme-excali button.fleche-etape {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 0;
+}
+.theme-excali button.fleche-etape:disabled {
+  visibility: hidden;
+}
+.theme-excali .lecture {
+  gap: 10px;
+  font-size: 16px;
+  line-height: 20px;
+}
+.theme-excali .lecture .son {
+  width: 80px;
+  height: 30px;
+  padding: 0;
+  font-size: 16px;
+  color: var(--gris);
+}
+.theme-excali .lecture .son.actif {
+  color: var(--bleu);
+  background: transparent;
+}
+.theme-excali .lecture .fleche {
+  color: var(--gris);
+}
+.theme-excali .commandes {
+  gap: 12px;
+}
+.theme-excali .commandes button {
+  min-width: 112px;
+  padding: 0 16px;
+}
+.theme-excali .graphique svg.jouable .case-paire:hover,
+.theme-excali .graphique svg.jouable .case-paire.joue {
+  stroke: var(--bleu);
+  stroke-width: 4;
+}
+/* Série « grille » (diapo.js, thème excali) : une ligne par sous-question, une case par
+   valeur ; la bonne valeur hachurée en vert. Colonnes fixes : tout s'aligne. */
+.theme-excali .grille {
+  width: 100%;
+  align-self: stretch;
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+  line-height: 20px;
+}
+.theme-excali .grille-groupe {
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(var(--n), 44px);
+  row-gap: 4px;
+  align-items: center;
+}
+.theme-excali .grille-titre {
+  grid-column: 1 / -1;
+  color: var(--encre);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.theme-excali .grille-entete {
+  text-align: center;
+  color: var(--gris);
+  font-size: 13px;
+  line-height: 16px;
+}
+.theme-excali .grille-nom {
+  white-space: nowrap;
+}
+.theme-excali .grille-case {
+  position: relative;
+  isolation: isolate;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  color: var(--gris);
+  font-variant-numeric: tabular-nums;
+}
+.theme-excali .grille-case.bonne {
+  color: var(--vert);
+}
+.theme-excali .grille-case > svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: -1;
+}
+/* Élément dans une colonne de texte (Cours 7, exercice) : tout part du bord gauche, comme le
+   texte au-dessus ; commandes à gauche du pied, statut à droite. */
+.theme-excali.aligne-gauche .corps {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+.theme-excali.aligne-gauche .graphique {
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+.theme-excali.aligne-gauche .pied > button {
+  order: -1;
+}
+.theme-excali .matrice-excali {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 100%;
+}
+.theme-excali .matrice-excali text {
+  pointer-events: none;
+}
+.theme-excali .statut.simulee {
+  color: #e03131;
+}

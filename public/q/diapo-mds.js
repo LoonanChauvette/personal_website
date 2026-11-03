@@ -1,21 +1,24 @@
-// Diapositive MDS du Cours 7 (élément HTML d'Excalidraw+, document srcdoc, origine « null »).
+// Diapositive MDS du Cours 7 (élément HTML d'Excalidraw+, document srcdoc, origine « null »),
+// dans le style des démos (excali/excali.css, excali/excali.js : commandes dessinées en
+// Excalifont, texte en Nunito, graphiques propres).
 //
 // Carte des sons calculée à partir du résultat gardé de l'écoute des paires
 // (op=garde&id=c7paires, lisible sans clé) : les points partent au hasard puis se placent
 // (itérations SMACOF) pour que leurs distances respectent les dissimilarités jugées.
 //
-// Document hôte (tools/questions_cours7.py) :
-//   <base href="https://SITE/q/">
+// Document hôte (tools/questions_cours7.py, doc_mds) :
+//   <base href="https://SITE/q/"> <link rel="stylesheet" href="…/q/excali/excali.css">
+//   <script src="…/q/excali/rough.js"></script> <div id="demo" class="demo"></div>
 //   <script type="application/json" id="config">{"id": "c7paires", "reference": "donnees/…json",
 //     "sous_ensemble": ["tpt", …]}</script>
-//   <main id="mds"></main>
+// Repère fixe 400 × 372 (taille de l'élément sur la diapositive), mis à l'échelle par ajuster().
 //
-// Bascule Classe / McAdams 1995 : « McAdams 1995 » affiche la matrice de dissimilarité de
+// Bascule Classe / McAdams : « McAdams » affiche la matrice de dissimilarité de
 // McAdams et al. (1995), 18 timbres de synthèse (tools/donnees_reference.mjs), toujours
 // disponible. Sans résultat de la classe, la diapositive part sur ces données.
 // « sous_ensemble » : les timbres de McAdams entendus par la classe, dans l'ordre de ses sons
 // (tools/cours7_paires.json). McAdams montre alors ces seuls timbres (sous-matrice publiée),
-// tournés sur la carte de la classe quand elle porte les mêmes sons ; « 18 sons » : tout le jeu.
+// tournés sur la carte de la classe quand elle porte les mêmes sons ; « 18 » : tout le jeu.
 // Bascule 1D / 2D / 3D : nombre de dimensions de la carte (le stress de chacune s'affiche).
 //   1D : points sur une droite, arcs au survol ; 3D : points dans une boîte (comme les figures
 //   d'espaces timbraux), glisser pour tourner.
@@ -25,7 +28,8 @@
 // Survoler un point : traits vers les autres sons, avec la dissimilarité jugée (au-delà de
 // 8 sons : nom complet seulement, les points sont étiquetés par leur abréviation).
 // Cliquer un point : l'instrument joue (un second clic arrête), si le son est fourni.
-import { apiGarde, COULEURS, svg, txt, nombreEntier } from './commun.js';
+import { apiGarde, nombreEntier } from './commun.js';
+import { ajuster, bouton, choix, H, placer, S, T } from './excali/excali.js';
 import { aligner, mds, pasGuttman, stress } from './mds.js';
 
 const conf = JSON.parse(document.getElementById('config').textContent);
@@ -35,65 +39,73 @@ const URL_REFERENCE = String(conf.reference || 'donnees/mcadams1995.json');
 const SOUS = Array.isArray(conf.sous_ensemble) ? conf.sous_ensemble.map(String) : [];
 const BEAUCOUP = 8; // au-delà : abréviations, pas de traits au survol
 
-const L = 1000; // repère du SVG
-const H = 820;
-const MARGE = { g: 70, d: 40, h: 64, b: 70 };
-const ZONE = { x0: MARGE.g, x1: L - MARGE.d, y0: MARGE.h, y1: H - MARGE.b };
+const LD = 400, HD = 372; // repère de l'élément
+const L = 400; // repère de la carte (SVG sous la barre de commandes)
+const H_ = 304;
+const ZONE = { x0: 34, x1: 392, y0: 24, y1: 266 };
 const CENTRE = [(ZONE.x0 + ZONE.x1) / 2, (ZONE.y0 + ZONE.y1) / 2];
-const GRIS = '#6b7078';
-const BLEU = '#2f6fd6';
+const ENCRE = '#1e1e1e';
+const GRIS = '#868e96';
+const BLEU = '#1971c2';
 const LIGNE_1D = ZONE.y0 + (ZONE.y1 - ZONE.y0) * 0.62; // arcs au-dessus, noms au-dessous
 
-const racine = document.getElementById('mds');
-racine.innerHTML = `
-  <header class="barre">
-    <div class="bascule" role="group" aria-label="Données">
-      <button type="button" data-source="classe">Classe</button>
-      <button type="button" data-source="reference" title="McAdams et al. (1995), timbres de synthèse">McAdams</button>
-    </div>
-    <div class="bascule" role="group" aria-label="Nombre de dimensions">
-      <button type="button" data-dim="1">1D</button>
-      <button type="button" data-dim="2">2D</button>
-      <button type="button" data-dim="3">3D</button>
-    </div>
-  </header>
-  <div class="zone">
-    <div class="carte" id="carte"></div>
-    <div class="axe-vertical" id="axe-vertical" hidden>
-      <span>Vertical</span>
-      <div class="bascule petite" role="group" aria-label="Axe vertical">
-        <button type="button" data-axe="0">D1</button>
-        <button type="button" data-axe="1">D2</button>
-        <button type="button" data-axe="2">D3</button>
-      </div>
-    </div>
-  </div>
-  <footer class="pied">
-    <span class="source" id="source"></span>
-    <div class="etendue" id="etendue" hidden>
-      <div class="bascule petite" role="group" aria-label="Timbres de McAdams">
-        <button type="button" data-tous="0" title="Les timbres entendus en classe">${SOUS.length}</button>
-        <button type="button" data-tous="1" title="Les 18 timbres de l'article">18</button>
-      </div>
-      <span>timbres</span>
-    </div>
-    <button type="button" id="rejouer" class="discret" title="Repartir de positions au hasard">Recalculer</button>
-  </footer>`;
+// ─── Mise en place ─────────────────────────────────────────────────────────
+const style = document.createElement('style');
+style.textContent = `
+  .carte svg { touch-action: none; }
+  .carte.tourne { cursor: grabbing; }
+  .point { cursor: pointer; outline: none; }
+  .point.muet { cursor: default; } /* pas de son fourni (données de la littérature) */
+  .chiffre, .point text { pointer-events: none; }
+  .point:hover .disque, .point.survol .disque, .point:focus-visible .disque, .point.joue .disque { fill: ${BLEU}; }
+  .point.survol text, .point.joue text { fill: ${BLEU}; }
+  .lecture-carte { font-size: 15px; }
+  .message { margin: 0; width: ${L}px; height: ${H_}px; display: flex; align-items: center; justify-content: center;
+    text-align: center; color: ${GRIS}; font-size: 16px; padding: 0 40px; }`;
+document.head.appendChild(style);
 
-const ui = {
-  carte: document.getElementById('carte'),
-  source: document.getElementById('source'),
-  rejouer: document.getElementById('rejouer'),
-  boutons: [...racine.querySelectorAll('[data-source]')],
-  dims: [...racine.querySelectorAll('[data-dim]')],
-  axeVertical: document.getElementById('axe-vertical'),
-  axes: [...racine.querySelectorAll('[data-axe]')],
-  etendue: document.getElementById('etendue'),
-  tous: [...racine.querySelectorAll('[data-tous]')],
-};
+const racine = document.getElementById('demo');
+const barre = placer(H('div', null, null, racine), 0, 0);
+barre.style.display = 'flex';
+barre.style.gap = '28px'; // groupes séparés, boutons d'un même groupe serrés
+const cSource = choix(barre, [{ texte: 'Classe', valeur: 'classe' },
+  { texte: 'McAdams', valeur: 'reference', titre: 'McAdams et al. (1995), timbres de synthèse' }], null,
+(v) => { choix_ = v; afficher({ rejouer: true }); }, { largeur: 80 });
+const cDim = choix(barre, [1, 2, 3].map((d) => ({ texte: `${d}D`, valeur: d })), 2,
+  (v) => { dim = v; afficher({ rejouer: true }); }, { largeur: 40 });
+const carte = placer(H('div', 'carte', null, racine), 0, 38);
+carte.style.width = L + 'px';
+carte.style.height = H_ + 'px';
+// 3D : axe vertical, en haut à gauche de la carte.
+const axeVerticalUi = placer(H('div', null, null, racine), 0, 40);
+axeVerticalUi.style.display = 'flex';
+axeVerticalUi.style.alignItems = 'center';
+axeVerticalUi.style.gap = '6px';
+H('span', 'indice-html', 'Vertical', axeVerticalUi);
+const cAxe = choix(axeVerticalUi, [0, 1, 2].map((k) => ({ texte: `D${k + 1}`, valeur: k })), 1, (k) => virer(k), { largeur: 34, hauteur: 26 });
+// Pied : source, étendue (McAdams), recalculer.
+const pied = placer(H('div', null, null, racine), 0, HD - 28, LD);
+pied.style.display = 'flex';
+pied.style.alignItems = 'center';
+pied.style.gap = '10px';
+pied.style.height = '28px';
+const sourceUi = H('span', 'indice-html', null, pied);
+sourceUi.style.overflow = 'hidden';
+sourceUi.style.textOverflow = 'ellipsis';
+sourceUi.style.flex = '1';
+const etendueUi = H('div', null, null, pied);
+etendueUi.style.display = 'flex';
+etendueUi.style.alignItems = 'center';
+etendueUi.style.gap = '6px';
+const cTous = choix(etendueUi, [{ texte: String(SOUS.length), valeur: false, titre: 'Les timbres entendus en classe' },
+  { texte: '18', valeur: true, titre: "Les 18 timbres de l'article" }], !SOUS.length,
+(v) => { tous = v; afficher({ rejouer: true }); }, { largeur: 34, hauteur: 26 });
+H('span', 'indice-html', 'timbres', etendueUi);
+bouton(pied, 'Recalculer', () => afficher({ rejouer: true }), { largeur: 96, hauteur: 26, titre: 'Repartir de positions au hasard' });
 
+const ui = { carte, source: sourceUi };
 const donnees = { classe: null, reference: null, erreurClasse: null };
-let choix = null; // source choisie à la main (sinon : classe si elle existe)
+let choix_ = null; // source choisie à la main (sinon : classe si elle existe)
 let dim = 2;
 let tous = !SOUS.length; // McAdams : les 18 timbres, ou ceux entendus en classe
 let vue = null; // source et solution affichées (voir preparer)
@@ -187,7 +199,7 @@ function visible() {
 }
 
 function source() {
-  if (choix) return choix;
+  if (choix_) return choix_;
   return donnees.classe ? 'classe' : 'reference';
 }
 
@@ -283,6 +295,10 @@ function preparer(g, cleSource) {
   return v;
 }
 
+function nomDe(son) {
+  return son.nom || son.cle;
+}
+
 // ─── Tracé ─────────────────────────────────────────────────────────────────
 // Position à l'écran [x, y, profondeur] (profondeur > 0 : vers le spectateur, 3D seulement).
 function versEcran(v, p) {
@@ -292,37 +308,25 @@ function versEcran(v, p) {
   const [x, y, z] = rotation.map((l) => l.reduce((s, r, k) => s + r * d[k], 0));
   return [CENTRE[0] + x * v.echelle, CENTRE[1] - y * v.echelle, z / v.rayon];
 }
-
-function nomDe(son) {
-  return son.nom || son.cle;
-}
-
-function etiquetteBlanche(t) {
-  t.setAttribute('paint-order', 'stroke');
-  t.setAttribute('stroke', '#ffffff');
-  t.setAttribute('stroke-width', 8);
-  return t;
-}
-
-function pastille(x, y, etiquette) {
-  const largeur = 22 * etiquette.length + 18;
-  return svg('g', { class: 'chiffre' }, [
-    svg('rect', { x: x - largeur / 2, y: y - 22, width: largeur, height: 44, rx: 10, fill: '#ffffff', stroke: BLEU, 'stroke-width': 3 }),
-    txt(x, y + 11, etiquette, { taille: 32, ancre: 'middle', graisse: 700, couleur: COULEURS.marine }),
-  ]);
+// ─── Tracé ─────────────────────────────────────────────────────────────────
+// Données : graphique propre (traits de 1 px, Nunito) ; pas de rough.js (la carte est redessinée
+// à chaque image de l'animation).
+function pastille(g, x, y, etiquette) {
+  const largeur = 8 * etiquette.length + 10;
+  const c = S('g', { class: 'chiffre' }, g);
+  S('rect', { x: x - largeur / 2, y: y - 9, width: largeur, height: 18, rx: 3, fill: '#fff', stroke: BLEU, 'stroke-width': 1.2 }, c);
+  T(c, x, y + 4.5, etiquette, 'graduation', 'middle', { fill: BLEU, stroke: 'none' });
 }
 
 function axes(s, v) {
-  const gris = { taille: 32, ancre: 'middle', couleur: GRIS };
   if (v.dim === 2) {
-    s.appendChild(svg('rect', { x: ZONE.x0, y: ZONE.y0, width: ZONE.x1 - ZONE.x0, height: ZONE.y1 - ZONE.y0, fill: 'none', stroke: COULEURS.filet, 'stroke-width': 2 }));
-    s.appendChild(txt(CENTRE[0], H - 22, 'Dimension 1', gris));
-    const d2 = txt(0, 0, 'Dimension 2', gris);
-    d2.setAttribute('transform', `translate(${ZONE.x0 - 24} ${CENTRE[1]}) rotate(-90)`);
-    s.appendChild(d2);
+    S('line', { x1: ZONE.x0, x2: ZONE.x1, y1: ZONE.y1, y2: ZONE.y1, class: 'trait' }, s);
+    S('line', { x1: ZONE.x0, x2: ZONE.x0, y1: ZONE.y0, y2: ZONE.y1, class: 'trait' }, s);
+    T(s, CENTRE[0], ZONE.y1 + 20, 'Dimension 1', 'titre-axe');
+    T(s, ZONE.x0 - 12, CENTRE[1], 'Dimension 2', 'titre-axe', 'middle', { transform: `rotate(-90 ${ZONE.x0 - 12} ${CENTRE[1]})` });
   } else if (v.dim === 1) {
-    s.appendChild(svg('line', { x1: ZONE.x0, y1: LIGNE_1D, x2: ZONE.x1, y2: LIGNE_1D, stroke: COULEURS.filet, 'stroke-width': 3 }));
-    s.appendChild(txt(CENTRE[0], H - 22, 'Dimension 1', gris));
+    S('line', { x1: ZONE.x0, x2: ZONE.x1, y1: LIGNE_1D, y2: LIGNE_1D, class: 'trait' }, s);
+    T(s, CENTRE[0], ZONE.y1 + 20, 'Dimension 1', 'titre-axe');
   } else {
     // Boîte ouverte (comme les figures d'espaces timbraux) : seulement le fond et les deux
     // parois du fond de la scène (les plus éloignées du spectateur, recalculées quand la vue
@@ -342,10 +346,10 @@ function axes(s, v) {
     };
     const [fa, fb] = [fond(a), fond(b)];
     const sol = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, w]) => coin(bitsDe([[a, u], [b, w], [k, 0]])));
-    s.appendChild(svg('polygon', { points: sol.map(([x, y]) => `${x},${y}`).join(' '), fill: '#e7f0fb', 'fill-opacity': 0.6, stroke: 'none' }));
+    S('polygon', { points: sol.map(([x, y]) => `${x},${y}`).join(' '), fill: '#e7f5ff', stroke: 'none' }, s);
     const arete = (b1, b2, attrs) => {
       const [A, B] = [coin(b1), coin(b2)];
-      s.appendChild(svg('line', { x1: A[0], y1: A[1], x2: B[0], y2: B[1], stroke: '#adb5bd', 'stroke-width': 2.5, ...attrs }));
+      S('line', { x1: A[0], y1: A[1], x2: B[0], y2: B[1], stroke: '#ced4da', 'stroke-width': 1, ...attrs }, s);
       return [A, B];
     };
     // Fond : arêtes arrière (contre les parois) ; arêtes avant = axes nommés, plus loin.
@@ -359,20 +363,19 @@ function axes(s, v) {
     arete(bitsDe([[b, fb], [a, 0], [k, 1]]), bitsDe([[b, fb], [a, 1], [k, 1]]));
     // Axes nommés : les deux arêtes avant du fond, et l'arête verticale extérieure la plus à gauche.
     const nommer = ([A, B], j) => {
-      const actif = j === k;
-      s.appendChild(svg('line', { x1: A[0], y1: A[1], x2: B[0], y2: B[1], stroke: actif ? COULEURS.marine : '#495057', 'stroke-width': 4.5, 'stroke-linecap': 'round' }));
+      const couleur = j === k ? BLEU : ENCRE;
+      S('line', { x1: A[0], y1: A[1], x2: B[0], y2: B[1], stroke: couleur, 'stroke-width': 1.5, 'stroke-linecap': 'round' }, s);
       const [mx, my] = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
       let angle = (Math.atan2(B[1] - A[1], B[0] - A[0]) * 180) / Math.PI;
-      if (angle > 90) angle -= 180;
-      if (angle <= -90) angle += 180;
+      if (angle >= 90) angle -= 180; // un axe vertical se lit de bas en haut
+      if (angle < -90) angle += 180;
       // Décalage perpendiculaire à l'arête, du côté opposé au centre de la boîte.
       const c = versEcran(v, v.centre);
       const lg = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1;
       let [nx, ny] = [-(B[1] - A[1]) / lg, (B[0] - A[0]) / lg];
       if (nx * (mx - c[0]) + ny * (my - c[1]) < 0) [nx, ny] = [-nx, -ny];
-      const t = txt(0, 0, `Dimension ${j + 1}`, { taille: 30, ancre: 'middle', graisse: 700, couleur: actif ? COULEURS.marine : '#495057' });
-      t.setAttribute('transform', `translate(${mx + nx * 30} ${my + ny * 30}) rotate(${angle}) translate(0 10)`);
-      s.appendChild(etiquetteBlanche(t));
+      T(s, 0, 0, `Dimension ${j + 1}`, 'titre-axe', 'middle',
+        { fill: couleur, transform: `translate(${mx + nx * 12} ${my + ny * 12}) rotate(${angle}) translate(0 5)` });
     };
     nommer(arete(bitsDe([[a, 1 - fa], [b, 0], [k, 0]]), bitsDe([[a, 1 - fa], [b, 1], [k, 0]])), b);
     nommer(arete(bitsDe([[b, 1 - fb], [a, 0], [k, 0]]), bitsDe([[b, 1 - fb], [a, 1], [k, 0]])), a);
@@ -382,7 +385,7 @@ function axes(s, v) {
       return [coin(bits), coin(haut)];
     });
     nommer(exterieures[0][0][0] < exterieures[1][0][0] ? exterieures[0] : exterieures[1], k);
-    s.appendChild(txt(ZONE.x1, H - 22, 'Glisser pour tourner', { taille: 28, ancre: 'end', couleur: GRIS }));
+    T(s, ZONE.x1, H_ - 4, 'Glisser pour tourner', 'indice', 'end');
   }
 }
 
@@ -396,23 +399,21 @@ function tiges(s, v, X) {
     const pied = p.map((c, j) => (j === k ? v.boite[k][0] : c));
     const [x1, y1] = versEcran(v, p);
     const [x2, y2] = versEcran(v, pied);
-    s.appendChild(svg('line', { x1, y1, x2, y2, stroke: '#868e96', 'stroke-width': 2.5, 'stroke-dasharray': '6 6' }));
+    S('line', { x1, y1, x2, y2, stroke: GRIS, 'stroke-width': 1, 'stroke-dasharray': '3 3' }, s);
     const ombre = Array.from({ length: 12 }, (_, m) => {
       const t = (m / 12) * 2 * Math.PI;
       return versEcran(v, pied.map((c, j) => c + (j === a ? pas * Math.cos(t) : 0) + (j === b ? pas * Math.sin(t) : 0)));
     }).map(([x, y]) => `${x},${y}`).join(' ');
-    s.appendChild(svg('polygon', { points: ombre, fill: '#868e96' }));
+    S('polygon', { points: ombre, fill: GRIS }, s);
   });
 }
 
 function tracer(v, X) {
   const E = X.map((p) => versEcran(v, p));
-  const s = svg('svg', { viewBox: `0 0 ${L} ${H}`, role: 'img', 'aria-label': `Carte MDS des sons en ${v.dim} dimension${v.dim > 1 ? 's' : ''}` });
+  const s = S('svg', { width: L, height: H_, viewBox: `0 0 ${L} ${H_}`, role: 'img', 'aria-label': `Carte MDS des sons en ${v.dim} dimension${v.dim > 1 ? 's' : ''}` });
   axes(s, v);
   if (v.dim === 3) tiges(s, v, X);
-  const st = txt(ZONE.x1, 44, `Stress = ${formaterStress(v.stressCourant ?? v.stressFinal)}`, { taille: 34, ancre: 'end', couleur: GRIS });
-  st.setAttribute('class', 'stress');
-  s.appendChild(st);
+  T(s, ZONE.x1, 12, `Stress = ${formaterStress(v.stressCourant ?? v.stressFinal)}`, 'indice', 'end', { style: 'font-variant-numeric: tabular-nums' });
 
   // Survol : traits (arcs en 1D) vers les autres sons, sous les points ; chiffres au-dessus.
   // Beaucoup de sons : nom complet du son survolé en haut à gauche, sans traits.
@@ -420,24 +421,24 @@ function tracer(v, X) {
   const chiffres = [];
   if (survol !== null && nombreux) {
     const son = v.sons[survol];
-    s.appendChild(etiquetteBlanche(txt(ZONE.x0 - 50, 44, son.abrege && son.nom ? `${son.abrege} : ${son.nom}` : nomDe(son),
-      { taille: 30, graisse: 700, couleur: COULEURS.marine })));
+    T(s, v.dim === 3 ? ZONE.x1 : ZONE.x0, v.dim === 3 ? 30 : 12, son.abrege && son.nom ? `${son.abrege} : ${son.nom}` : nomDe(son),
+      'titre-axe', v.dim === 3 ? 'end' : 'start', { fill: BLEU });
   } else if (survol !== null) {
     const i = survol;
     v.sons.forEach((_, j) => {
       if (j === i) return;
       const dij = v.delta[i][j];
-      const etiquette = dij === null || dij === undefined ? '—' : String(Math.round(dij));
+      const etiquette = dij === null || dij === undefined ? '-' : String(Math.round(dij));
       const [x1, y1] = E[i];
       const [x2, y2] = E[j];
-      const trait = { fill: 'none', stroke: BLEU, 'stroke-width': 4, 'stroke-dasharray': '12 9', opacity: 0.85 };
+      const trait = { fill: 'none', stroke: BLEU, 'stroke-width': 1.3, 'stroke-dasharray': '5 4' };
       if (v.dim === 1) {
         const h = Math.min(Math.abs(x2 - x1) * 0.9, (LIGNE_1D - ZONE.y0) * 1.8);
-        s.appendChild(svg('path', { ...trait, d: `M ${x1} ${y1} Q ${(x1 + x2) / 2} ${y1 - h} ${x2} ${y2}` }));
-        chiffres.push(pastille((x1 + x2) / 2, y1 - h / 2, etiquette));
+        S('path', { ...trait, d: `M ${x1} ${y1} Q ${(x1 + x2) / 2} ${y1 - h} ${x2} ${y2}` }, s);
+        chiffres.push([(x1 + x2) / 2, y1 - h / 2, etiquette]);
       } else {
-        s.appendChild(svg('line', { ...trait, x1, y1, x2, y2 }));
-        chiffres.push(pastille(x1 + 0.6 * (x2 - x1), y1 + 0.6 * (y2 - y1), etiquette));
+        S('line', { ...trait, x1, y1, x2, y2 }, s);
+        chiffres.push([x1 + 0.6 * (x2 - x1), y1 + 0.6 * (y2 - y1), etiquette]);
       }
     });
   }
@@ -450,22 +451,24 @@ function tracer(v, X) {
   for (const i of ordre) {
     const son = v.sons[i];
     const [x, y, z] = E[i];
-    const g = svg('g', {
+    const g = S('g', {
       class: `point${enLecture === i ? ' joue' : ''}${survol === i ? ' survol' : ''}${son.fichier ? '' : ' muet'}`,
       'data-i': i, tabindex: 0, role: son.fichier ? 'button' : 'img', 'aria-label': son.fichier ? `${nomDe(son)} : écouter` : nomDe(son),
-    });
-    const r0 = nombreux ? 13 : 17;
+    }, s);
+    const r0 = nombreux ? 3.5 : 4.5;
     const r = v.dim === 3 ? r0 * (1 + 0.3 * z) : r0;
-    g.appendChild(svg('circle', { cx: x, cy: y, r: 44, fill: 'transparent' })); // zone de clic
-    g.appendChild(svg('circle', { class: 'disque', cx: x, cy: y, r, fill: COULEURS.marine, 'fill-opacity': v.dim === 3 ? 0.6 + 0.4 * (z + 1) / 2 : 1 }));
+    S('circle', { cx: x, cy: y, r: 16, fill: 'transparent' }, g); // zone de clic
+    S('circle', { class: 'disque', cx: x, cy: y, r: enLecture === i ? r + 2 : r, fill: ENCRE, 'fill-opacity': v.dim === 3 ? 0.6 + 0.4 * (z + 1) / 2 : 1 }, g);
     let ty;
-    if (v.dim === 1) ty = y + 56 + (nombreux ? 36 : 42) * rang1D.get(i);
-    else ty = y - 34 > ZONE.y0 + 30 ? y - r - 15 : y + r + 41;
+    if (v.dim === 1) ty = y + 22 + (nombreux ? 14 : 17) * rang1D.get(i);
+    else ty = y - 14 > ZONE.y0 + 4 ? y - r - 6 : y + r + 15;
     const nom = nombreux ? son.abrege || son.cle : nomDe(son);
-    g.appendChild(etiquetteBlanche(txt(x, ty, nom, { taille: nombreux ? 30 : 36, ancre: 'middle', graisse: 600 })));
-    s.appendChild(g);
+    // Nom centré sur le point, sauf au bord de la carte (il resterait coupé).
+    const demi = nom.length * (nombreux ? 3.4 : 4.2);
+    const ancre = x + demi > L ? 'end' : x - demi < 0 ? 'start' : 'middle';
+    T(g, ancre === 'end' ? Math.max(x + 6, L - 1) : ancre === 'start' ? Math.min(x - 6, 1) : x, ty, nom, nombreux ? 'graduation' : 'lecture-carte', ancre);
   }
-  chiffres.forEach((c) => s.appendChild(c));
+  chiffres.forEach(([x, y, e]) => pastille(s, x, y, e));
   ui.carte.replaceChildren(s);
 }
 
@@ -493,7 +496,7 @@ function majTexte(v) {
   const res = v.g.resultats;
   const n = res.n || 0;
   const dont = res.simulees || 0;
-  ui.source.classList.toggle('simulee', source() === 'classe' && dont > 0);
+  ui.source.style.color = source() === 'classe' && dont > 0 ? '#e03131' : '';
   if (source() === 'reference') ui.source.textContent = `${v.g.titre || 'Littérature'}`;
   else ui.source.textContent = `Classe : ${nombreEntier(n)} participant${n === 1 ? '' : 's'}${dont ? ` (${nombreEntier(dont)} simulés)` : ''}`;
 }
@@ -565,7 +568,7 @@ function tournerAutour(t) {
 // Changement d'axe vertical : rotation animée (interpolation de quaternions) vers la vue type.
 function virer(k) {
   axeVertical = k;
-  ui.axes.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.axe) === k)));
+  cAxe.valeur(k);
   rotationAuto = false;
   cancelAnimationFrame(virage);
   const [qa, qb] = [quaternion(rotation), quaternion(vueCible(k))];
@@ -597,12 +600,12 @@ function tourner(v) {
 
 async function afficher({ rejouer = false } = {}) {
   const src = source();
-  ui.boutons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.source === src)));
-  ui.dims.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.dim) === dim)));
-  ui.axes.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.axe) === axeVertical)));
-  ui.axeVertical.hidden = dim !== 3;
-  ui.etendue.hidden = src !== 'reference' || !SOUS.length;
-  ui.tous.forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.tous === '1') === tous)));
+  cSource.valeur(src);
+  cDim.valeur(dim);
+  cAxe.valeur(axeVertical);
+  axeVerticalUi.hidden = dim !== 3;
+  etendueUi.hidden = src !== 'reference' || !SOUS.length;
+  cTous.valeur(tous);
   let g;
   try {
     if (src === 'reference') {
@@ -708,7 +711,7 @@ ui.carte.addEventListener('pointerdown', (e) => {
 });
 ui.carte.addEventListener('pointermove', (e) => {
   if (!glissement || e.pointerId !== glissement.id) return;
-  const pleine = ui.carte.clientWidth || 1;
+  const pleine = ui.carte.getBoundingClientRect().width || 1; // élément mis à l'échelle
   // Rotation « boule » : autour de la verticale et de l'horizontale de l'écran.
   rotation = produit(rotY(((e.clientX - glissement.x) / pleine) * Math.PI),
     produit(rotX(((e.clientY - glissement.y) / pleine) * Math.PI), rotation));
@@ -741,20 +744,6 @@ ui.carte.addEventListener('keydown', (e) => {
   e.preventDefault();
   jouer(i);
 });
-ui.boutons.forEach((b) => b.addEventListener('click', () => {
-  choix = b.dataset.source;
-  afficher({ rejouer: true });
-}));
-ui.dims.forEach((b) => b.addEventListener('click', () => {
-  dim = Number(b.dataset.dim);
-  afficher({ rejouer: true });
-}));
-ui.axes.forEach((b) => b.addEventListener('click', () => virer(Number(b.dataset.axe))));
-ui.tous.forEach((b) => b.addEventListener('click', () => {
-  tous = b.dataset.tous === '1';
-  afficher({ rejouer: true });
-}));
-ui.rejouer.addEventListener('click', () => afficher({ rejouer: true }));
 
 // À chaque affichage de la diapositive : relire le résultat gardé, puis rejouer le placement.
 let etaitVisible = false;
@@ -772,7 +761,9 @@ async function surVisibilite() {
 }
 document.addEventListener('visibilitychange', surVisibilite);
 window.addEventListener('resize', surVisibilite);
+ajuster(racine, LD, HD);
 
 await chargerClasse();
 await afficher();
 etaitVisible = visible();
+

@@ -130,12 +130,12 @@ export function bouton(parent, texte, action, { largeur = 110, hauteur = 32, bas
 }
 
 /** Rangée de boutons exclusifs de même largeur. → élément avec .valeur(v) et .boutons. */
-export function choix(parent, options, valeur, action, { largeur = 90, ecart = 2 } = {}) {
+export function choix(parent, options, valeur, action, { largeur = 90, hauteur = 32, ecart = 2 } = {}) {
   const g = H('div', null, null, parent);
   g.style.display = 'flex';
   g.style.gap = ecart + 'px';
   g.boutons = options.map((o) => {
-    const b = bouton(g, o.texte, () => { if (!b.disabled) { g.valeur(o.valeur); action(o.valeur); } }, { bascule: true, actif: o.valeur === valeur, largeur: o.largeur || largeur, titre: o.titre });
+    const b = bouton(g, o.texte, () => { if (!b.disabled) { g.valeur(o.valeur); action(o.valeur); } }, { bascule: true, actif: o.valeur === valeur, largeur: o.largeur || largeur, hauteur, titre: o.titre });
     b.valeurChoix = o.valeur;
     return b;
   });
