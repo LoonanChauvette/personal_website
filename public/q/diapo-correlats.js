@@ -1,12 +1,16 @@
 // Diapositive « Corrélats acoustiques » du Cours 7 (élément HTML d'Excalidraw+, srcdoc), dans
 // le style des démos (excali/excali.css, excali/excali.js : Excalifont, commandes dessinées).
 //
-// Interprète les dimensions de l'espace timbral avec 13 descripteurs acoustiques
-// (donnees/descripteurs-mcadams1995.json et courbes-mcadams1995.json,
-// tools/descripteurs_timbre.mjs). Deux vues, même sélection (descripteur × dimension) :
+// Interprète les dimensions de l'espace timbral avec 20 descripteurs acoustiques en cinq familles
+// (temporel, spectral, harmonique, bruit, spectro-temporel ; donnees/descripteurs-mcadams1995.json
+// et courbes-mcadams1995.json, tools/descripteurs_timbre.mjs). Deux vues, même sélection
+// (descripteur × dimension) :
 //   - Corrélations : r de Pearson de chaque descripteur avec chaque dimension de la carte MDS
 //     (correlats.js ; mêmes calculs et mêmes axes que la diapositive MDS), à côté du nuage
-//     descripteur × dimension. Hachures : corrélation significative (bleu > 0, orange < 0).
+//     descripteur × dimension. Une famille ouverte à la fois (cliquer son nom) ; la ligne de
+//     famille donne son |r| le plus fort. Étoile : meilleur descripteur de chaque dimension.
+//     Hachures : signe et force de r (jaune > 0, bleu < 0, plus serrées si forte) ; valeur en gris
+//     si non significative (p ≥ 0,05, seuil dans l'infobulle).
 //   - Comparer : le descripteur représenté pour deux sons A (bleu) et B (orange), à la même
 //     échelle, à côté du même nuage où A et B sont mis en évidence (comme McAdams, 2013).
 // Données : McAdams et al. (1995), 18 timbres ; ou la classe (résultat gardé de c7paires, six
@@ -29,7 +33,7 @@ const donnees = creerDonnees({ courbes: 'donnees/courbes-mcadams1995.json', ...c
 const lecteur = creerLecteur();
 const nb = (v, d = 2) => (v === null || v === undefined || !Number.isFinite(v) ? '-' : v.toFixed(d).replace('-', '−'));
 
-const etat = { vue: 'correlations', choix: null, dim: 3, cle: 'attaque', k: 0, A: null, B: null, prochain: 'A' };
+const etat = { vue: 'correlations', choix: null, dim: 3, cle: 'attaque', k: 0, A: null, B: null, prochain: 'A', ouverte: 'temporel' };
 const source = () => etat.choix || (donnees.d.classe ? 'classe' : 'reference');
 
 // ─── Mise en place ─────────────────────────────────────────────────────────
@@ -60,46 +64,112 @@ const panneaux = ['A', 'B'].map((p, i) => {
 });
 
 // ─── Corrélations : table ──────────────────────────────────────────────────
+const XS = [262, 322, 382]; // colonnes D1, D2, D3
+
+// Étoile dessinée (meilleur descripteur d'une dimension).
+function etoile(g, cx, cy, r, cle) {
+  const pts = [];
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r * 0.45 : r;
+    pts.push([cx + rr * Math.cos(a), cy + rr * Math.sin(a)]);
+  }
+  return R('polygon', g, [pts], { cle, fill: '#1e1e1e', fillStyle: 'solid', strokeWidth: 0.8, roughness: 0.4 });
+}
+
+// Chevron de famille : ▸ fermée, ▾ ouverte.
+function chevron(g, x, y, ouvert) {
+  const pts = ouvert ? [[x - 4.5, y - 2.5], [x + 4.5, y - 2.5], [x, y + 3.5]] : [[x - 2.5, y - 4.5], [x + 3.5, y], [x - 2.5, y + 4.5]];
+  S('path', { d: chemin(pts) + 'Z', fill: '#1e1e1e' }, g);
+}
+
+function cellule(g, x, y, r, { sig, choisie, meilleure, gris, cle, titre, action }) {
+  const c = S('g', { class: 'cliquable' }, g);
+  S('rect', { x: x - 30, y: y - 15, width: 60, height: 20, fill: 'transparent' }, c);
+  if (!gris && r !== null) { // toutes les cases : jaune positive, bleu négative, plus serré si forte
+    const fort = Math.abs(r);
+    R('rectangle', c, [x - 26, y - 14, 52, 18], { cle: 'c' + cle, stroke: 'none', fill: r > 0 ? '#fcc419' : '#74c0fc',
+      hachureGap: fort > 0.8 ? 2.5 : fort > 0.65 ? 3.5 : fort > 0.45 ? 5 : fort > 0.25 ? 7.5 : 11, fillWeight: fort > 0.45 ? 1.2 : 0.9 });
+  }
+  if (choisie) R('rectangle', c, [x - 29, y - 15, 58, 20], { cle: 's' + cle, strokeWidth: 1.5 });
+  const t = T(c, x - 5, y, gris ? nb(Math.abs(r)) : nb(r));
+  t.setAttribute('font-size', gris ? 14 : 15);
+  t.style.fill = gris ? GRIS : sig ? '#1e1e1e' : GRIS; // style : la feuille (svg text) l'emporte sur l'attribut
+  if (meilleure) etoile(c, x + 20, y - 5, 4.5, 'e' + cle);
+  const ti = S('title', {}, c);
+  ti.textContent = titre;
+  c.addEventListener('click', action);
+}
+
 function rendreTable(v) {
   const g = gauche;
   g.replaceChildren();
-  const desc = donnees.d.descripteurs.descripteurs;
-  const xs = [262, 322, 382].slice(0, etat.dim);
+  const { descripteurs: desc, familles } = donnees.d.descripteurs;
+  const xs = XS.slice(0, etat.dim);
+  const lignes = new Map(v.analyse.lignes.map((l) => [l.cle, l]));
+  const meilleurs = v.analyse.meilleurs;
   let y = 16;
-  xs.forEach((x, k) => T(g, x, y, `D${k + 1}`, 'titre-axe'));
+  xs.forEach((x, k) => T(g, x - 3, y, `D${k + 1}`, 'titre-axe'));
   if (v.comparaison) {
     y += 19;
     T(g, 0, y, 'proche de McAdams', 'indice', 'start');
-    v.comparaison.forEach((c, k) => T(g, xs[k], y, c.dim === null ? '-' : `D${c.dim + 1} ${nb(Math.abs(c.r))}`, 'graduation'));
+    v.comparaison.forEach((c, k) => T(g, xs[k] - 3, y, c.dim === null ? '-' : `D${c.dim + 1} ${nb(Math.abs(c.r))}`, 'graduation'));
   }
-  y += 6;
-  let famille = null;
-  for (const l of v.analyse.lignes) {
-    const d = desc.find((x) => x.cle === l.cle);
-    y += famille !== null && d.famille !== famille ? 26 : 21;
-    famille = d.famille;
-    const nom = T(g, 0, y, d.nom, 'lecture-svg', 'start');
-    nom.setAttribute('font-size', 15);
-    if (d.cle === etat.cle) nom.setAttribute('fill', '#1971c2');
-    l.r.slice(0, etat.dim).forEach((r, k) => {
-      const x = xs[k], sig = r !== null && Math.abs(r) >= v.analyse.seuil;
-      const cellule = S('g', { class: 'cliquable' }, g);
-      S('rect', { x: x - 28, y: y - 15, width: 56, height: 20, fill: 'transparent' }, cellule);
-      if (sig) {
-        const fort = Math.abs(r);
-        R('rectangle', cellule, [x - 26, y - 14, 52, 18], { cle: `c${d.cle}${k}`, stroke: 'none', fill: r > 0 ? '#a5d8ff' : '#ffd8a8',
-          hachureGap: fort > 0.8 ? 2.5 : fort > 0.65 ? 3.5 : 5, fillWeight: 1.2 });
-      }
-      if (d.cle === etat.cle && k === etat.k) R('rectangle', cellule, [x - 27, y - 15, 54, 20], { cle: `s${d.cle}${k}`, strokeWidth: 1.5 });
-      const t = T(cellule, x, y, nb(r));
-      t.setAttribute('font-size', 15);
-      t.setAttribute('fill', sig ? '#1e1e1e' : GRIS);
-      cellule.addEventListener('click', () => { etat.cle = d.cle; etat.k = k; etat.A = etat.B = null; rendre(); });
+  y += 4;
+  for (const f of familles) {
+    const membres = desc.filter((d) => d.famille === f.cle);
+    const ouverte = etat.ouverte === f.cle;
+    y += 25;
+    const tete = S('g', { class: 'cliquable' }, g);
+    S('rect', { x: 0, y: y - 17, width: xs[0] - 32, height: 24, fill: 'transparent' }, tete);
+    chevron(tete, 5, y - 5, ouverte);
+    const nom = T(tete, 16, y, f.nom, 'titre-axe', 'start');
+    nom.setAttribute('font-weight', 700);
+    if (membres.some((d) => d.cle === etat.cle)) nom.style.fill = '#1971c2'; // famille du descripteur choisi
+    const ti = S('title', {}, tete);
+    ti.textContent = ouverte ? 'Replier' : `Afficher les ${membres.length} descripteurs`;
+    tete.addEventListener('click', () => { etat.ouverte = ouverte ? null : f.cle; rendre(); });
+    // Famille : son |r| le plus fort pour chaque dimension (cliquer : ce descripteur).
+    xs.forEach((x, k) => {
+      const fort = membres.map((d) => lignes.get(d.cle)).filter((l) => l.r[k] !== null)
+        .sort((a, b) => Math.abs(b.r[k]) - Math.abs(a.r[k]))[0];
+      if (!fort) return;
+      const d = desc.find((x2) => x2.cle === fort.cle);
+      cellule(g, x, y, fort.r[k], { gris: true, meilleure: !ouverte && meilleurs[k] === fort.cle, cle: `f${f.cle}${k}`,
+        titre: `${f.nom} : |r| le plus fort avec D${k + 1} (${d.nom})`,
+        action: () => { etat.cle = fort.cle; etat.k = k; etat.ouverte = f.cle; etat.A = etat.B = null; rendre(); } });
     });
+    if (!ouverte) continue;
+    for (const d of membres) {
+      const l = lignes.get(d.cle);
+      y += 21;
+      const nomD = T(g, 16, y, d.nom, 'lecture-svg', 'start');
+      nomD.setAttribute('font-size', 15);
+      if (d.cle === etat.cle) nomD.style.fill = '#1971c2';
+      const tiD = S('title', {}, nomD);
+      tiD.textContent = d.definition;
+      l.r.slice(0, etat.dim).forEach((r, k) => {
+        cellule(g, xs[k], y, r, { sig: r !== null && Math.abs(r) >= v.analyse.seuil, choisie: d.cle === etat.cle && k === etat.k,
+          meilleure: meilleurs[k] === d.cle, cle: `${d.cle}${k}`,
+          titre: `${d.nom} × D${k + 1} : r = ${nb(r)}${r !== null && Math.abs(r) >= v.analyse.seuil ? ' (significatif, p < 0.05)' : ''}`,
+          action: () => { etat.cle = d.cle; etat.k = k; etat.A = etat.B = null; rendre(); } });
+      });
+    }
   }
+  // Légende, en bas.
+  const yl = HT - 44 - 8;
+  etoile(g, 6, yl - 5, 5, 'leg');
+  T(g, 16, yl, 'Meilleur descripteur de la dimension', 'indice', 'start');
 }
 
 // ─── Nuage descripteur × dimension (les deux vues) ─────────────────────────
+// Texte ramené à la largeur disponible (police réduite au besoin).
+function ajusterTexte(t, largeur, taille) {
+  for (let f = taille; f >= 11; f -= 0.5) {
+    t.setAttribute('font-size', f);
+    if (t.getComputedTextLength() <= largeur) return;
+  }
+}
+
 function rendreNuage(v, d, surComparer) {
   const g = droite;
   g.replaceChildren();
@@ -110,18 +180,20 @@ function rendreNuage(v, d, surComparer) {
   const marge = (a) => { const lo = Math.min(...a), hi = Math.max(...a), m = (hi - lo) * 0.12 || 1; return [lo - m, hi + m]; };
   const [x0, x1] = marge(xs), [y0, y1] = marge(ys);
   const X = echelle(x0, x1, 46, 306), Y = echelle(y0, y1, 280, 52); // marge à droite : la dernière graduation reste entière
-  let ticksX = [];
+  let ticksX = [], pasX = null;
   if (d.cle === 'attaque') ticksX = [2, 5, 10, 20, 50, 100, 200].map((ms) => Math.log10(ms / 1000)).filter((t) => t >= x0 && t <= x1);
-  else { const pasX = nicePas(x1 - x0); for (let t = Math.ceil(x0 / pasX) * pasX; t <= x1; t += pasX) ticksX.push(t); }
-  axes(g, { x: X, y: Y, ticksX, formatX: (t) => formatDesc(d, t, true), titreX: `${d.nom}${d.unite && d.cle !== 'attaque' ? ` (${d.unite})` : d.cle === 'attaque' ? ' (ms, échelle log)' : ''}`, titreY: `Dimension ${etat.k + 1}` });
-  // Ligne d'en-tête : r en bleu (une seule taille).
-  const tete = T(g, 176, 16, '', 'lecture-svg'); // centré sur le tracé (46 → 306)
-  tete.setAttribute('font-size', 16);
+  else { pasX = nicePas(x1 - x0); for (let t = Math.ceil(x0 / pasX) * pasX; t <= x1 + pasX * 1e-9; t += pasX) ticksX.push(t); }
+  axes(g, { x: X, y: Y, ticksX, formatX: (t) => formatDesc(d, t, true, pasX), titreX: `${d.nom}${d.cle === 'attaque' ? ' (ms, échelle log)' : d.unite ? ` (${d.unite})` : ''}` });
+  // Titre vertical près de l'axe (pas de graduations à gauche).
+  T(g, 34, 166, `Dimension ${etat.k + 1}`, 'titre-axe', 'middle', { transform: 'rotate(-90 34 166)' });
+  // Ligne d'en-tête : r en bleu (une seule taille), ramenée à la largeur du cadre.
+  const tete = T(g, 176, 18, '', 'lecture-svg'); // centré sur le tracé (46 → 306) ; accents dans le cadre
   tete.append(`${d.nom} × D${etat.k + 1} : r = `);
   const val = S('tspan', { fill: Math.abs(r ?? 0) >= v.analyse.seuil ? '#1971c2' : GRIS }, tete);
   val.textContent = nb(r);
-  const attr = T(g, 176, 36, d.attribut.toLowerCase(), 'indice');
-  attr.setAttribute('font-size', 14);
+  ajusterTexte(tete, 320, 16);
+  const attr = T(g, 176, 37, d.attribut.toLowerCase(), 'indice');
+  ajusterTexte(attr, 320, 14);
   // Droite de régression (propre, pointillée).
   const n = xs.length, mx = xs.reduce((a, b) => a + b) / n, my = ys.reduce((a, b) => a + b) / n;
   const pente = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0) / (xs.reduce((a, x) => a + (x - mx) ** 2, 0) || 1);
@@ -132,14 +204,15 @@ function rendreNuage(v, d, surComparer) {
   const px = xs.map(X), py = ys.map(Y);
   const occupe = px.map((x, i) => [x - 5, py[i] - 5, x + 5, py[i] + 5]);
   const chevauche = (b) => occupe.reduce((t, o) => t + Math.max(0, Math.min(b[2], o[2]) - Math.max(b[0], o[0])) * Math.max(0, Math.min(b[3], o[3]) - Math.max(b[1], o[1])), 0);
-  const dedans = (b) => b[0] >= 50 && b[2] <= 330 && b[1] >= 44; // jamais sur l'axe vertical (x = 46)
+  const dedans = (b) => b[0] >= 50 && b[2] <= 326 && b[1] >= 44 && b[3] <= 284; // jamais sur les axes ni hors du cadre
   v.sons.forEach((son, i) => {
     const role = surComparer && (son.desc === etat.A ? 'A' : son.desc === etat.B ? 'B' : null);
     const c = role ? COUL[role] : '#1e1e1e';
     const p = S('g', { class: 'cliquable' }, g);
     S('circle', { cx: px[i], cy: py[i], r: 12, fill: 'transparent' }, p);
     S('circle', { cx: px[i], cy: py[i], r: role ? 6 : 3.5, fill: c }, p);
-    const w = son.etiquette.length * 7.5 + 2;
+    const t = T(p, px[i], py[i], son.etiquette, 'graduation', 'start');
+    const w = t.getComputedTextLength() + 2; // largeur mesurée (police réelle)
     // Étiquette : à droite, à gauche, au-dessus, au-dessous, puis en diagonale ; sinon la place
     // la moins recouverte (deux points presque confondus).
     const essais = [[px[i] + 8, py[i] + 4, 'start'], [px[i] - 8, py[i] + 4, 'end'], [px[i], py[i] - 9, 'middle'], [px[i], py[i] + 17, 'middle'],
@@ -147,10 +220,12 @@ function rendreNuage(v, d, surComparer) {
     const boite = ([x, y, a]) => { const gx = a === 'start' ? x : a === 'end' ? x - w : x - w / 2; return [gx, y - 11, gx + w, y + 2]; };
     const possibles = essais.filter((e) => dedans(boite(e)));
     const [lx, ly, a] = possibles.find((e) => chevauche(boite(e)) === 0)
-      || [...possibles].sort((e1, e2) => chevauche(boite(e1)) - chevauche(boite(e2)))[0] || essais[0];
+      || [...possibles].sort((e1, e2) => chevauche(boite(e1)) - chevauche(boite(e2)))[0] || essais[1];
     occupe.push(boite([lx, ly, a]));
-    const t = T(p, lx, ly, son.etiquette, 'graduation', a);
-    if (role) t.setAttribute('fill', c);
+    t.setAttribute('x', lx);
+    t.setAttribute('y', ly);
+    t.setAttribute('text-anchor', a);
+    if (role) t.style.fill = c;
     const titre = S('title', {}, p);
     titre.textContent = son.nom;
     p.addEventListener('click', () => {
@@ -170,31 +245,35 @@ function nicePas(etendue) {
   return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
 }
 
-// Valeur lisible d'un descripteur (graduation ou en-tête).
-function formatDesc(d, v, court = false) {
+// Valeur lisible d'un descripteur : graduation (court, décimales du pas) ou en-tête (3 chiffres
+// significatifs et unité).
+function formatDesc(d, v, court = false, pas = null) {
   if (d.cle === 'attaque') {
     const ms = 10 ** v * 1000;
     const t = ms < 10 ? (court && Math.abs(ms - Math.round(ms)) < 0.05 ? String(Math.round(ms)) : nb(ms, 1)) : Math.round(ms);
     return `${t}${court ? '' : ' ms'}`;
   }
-  if (d.unite === 'Hz') return `${Math.round(v)}${court ? '' : ' Hz'}`;
-  if (d.unite === 's') return `${nb(v, 2)}${court ? '' : ' s'}`;
-  if (['flux', 'platitude'].includes(d.cle)) return nb(v, court ? 3 : 4);
-  return `${nb(v, court ? 0 : 1)}${court || !d.unite ? '' : ` ${d.unite}`}`;
+  const a = Math.abs(v);
+  const dec = pas ? Math.max(0, -Math.floor(Math.log10(pas) + 1e-9))
+    : a >= 100 || a === 0 ? 0 : Math.min(6, 2 - Math.floor(Math.log10(a)));
+  return `${nb(v, dec)}${court || !d.unite ? '' : d.unite.startsWith('/') ? d.unite : ` ${d.unite}`}`;
 }
 
 // ─── Comparer : représentation du descripteur pour A et B ──────────────────
-// Panneau : 440 × 140 sous son en-tête ; tracé (50, 8) → (430, 112), à la même échelle pour A et B.
+// Panneau : 440 × 140 sous son en-tête ; tracé (50, 8) → (404, 112), à la même échelle pour A et
+// B. Légende en haut à droite (panneau A seulement) : le tracé commence 16 px plus bas.
 const P = { g: 50, d: 404, h: 8, b: 112 };
+const HAUT = P.h + 16;
 
 function rendrePanneaux(v, d) {
   const g = gauche;
   g.replaceChildren();
   const ca = donnees.d.courbes.sons[etat.A], cb = donnees.d.courbes.sons[etat.B];
+  const fort = (c) => c.harmoniques.ecarts.filter((_, i) => c.harmoniques.db[i] >= -40).map(Math.abs);
   const commun = {
     duree: Math.max(ca.duree, cb.duree),
     centroideMax: Math.ceil(Math.max(...[...ca.trames, ...cb.trames].map((q) => q[1])) / 500) * 500,
-    fluxMax: Math.max(0.02, ...[...ca.flux, ...cb.flux].map((q) => q[1])),
+    ecartMax: Math.min(3, Math.max(0.2, ...fort(ca), ...fort(cb)) * 1.25),
   };
   for (const [i, { p, tete }] of panneaux.entries()) {
     const son = v.sons.find((s) => s.desc === etat[p]);
@@ -209,97 +288,255 @@ function rendrePanneaux(v, d) {
     val.style.marginLeft = 'auto';
     val.style.color = COUL[p];
     const zone = S('g', { transform: `translate(0 ${32 + i * 170})` }, g);
-    tracer(zone, d, donnees.d.courbes.sons[etat[p]], COUL[p], { ...commun, valeur: v.valeurs[etat[p]][d.cle], centroide: v.valeurs[etat[p]].centroide }, p);
+    tracer(zone, d, donnees.d.courbes.sons[etat[p]], COUL[p], { ...commun, valeurs: v.valeurs[etat[p]] }, p, i === 0);
   }
 }
 
-function tracer(g, d, c, coul, e, p) {
+// Légende alignée à droite en haut du tracé. Éléments : { type, texte, couleur }.
+function legende(g, items) {
+  let x = P.d;
+  const y = P.h + 6;
+  for (const it of [...items].reverse()) {
+    const t = T(g, x, y + 4, it.texte, 'indice', 'end');
+    t.setAttribute('font-size', 13);
+    x -= t.getComputedTextLength() + 5;
+    const c = it.couleur || '#1e1e1e';
+    if (it.type === 'barre') S('line', { x1: x - 6, x2: x - 6, y1: y - 5, y2: y + 5, stroke: c, 'stroke-width': 4, 'stroke-linecap': 'round' }, g);
+    else if (it.type === 'point') S('circle', { cx: x - 6, cy: y, r: 3, fill: c }, g);
+    else if (it.type === 'ecart') S('line', { x1: x - 6, x2: x - 6, y1: y - 6, y2: y + 6, stroke: c, 'stroke-width': 1.5 }, g);
+    else if (it.type === 'zone') R('rectangle', g, [x - 16, y - 5, 16, 10], { cle: 'lz' + it.texte, stroke: 'none', fill: c, hachureGap: 3, fillWeight: 1 });
+    else if (it.type === 'plein') S('rect', { x: x - 16, y: y - 5, width: 16, height: 10, fill: c }, g);
+    else if (it.type === 'fleche') fleche(g, x - 18, x - 2, y, c);
+    else if (it.type !== 'texte') S('line', { x1: x - 18, x2: x - 2, y1: y, y2: y, stroke: c, 'stroke-width': 1.5, 'stroke-dasharray': it.type === 'tiret' ? '4 3' : null }, g);
+    x -= it.type === 'texte' ? 9 : (['barre', 'point', 'ecart'].includes(it.type) ? 12 : 18) + 14;
+  }
+}
+
+// Flèche propre (jamais dessinée à la main).
+function fleche(g, x1, x2, y, c) {
+  const s = Math.sign(x2 - x1) || 1;
+  S('line', { x1, x2: x2 - s * 5, y1: y, y2: y, stroke: c, 'stroke-width': 1.8 }, g);
+  S('path', { d: chemin([[x2, y], [x2 - s * 7, y - 4], [x2 - s * 7, y + 4]]) + 'Z', fill: c }, g);
+}
+
+function tracer(g, d, c, coul, e, p, avecLegende) {
+  const vals = e.valeurs;
+  const leg = (items) => { if (avecLegende) legende(g, items); };
   const tX = echelle(0, e.duree, P.g, P.d);
   const pasT = e.duree > 1.2 ? 0.4 : e.duree > 0.6 ? 0.2 : 0.1;
   const ticksT = [];
   for (let t = 0; t <= e.duree + 1e-9; t += pasT) ticksT.push(Number(t.toFixed(2)));
   const fT = (t) => (t === ticksT[ticksT.length - 1] ? `${nb(t, 1)} s` : nb(t, 1));
   const env = c.enveloppe.v.map((a, i) => [c.enveloppe.t0 + i * c.enveloppe.pas, a]);
-  const lin = echelle(0, 1, P.b, P.h);
-  const zoneHachee = (x0, x1, cle) => R('rectangle', g, [x0, P.h, Math.max(3, x1 - x0), P.b - P.h], { cle, stroke: 'none', fill: '#ced4da', hachureGap: 4, fillWeight: 1 });
-  const seuil = (y, texte) => {
-    S('line', { x1: P.g, x2: P.d, y1: y, y2: y, stroke: GRIS, 'stroke-width': 1, 'stroke-dasharray': '4 4' }, g);
-    T(g, P.d + 2, y + 4, texte, 'graduation', 'start');
-  };
-  const courbe = (pts) => S('path', { d: chemin(pts), fill: 'none', stroke: coul, 'stroke-width': 1.5 }, g);
-  const marque = (x) => S('line', { x1: x, x2: x, y1: P.h, y2: P.b, stroke: '#1e1e1e', 'stroke-width': 1.2, 'stroke-dasharray': '5 4' }, g);
+  const lin = echelle(0, 1, P.b, HAUT);
+  const zoneHachee = (x0, x1, cle, y0 = HAUT, y1 = P.b) => R('rectangle', g, [x0, y0, Math.max(3, x1 - x0), y1 - y0], { cle, stroke: 'none', fill: '#ced4da', hachureGap: 4, fillWeight: 1 });
+  const horizontale = (y, tiret = true) => S('line', { x1: P.g, x2: P.d, y1: y, y2: y, stroke: '#1e1e1e', 'stroke-width': 1, 'stroke-dasharray': tiret ? '4 4' : null }, g);
+  const courbe = (pts, larg = 1.5) => S('path', { d: chemin(pts), fill: 'none', stroke: coul, 'stroke-width': larg }, g);
+  const marque = (x) => S('line', { x1: x, x2: x, y1: HAUT, y2: P.b, stroke: '#1e1e1e', 'stroke-width': 1.2, 'stroke-dasharray': '5 4' }, g);
+  const barre = (x, y, teinte = coul, larg = 4) => S('line', { x1: x, x2: x, y1: P.b, y2: Math.min(P.b, y), stroke: teinte, 'stroke-width': larg, 'stroke-linecap': 'round' }, g);
+  const H_ = c.harmoniques, nh = H_.db.length;
+  const fDb = (v) => (v === 0 ? '0 dB' : String(v)); // unité sur la graduation du haut (pas de titre tourné)
+  const dbH = (v) => Math.max(-60, v);
+
+  // ── Temporel : enveloppe (linéaire).
   if (d.famille === 'temporel') {
-    if (d.cle === 'decroissance') {
-      const Y = echelle(-60, 0, P.b, P.h);
-      axes(g, { x: tX, y: Y, ticksX: ticksT, ticksY: [-60, -30, 0], formatX: fT, formatY: String, titreY: 'dB' });
-      courbe(env.map(([t, a]) => [tX(t), Y(Math.max(-60, 20 * Math.log10(Math.max(a, 1e-6))))]));
-      const [a, b, t1, t2] = c.decroissance;
-      S('line', { x1: tX(t1), y1: Y(Math.max(-60, a + b * t1)), x2: tX(t2), y2: Y(Math.max(-60, a + b * t2)), stroke: '#1e1e1e', 'stroke-width': 1.5, 'stroke-dasharray': '6 4' }, g);
-      return;
-    }
     axes(g, { x: tX, y: lin, ticksX: ticksT, ticksY: [], formatX: fT });
-    if (d.cle === 'attaque') {
-      const [t1, t2] = c.attaque;
-      zoneHachee(tX(t1), tX(t2), 'att' + p);
-      seuil(lin(0.1), '10 %'); seuil(lin(0.9), '90 %');
+    const [t1, t2] = c.attaque;
+    const etiquette = (y, texte) => T(g, P.d + 3, y + 4, texte, 'graduation', 'start');
+    if (d.cle === 'attaque' || d.cle === 'croissance') {
+      if (d.cle === 'attaque') zoneHachee(tX(t1), tX(t2), 'att' + p);
+      horizontale(lin(0.1)); etiquette(lin(0.1), '10 %');
+      horizontale(lin(0.9)); etiquette(lin(0.9), '90 %');
     } else if (d.cle === 'centroide_temporel') {
       marque(tX(c.centroide_temporel));
     } else if (d.cle === 'duree_effective') {
-      seuil(lin(0.4), '40 %');
+      horizontale(lin(0.4)); etiquette(lin(0.4), '40 %');
       for (const [a, b] of c.duree_effective) R('line', g, [tX(a), lin(0.4), tX(b), lin(0.4)], { cle: 'de' + p + a, stroke: '#1e1e1e', strokeWidth: 4 });
     }
     courbe(env.map(([t, a]) => [tX(t), lin(a)]));
-    return;
-  }
-  if (d.famille === 'spectral' && d.cle !== 'pente_spectrale') {
-    const fX = echelle(0, 6000, P.g, P.d), Y = echelle(-80, 0, P.b, P.h);
-    axes(g, { x: fX, y: Y, ticksX: [0, 2000, 4000, 6000], ticksY: [-80, -40, 0], formatX: (f) => (f === 6000 ? '6000 Hz' : String(f)), formatY: String, titreY: 'dB' });
-    if (d.cle === 'etalement') zoneHachee(fX(Math.max(0, e.centroide - e.valeur)), fX(Math.min(6000, e.centroide + e.valeur)), 'et' + p);
-    S('path', { d: chemin(c.spectre.db.map((db, i) => [fX(i * c.spectre.df), Y(db)])), fill: 'none', stroke: coul, 'stroke-width': 1 }, g);
-    if (d.cle === 'centroide') marque(fX(Math.min(e.valeur, 6000)));
-    if (d.cle === 'etalement') marque(fX(e.centroide));
-    if (d.cle === 'rolloff') marque(fX(Math.min(e.valeur, 6000)));
-    return;
-  }
-  if (d.famille === 'structure fine' || d.cle === 'pente_spectrale') {
-    const db = c.harmoniques.db, n = db.length;
-    const hX = echelle(0.5, 20.5, P.g, P.d), Y = echelle(-60, 0, P.b, P.h);
-    axes(g, { x: hX, y: Y, ticksX: [1, 5, 10, 15, 20], ticksY: [-60, -30, 0], formatX: (h) => (h === 1 ? 'harm. 1' : String(h)), formatY: String, titreY: 'dB' });
-    db.forEach((v, i) => {
-      const h = i + 1, pair = h % 2 === 0;
-      const teinte = d.cle === 'impairs_pairs' ? (h === 1 ? '#ced4da' : pair ? GRIS : coul) : coul;
-      S('line', { x1: hX(h), x2: hX(h), y1: P.b, y2: Y(Math.max(-60, v)), stroke: teinte, 'stroke-width': 4, 'stroke-linecap': 'round' }, g);
-    });
-    if (d.cle === 'irregularite') {
-      for (let i = 1; i < n - 1; i++) {
-        const m = Math.max(-60, (db[i - 1] + db[i] + db[i + 1]) / 3);
-        S('line', { x1: hX(i + 1) - 7, x2: hX(i + 1) + 7, y1: Y(m), y2: Y(m), stroke: '#1e1e1e', 'stroke-width': 1.5 }, g);
-      }
+    if (d.cle === 'croissance') {
+      S('line', { x1: tX(t1), y1: lin(0.1), x2: tX(t2), y2: lin(0.9), stroke: '#1e1e1e', 'stroke-width': 2 }, g);
+      for (const [t, a] of [[t1, 0.1], [t2, 0.9]]) S('circle', { cx: tX(t), cy: lin(a), r: 3, fill: '#1e1e1e' }, g);
     }
-    if (d.cle === 'pente_spectrale') {
-      const pts = db.map((v, i) => [Math.log2(i + 1), v]);
-      const mx = pts.reduce((a, q) => a + q[0], 0) / n, my = pts.reduce((a, q) => a + q[1], 0) / n;
+    leg({ attaque: [{ type: 'ligne', couleur: coul, texte: 'enveloppe' }, { type: 'zone', couleur: '#adb5bd', texte: 'de 10 % à 90 %' }],
+      croissance: [{ type: 'ligne', couleur: coul, texte: 'enveloppe' }, { type: 'ligne', texte: 'pente de 10 % à 90 %' }],
+      centroide_temporel: [{ type: 'ligne', couleur: coul, texte: 'enveloppe' }, { type: 'tiret', texte: 'centroïde temporel' }],
+      duree_effective: [{ type: 'ligne', couleur: coul, texte: 'enveloppe' }, { type: 'ligne', texte: 'au-dessus de 40 %' }] }[d.cle]);
+    return;
+  }
+
+  // ── Spectral : les harmoniques.
+  if (d.famille === 'spectral') {
+    if (d.cle === 'pente_spectrale') { // rang en octaves : la pente est une droite
+      const X = echelle(-0.4, Math.log2(24), P.g, P.d), Y = echelle(-60, 0, P.b, HAUT);
+      axes(g, { x: X, y: Y, ticksX: [1, 2, 4, 8, 16].map(Math.log2), ticksY: [-60, -30, 0], formatX: (l) => (l === 0 ? 'harm. 1' : String(2 ** l)), formatY: fDb });
+      H_.db.forEach((v, i) => barre(X(Math.log2(i + 1)), Y(dbH(v)), coul, 3));
+      const pts = H_.db.map((v, i) => [Math.log2(i + 1), v]);
+      const mx = pts.reduce((a, q) => a + q[0], 0) / nh, my = pts.reduce((a, q) => a + q[1], 0) / nh;
       const b = pts.reduce((a, q) => a + (q[0] - mx) * (q[1] - my), 0) / pts.reduce((a, q) => a + (q[0] - mx) ** 2, 0);
-      S('path', { d: chemin(db.map((_, i) => [hX(i + 1), Y(Math.max(-60, my + b * (Math.log2(i + 1) - mx)))])), fill: 'none', stroke: '#1e1e1e', 'stroke-width': 1.5, 'stroke-dasharray': '6 4' }, g);
+      const clip = S('clipPath', { id: 'zp' + p }, g);
+      S('rect', { x: P.g, y: HAUT, width: P.d - P.g, height: P.b - HAUT }, clip);
+      S('line', { x1: X(-0.4), y1: Y(my + b * (-0.4 - mx)), x2: X(Math.log2(nh)), y2: Y(my + b * (Math.log2(nh) - mx)), stroke: '#1e1e1e', 'stroke-width': 1.5, 'stroke-dasharray': '6 4', 'clip-path': `url(#zp${p})` }, g);
+      leg([{ type: 'barre', couleur: coul, texte: 'harmonique' }, { type: 'tiret', texte: 'pente (dB/octave)' }]);
+      return;
     }
-    if (d.cle === 'impairs_pairs') T(g, P.d, P.h + 4, 'impaires en couleur, paires en gris', 'indice', 'end');
+    const X = echelle(0, 6500, P.g, P.d);
+    const fmtHz = (f) => (f === 6000 ? '6000 Hz' : String(f));
+    if (d.cle === 'rolloff') {
+      const Y = echelle(-60, 0, P.b, HAUT);
+      axes(g, { x: X, y: Y, ticksX: [0, 2000, 4000, 6000], ticksY: [-60, -30, 0], formatX: fmtHz, formatY: fDb });
+      zoneHachee(X(Math.min(vals.rolloff, 6500)), P.d, 'ro' + p);
+      H_.db.forEach((v, i) => barre(X(H_.f[i]), Y(dbH(v))));
+      marque(X(Math.min(vals.rolloff, 6500)));
+      leg([{ type: 'barre', couleur: coul, texte: 'harmonique' }, { type: 'tiret', texte: 'coupure' }, { type: 'zone', couleur: '#adb5bd', texte: "5 % de l'énergie" }]);
+      return;
+    }
+    // Moments : amplitudes linéaires (le poids de chaque harmonique dans le calcul).
+    const Y = echelle(0, 1, P.b, HAUT);
+    axes(g, { x: X, y: Y, ticksX: [0, 2000, 4000, 6000], ticksY: [0, 1], formatX: fmtHz, formatY: String, titreY: 'ampl.' });
+    const cx = X(Math.min(vals.centroide, 6500)), sx = (f) => X(Math.max(0, Math.min(6500, f)));
+    if (d.cle !== 'centroide') zoneHachee(sx(vals.centroide - vals.etalement), sx(vals.centroide + vals.etalement), 'et' + p);
+    if (d.cle === 'kurtosis') for (const s of [-2, 2]) {
+      const x = sx(vals.centroide + s * vals.etalement);
+      S('line', { x1: x, x2: x, y1: HAUT, y2: P.b, stroke: GRIS, 'stroke-width': 1, 'stroke-dasharray': '2 3' }, g);
+    }
+    H_.db.forEach((v, i) => barre(X(H_.f[i]), Y(10 ** (v / 20))));
+    marque(cx);
+    if (d.cle === 'asymetrie') { // traîne : du côté opposé à la masse, longueur selon l'asymétrie
+      const l = Math.min(Math.abs(vals.asymetrie), 4) / 4 * 140 + 20;
+      fleche(g, cx, cx + Math.sign(vals.asymetrie) * l, Y(0.55), '#1e1e1e');
+    }
+    leg({ centroide: [{ type: 'barre', couleur: coul, texte: 'harmonique' }, { type: 'tiret', texte: 'centroïde' }],
+      etalement: [{ type: 'tiret', texte: 'centroïde' }, { type: 'zone', couleur: '#adb5bd', texte: '± 1 écart type' }],
+      asymetrie: [{ type: 'tiret', texte: 'centroïde' }, { type: 'fleche', texte: 'traîne (longueur : asymétrie)' }],
+      kurtosis: [{ type: 'zone', couleur: '#adb5bd', texte: '± 1 écart type' }, { type: 'pointille', texte: '± 2 écarts types' }] }[d.cle]
+      .map((it) => (it.type === 'pointille' ? { ...it, type: 'tiret', couleur: GRIS } : it)));
     return;
   }
+
+  // ── Harmonique : les harmoniques par rang (dB).
+  if (d.famille === 'harmonique') {
+    const hX = echelle(0.5, nh + 0.5, P.g, P.d);
+    const fmtH = (h) => (h === 1 ? 'harm. 1' : String(h));
+    if (d.cle === 'inharmonicite') {
+      const m = e.ecartMax, Y = echelle(-m, m, P.b, HAUT);
+      const pasY = m >= 2 ? 1 : m >= 1 ? 0.5 : m >= 0.4 ? 0.2 : 0.1;
+      const tY = [-Math.floor(m / pasY) * pasY, 0, Math.floor(m / pasY) * pasY];
+      axes(g, { x: hX, y: Y, ticksX: [1, 5, 10, 15, 20].filter((h) => h <= nh), ticksY: tY, formatX: fmtH, formatY: (v) => `${nb(v, pasY < 1 ? 1 : 0)}${v > 0 ? ' %' : ''}` });
+      horizontale(Y(0));
+      H_.ecarts.forEach((v, i) => {
+        const faible = H_.db[i] < -40, y = Y(Math.max(-m, Math.min(m, v)));
+        const o = faible ? 0.3 : 1;
+        S('line', { x1: hX(i + 1), x2: hX(i + 1), y1: Y(0), y2: y, stroke: coul, 'stroke-width': 2, 'stroke-opacity': o }, g);
+        S('circle', { cx: hX(i + 1), cy: y, r: 3, fill: coul, 'fill-opacity': o }, g);
+      });
+      leg([{ type: 'tiret', texte: 'h × F0' }, { type: 'point', couleur: coul, texte: 'écart du partiel (pâle : faible)' }]);
+      return;
+    }
+    const Y = echelle(-60, 0, P.b, HAUT);
+    axes(g, { x: hX, y: Y, ticksX: [1, 5, 10, 15, 20].filter((h) => h <= nh), ticksY: [-60, -30, 0], formatX: fmtH, formatY: fDb });
+    const ecart = (x, y1, y2) => S('line', { x1: x, x2: x, y1: Math.min(P.b, y1), y2: Math.min(P.b, y2), stroke: '#1e1e1e', 'stroke-width': 1.5 }, g);
+    if (d.cle === 'impairs_pairs') {
+      H_.db.forEach((v, i) => { const h = i + 1; barre(hX(h), Y(dbH(v)), h === 1 ? '#ced4da' : h % 2 ? coul : GRIS); });
+      leg([{ type: 'barre', couleur: coul, texte: 'impaires' }, { type: 'barre', couleur: GRIS, texte: 'paires' }, { type: 'barre', couleur: '#ced4da', texte: 'fondamentale (exclue)' }]);
+      return;
+    }
+    H_.db.forEach((v, i) => barre(hX(i + 1), Y(dbH(v))));
+    if (d.cle === 'deviation') {
+      const pts = H_.db.map((v, i) => [Math.log2(i + 1), v]);
+      const mx = pts.reduce((a, q) => a + q[0], 0) / nh, my = pts.reduce((a, q) => a + q[1], 0) / nh;
+      const b = pts.reduce((a, q) => a + (q[0] - mx) * (q[1] - my), 0) / pts.reduce((a, q) => a + (q[0] - mx) ** 2, 0);
+      const fit = (i) => my + b * (Math.log2(i + 1) - mx);
+      H_.db.forEach((v, i) => ecart(hX(i + 1), Y(dbH(v)), Y(dbH(fit(i)))));
+      S('path', { d: chemin(H_.db.map((_, i) => [hX(i + 1), Y(dbH(fit(i)))])), fill: 'none', stroke: '#1e1e1e', 'stroke-width': 1.2, 'stroke-dasharray': '6 4' }, g);
+      leg([{ type: 'barre', couleur: coul, texte: 'harmonique' }, { type: 'tiret', texte: 'pente spectrale' }, { type: 'ecart', texte: 'écart' }]);
+      return;
+    }
+    // Irrégularité : écart à la moyenne des voisines (h − 1, h, h + 1).
+    for (let i = 1; i < nh - 1; i++) {
+      const m = (H_.db[i - 1] + H_.db[i] + H_.db[i + 1]) / 3;
+      S('line', { x1: hX(i + 1) - 7, x2: hX(i + 1) + 7, y1: Y(dbH(m)), y2: Y(dbH(m)), stroke: '#1e1e1e', 'stroke-width': 1.5 }, g);
+    }
+    leg([{ type: 'barre', couleur: coul, texte: 'harmonique' }, { type: 'ligne', texte: 'moyenne des voisines' }]);
+    return;
+  }
+
+  // ── Bruit : spectre moyen complet (0 à 10 kHz), ou l'onde.
+  if (d.famille === 'bruit') {
+    if (d.cle === 'zcr') {
+      const o = c.onde, dur = o.v.length * o.dt * 1000;
+      const X = echelle(0, dur, P.g, P.d), Y = echelle(-1, 1, P.b, HAUT);
+      axes(g, { x: X, y: Y, ticksX: [0, 2, 4, 6, 8, 10].filter((t) => t <= dur + 1e-6), ticksY: [], formatX: (t) => (t === 10 ? '10 ms' : String(t)) });
+      S('line', { x1: P.g, x2: P.d, y1: Y(0), y2: Y(0), stroke: GRIS, 'stroke-width': 1 }, g);
+      courbe(o.v.map((v, i) => [X(i * o.dt * 1000), Y(v)]), 1.3);
+      for (let i = 1; i < o.v.length; i++) {
+        const [a, b] = [o.v[i - 1], o.v[i]];
+        if ((a < 0) !== (b < 0)) S('circle', { cx: X((i - 1 + a / (a - b)) * o.dt * 1000), cy: Y(0), r: 2.6, fill: '#1e1e1e' }, g);
+      }
+      leg([{ type: 'ligne', couleur: coul, texte: 'onde (10 ms)' }, { type: 'point', texte: 'passage par zéro' }]);
+      return;
+    }
+    const sp = c.spectre, X = echelle(0, 10000, P.g, P.d), Y = echelle(-110, 0, P.b, HAUT);
+    axes(g, { x: X, y: Y, ticksX: [0, 2500, 5000, 7500, 10000], ticksY: [-90, -45, 0], formatX: (f) => (f === 10000 ? '10 kHz' : nb(f / 1000, 1)), formatY: fDb });
+    const fx = (i) => X((i + 0.5) * sp.df);
+    if (d.cle === 'rapport_bruit') { // bruit : le spectre hors des harmoniques (trous comblés)
+      const pts = [];
+      sp.bruit.forEach((v, i) => { if (v !== null) pts.push([fx(i), Y(Math.max(-110, v))]); });
+      S('path', { d: chemin([[pts[0][0], P.b], ...pts, [pts[pts.length - 1][0], P.b]]) + 'Z', fill: '#ced4da', stroke: 'none' }, g);
+    }
+    courbe(sp.db.map((v, i) => [fx(i), Y(Math.max(-110, v))]), 1);
+    if (d.cle === 'crete' || d.cle === 'platitude') {
+      const [haut, bas] = d.cle === 'crete' ? [0, sp.arith] : [sp.arith, sp.geo];
+      S('line', { x1: P.g, x2: P.d, y1: Y(haut), y2: Y(haut), stroke: '#1e1e1e', 'stroke-width': 1.5, 'stroke-dasharray': d.cle === 'crete' ? '4 3' : null }, g);
+      S('line', { x1: P.g, x2: P.d, y1: Y(bas), y2: Y(bas), stroke: '#1e1e1e', 'stroke-width': 1.5, 'stroke-dasharray': d.cle === 'crete' ? null : '4 3' }, g);
+      // Écart entre les deux droites (la valeur du descripteur), à droite.
+      const xe = P.d - 8;
+      S('line', { x1: xe, x2: xe, y1: Y(haut), y2: Y(bas), stroke: '#1e1e1e', 'stroke-width': 1.5 }, g);
+      for (const y of [Y(haut), Y(bas)]) S('line', { x1: xe - 4, x2: xe + 4, y1: y, y2: y, stroke: '#1e1e1e', 'stroke-width': 1.5 }, g);
+    }
+    leg({ rapport_bruit: [{ type: 'ligne', couleur: coul, texte: 'spectre' }, { type: 'plein', couleur: '#ced4da', texte: 'hors des harmoniques (bruit)' }],
+      crete: [{ type: 'tiret', texte: 'maximum' }, { type: 'ligne', texte: 'moyenne' }, { type: 'ecart', texte: 'crête' }],
+      platitude: [{ type: 'ligne', texte: 'moy. arithmétique' }, { type: 'tiret', texte: 'moy. géométrique' }, { type: 'ecart', texte: 'écart' }] }[d.cle]);
+    return;
+  }
+
+  // ── Spectro-temporel : les harmoniques dans le temps (gris : niveau).
+  const pasH = c.harmogramme.length > 1 ? c.harmogramme[1][0] - c.harmogramme[0][0] : 0.023;
+  const harmogramme = (Yh) => { // Yh(h) : centre de la rangée de l'harmonique h ; hauteur d'une rangée
+    const hr = Math.abs(Yh(1) - Yh(2));
+    for (const [t, niveau, rel] of c.harmogramme) {
+      const x0 = tX(t - pasH / 2), w = tX(t + pasH / 2) - x0;
+      rel.forEach((vr, i) => {
+        const v = niveau + vr;
+        if (v <= -60) return;
+        S('rect', { x: x0, y: Yh(i + 1) - hr / 2, width: w + 0.3, height: hr + 0.3, fill: '#495057', 'fill-opacity': ((v + 60) / 60) ** 1.5 * 0.55 }, g);
+      });
+    }
+  };
   if (d.cle === 'variation_centroide') {
-    const Y = echelle(0, e.centroideMax, P.b, P.h);
-    axes(g, { x: tX, y: Y, ticksX: ticksT, ticksY: [0, e.centroideMax], formatX: fT, formatY: String, titreY: 'Hz' });
+    const f0 = H_.f0, Y = echelle(0, (nh + 0.5) * f0, P.b, HAUT);
+    harmogramme((h) => Y(h * f0));
+    axes(g, { x: tX, y: Y, ticksX: ticksT, ticksY: [0, 3000, 6000], formatX: fT, formatY: (f) => (f === 6000 ? '6 kHz' : String(f / 1000)) });
     const tr = c.trames;
     const moy = tr.reduce((a, q) => a + q[1] * q[2] ** 2, 0) / tr.reduce((a, q) => a + q[2] ** 2, 0);
-    R('rectangle', g, [P.g, Y(moy + e.valeur), P.d - P.g, Math.max(3, Y(moy - e.valeur) - Y(moy + e.valeur))], { cle: 'vc' + p, stroke: 'none', fill: '#ced4da', hachureGap: 4 });
+    R('rectangle', g, [P.g, Y(moy + vals.variation_centroide), P.d - P.g, Math.max(3, Y(moy - vals.variation_centroide) - Y(moy + vals.variation_centroide))], { cle: 'vc' + p, stroke: 'none', fill: p === 'A' ? '#74c0fc' : '#ffc078', hachureGap: 3.5, fillWeight: 1.2 });
     S('line', { x1: P.g, x2: P.d, y1: Y(moy), y2: Y(moy), stroke: '#1e1e1e', 'stroke-width': 1, 'stroke-dasharray': '5 4' }, g);
-    courbe(tr.map(([t, f]) => [tX(t), Y(f)]));
+    courbe(tr.map(([t, f]) => [tX(t), Y(f)]), 2);
+    leg([{ type: 'plein', couleur: '#868e96', texte: 'harmoniques' }, { type: 'ligne', couleur: coul, texte: 'centroïde' }, { type: 'zone', couleur: '#74c0fc', texte: '± 1 écart type' }]);
     return;
   }
-  // Flux : 1 − corrélation entre trames successives (enveloppe grise en fond).
-  const Y = echelle(0, e.fluxMax, P.b, P.h);
-  axes(g, { x: tX, y: Y, ticksX: ticksT, ticksY: [], formatX: fT, titreY: 'flux' });
-  S('path', { d: chemin([[tX(env[0][0]), P.b], ...env.map(([t, a]) => [tX(t), lin(a)]), [tX(env[env.length - 1][0]), P.b]]), fill: '#e9ecef', stroke: 'none' }, g);
-  courbe(c.flux.map(([t, f]) => [tX(t), Y(Math.min(f, e.fluxMax))]));
+  // Flux : spectres successifs superposés (chacun ramené à son maximum : la corrélation ne
+  // compare que leur forme), du plus pâle (début) au plus foncé (fin). Formes confondues : flux
+  // faible ; formes qui changent : flux élevé.
+  const hX = echelle(0.5, nh + 0.5, P.g, P.d), Y = echelle(-60, 0, P.b, HAUT);
+  axes(g, { x: hX, y: Y, ticksX: [1, 5, 10, 15, 20].filter((h) => h <= nh), ticksY: [-60, -30, 0], formatX: (h) => (h === 1 ? 'harm. 1' : String(h)), formatY: fDb });
+  const tr = c.harmogramme, n = Math.min(8, tr.length);
+  for (let j = 0; j < n; j++) {
+    const rel = tr[Math.round((j * (tr.length - 1)) / Math.max(1, n - 1))][2];
+    S('path', { d: chemin(rel.map((v, i) => [hX(i + 1), Y(v)])), fill: 'none', stroke: coul, 'stroke-width': 1.4,
+      'stroke-opacity': 0.2 + (0.8 * j) / Math.max(1, n - 1) }, g);
+  }
+  leg([{ type: 'ligne', couleur: coul + '44', texte: 'début' }, { type: 'ligne', couleur: coul, texte: 'fin du son' }, { type: 'texte', texte: '(spectres successifs)' }]);
 }
 
 // ─── Rendu ─────────────────────────────────────────────────────────────────
@@ -330,7 +567,7 @@ function rendre() {
   const g = donnees.d.classe;
   info.textContent = source() === 'classe' && g
     ? `${g.resultats.n} participants${g.resultats.simulees ? ` (${g.resultats.simulees} simulés)` : ''}`
-    : `${v.analyse.n} sons · significatif : |r| > ${nb(v.analyse.seuil)}`;
+    : '';
   info.style.color = source() === 'classe' && g?.resultats.simulees ? '#e03131' : '';
   for (const { tete } of panneaux) tete.hidden = !comparer;
   if (comparer) rendrePanneaux(v, d);
@@ -348,6 +585,7 @@ ajuster(demo, L, HT, {
     await donnees.charger();
     await donnees.chargerClasse();
     rendre();
+    document.fonts?.ready.then(rendre); // largeurs de texte mesurées avec la vraie police
   } catch (e) {
     demo.textContent = e.message;
   }
