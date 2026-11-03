@@ -9,8 +9,8 @@
 //     (correlats.js ; mêmes calculs et mêmes axes que la diapositive MDS), à côté du nuage
 //     descripteur × dimension. Une famille ouverte à la fois (cliquer son nom) ; la ligne de
 //     famille donne son |r| le plus fort. Étoile : meilleur descripteur de chaque dimension.
-//     Hachures : signe et force de r (jaune > 0, bleu < 0, plus serrées si forte) ; valeur en gris
-//     si non significative (p ≥ 0,05, seuil dans l'infobulle).
+//     Hachures si significative (p < 0,05, seuil dans l'infobulle), aussi sur la ligne de famille :
+//     jaune r > 0, bleu r < 0, plus serrées si forte ; sinon valeur en gris.
 //   - Comparer : le descripteur représenté pour deux sons A (bleu) et B (orange), à la même
 //     échelle, à côté du même nuage où A et B sont mis en évidence (comme McAdams, 2013).
 // Données : McAdams et al. (1995), 18 timbres ; ou la classe (résultat gardé de c7paires, six
@@ -85,15 +85,15 @@ function chevron(g, x, y, ouvert) {
 function cellule(g, x, y, r, { sig, choisie, meilleure, gris, cle, titre, action }) {
   const c = S('g', { class: 'cliquable' }, g);
   S('rect', { x: x - 30, y: y - 15, width: 60, height: 20, fill: 'transparent' }, c);
-  if (!gris && r !== null) { // toutes les cases : jaune positive, bleu négative, plus serré si forte
+  if (sig && r !== null) { // significative : jaune positive, bleu négative, plus serré si forte
     const fort = Math.abs(r);
     R('rectangle', c, [x - 26, y - 14, 52, 18], { cle: 'c' + cle, stroke: 'none', fill: r > 0 ? '#fcc419' : '#74c0fc',
-      hachureGap: fort > 0.8 ? 2.5 : fort > 0.65 ? 3.5 : fort > 0.45 ? 5 : fort > 0.25 ? 7.5 : 11, fillWeight: fort > 0.45 ? 1.2 : 0.9 });
+      hachureGap: fort > 0.8 ? 2.5 : fort > 0.65 ? 3.5 : 5, fillWeight: 1.2 });
   }
   if (choisie) R('rectangle', c, [x - 29, y - 15, 58, 20], { cle: 's' + cle, strokeWidth: 1.5 });
   const t = T(c, x - 5, y, gris ? nb(Math.abs(r)) : nb(r));
   t.setAttribute('font-size', gris ? 14 : 15);
-  t.style.fill = gris ? GRIS : sig ? '#1e1e1e' : GRIS; // style : la feuille (svg text) l'emporte sur l'attribut
+  t.style.fill = sig ? '#1e1e1e' : GRIS; // style : la feuille (svg text) l'emporte sur l'attribut
   if (meilleure) etoile(c, x + 20, y - 5, 4.5, 'e' + cle);
   const ti = S('title', {}, c);
   ti.textContent = titre;
@@ -134,7 +134,7 @@ function rendreTable(v) {
         .sort((a, b) => Math.abs(b.r[k]) - Math.abs(a.r[k]))[0];
       if (!fort) return;
       const d = desc.find((x2) => x2.cle === fort.cle);
-      cellule(g, x, y, fort.r[k], { gris: true, meilleure: !ouverte && meilleurs[k] === fort.cle, cle: `f${f.cle}${k}`,
+      cellule(g, x, y, fort.r[k], { gris: true, sig: Math.abs(fort.r[k]) >= v.analyse.seuil, meilleure: !ouverte && meilleurs[k] === fort.cle, cle: `f${f.cle}${k}`,
         titre: `${f.nom} : |r| le plus fort avec D${k + 1} (${d.nom})`,
         action: () => { etat.cle = fort.cle; etat.k = k; etat.ouverte = f.cle; etat.A = etat.B = null; rendre(); } });
     });
