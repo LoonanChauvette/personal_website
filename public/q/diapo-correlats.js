@@ -340,7 +340,7 @@ function tracer(g, d, c, coul, e, p, avecLegende) {
   const barre = (x, y, teinte = coul, larg = 4) => S('line', { x1: x, x2: x, y1: P.b, y2: Math.min(P.b, y), stroke: teinte, 'stroke-width': larg, 'stroke-linecap': 'round' }, g);
   const H_ = c.harmoniques, nh = H_.db.length;
   const fDb = (v) => (v === 0 ? '0 dB' : String(v)); // unité sur la graduation du haut (pas de titre tourné)
-  const dbH = (v) => Math.max(-60, v);
+  const dbH = (v) => Math.min(0, Math.max(-60, v)); // jamais hors du tracé (droites ajustées comprises)
 
   // ── Temporel : enveloppe (linéaire).
   if (d.famille === 'temporel') {
@@ -510,20 +510,20 @@ function tracer(g, d, c, coul, e, p, avecLegende) {
       rel.forEach((vr, i) => {
         const v = niveau + vr;
         if (v <= -60) return;
-        S('rect', { x: x0, y: Yh(i + 1) - Hh(i + 1) / 2, width: w + 0.3, height: Hh(i + 1) + 0.3, fill: '#495057', 'fill-opacity': ((v + 60) / 60) ** 1.5 * 0.55 }, g);
+        S('rect', { x: x0, y: Yh(i + 1) - Hh(i + 1) / 2, width: w + 0.3, height: Hh(i + 1) + 0.3, fill: '#495057', 'fill-opacity': ((v + 60) / 60) ** 1.5 * 0.4 }, g);
       });
     }
   };
   if (d.cle === 'variation_centroide') {
-    const f0 = H_.f0, Y = echelle(F_MIN, F_MAX, P.b, HAUT, true);
-    harmogramme((h) => Y(h * f0), (h) => Math.abs(Y((h - 0.5) * f0) - Y((h + 0.5) * f0)));
-    axes(g, { x: tX, y: Y, ticksX: ticksT, ticksY: [250, 1000, 4000], formatX: fT, formatY: fmtF });
+    const f0 = H_.f0, Y = echelle(0, (nh + 0.5) * f0, P.b, HAUT);
+    harmogramme((h) => Y(h * f0), () => Math.abs(Y(f0) - Y(2 * f0)));
+    axes(g, { x: tX, y: Y, ticksX: ticksT, ticksY: [0, 3000, 6000], formatX: fT, formatY: (f) => (f === 6000 ? '6 kHz' : String(f / 1000)) });
     const tr = c.trames;
     const moy = tr.reduce((a, q) => a + q[1] * q[2] ** 2, 0) / tr.reduce((a, q) => a + q[2] ** 2, 0);
-    const yb = Y(Math.max(F_MIN, moy - vals.variation_centroide)), yh = Y(Math.min(F_MAX, moy + vals.variation_centroide));
+    const yb = Y(Math.max(0, moy - vals.variation_centroide)), yh = Y(Math.min((nh + 0.5) * f0, moy + vals.variation_centroide));
     R('rectangle', g, [P.g, yh, P.d - P.g, Math.max(3, yb - yh)], { cle: 'vc' + p, stroke: 'none', fill: p === 'A' ? '#74c0fc' : '#ffc078', hachureGap: 3.5, fillWeight: 1.2 });
     S('line', { x1: P.g, x2: P.d, y1: Y(moy), y2: Y(moy), stroke: '#1e1e1e', 'stroke-width': 1, 'stroke-dasharray': '5 4' }, g);
-    courbe(tr.map(([t, f]) => [tX(t), Y(Math.max(F_MIN, f))]), 2);
+    courbe(tr.map(([t, f]) => [tX(t), Y(f)]), 2);
     leg([{ type: 'plein', couleur: '#868e96', texte: 'harmoniques' }, { type: 'ligne', couleur: coul, texte: 'centroïde' }, { type: 'zone', couleur: '#74c0fc', texte: '± 1 écart type' }]);
     return;
   }
