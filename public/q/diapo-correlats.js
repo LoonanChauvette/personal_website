@@ -1,7 +1,7 @@
 // Diapositive « Corrélats acoustiques » du Cours 7 (élément HTML d'Excalidraw+, srcdoc), dans
 // le style des démos (excali/excali.css, excali/excali.js : Excalifont, commandes dessinées).
 //
-// Interprète les dimensions de l'espace timbral avec 20 descripteurs acoustiques en cinq familles
+// Interprète les dimensions de l'espace timbral avec 19 descripteurs acoustiques en cinq familles
 // (temporel, spectral, harmonique, bruit, spectro-temporel ; donnees/descripteurs-mcadams1995.json
 // et courbes-mcadams1995.json, tools/descripteurs_timbre.mjs). Deux vues, même sélection
 // (descripteur × dimension) :

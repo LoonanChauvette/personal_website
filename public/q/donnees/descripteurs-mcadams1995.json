@@ -169,14 +169,6 @@
    "definition": "Moyenne géométrique / moyenne arithmétique du spectre (0 à 10 kHz)"
   },
   {
-   "cle": "zcr",
-   "nom": "Passages par zéro",
-   "unite": "/s",
-   "famille": "bruit",
-   "attribut": "Bruité / tonal",
-   "definition": "Nombre de fois par seconde où l'onde change de signe"
-  },
-  {
    "cle": "flux",
    "nom": "Flux spectral",
    "unite": "",
