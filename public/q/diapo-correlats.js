@@ -263,6 +263,10 @@ function formatDesc(d, v, court = false, pas = null) {
 // Panneau : 440 × 140 sous son en-tête ; tracé (50, 8) → (404, 112), à la même échelle pour A et
 // B. Légende en haut à droite (panneau A seulement) : le tracé commence 16 px plus bas.
 const P = { g: 50, d: 404, h: 8, b: 112 };
+// Fréquence : toujours en échelle log (harmoniques de ~311 Hz à ~6,2 kHz ; bruit jusqu'à 10 kHz).
+const F_MIN = 250, F_MAX = 8000, F_MIN_BRUIT = 100;
+const TICKS_F = [100, 250, 500, 1000, 2000, 4000, 8000];
+const fmtF = (f) => (f >= 8000 ? `${f / 1000} kHz` : f >= 1000 ? `${f / 1000}k` : String(f));
 const HAUT = P.h + 16;
 
 function rendrePanneaux(v, d) {
@@ -365,97 +369,96 @@ function tracer(g, d, c, coul, e, p, avecLegende) {
     return;
   }
 
-  // ── Spectral : les harmoniques.
+  // ── Spectral et harmonique : les harmoniques, toujours en fréquence (échelle log) et en dB.
+  const FX = echelle(F_MIN, F_MAX, P.g, P.d, true);
+  const axesF = (Y, ticksY = [-60, -30, 0], formatY = fDb) => axes(g, { x: FX, y: Y, ticksX: TICKS_F.filter((f) => f >= F_MIN && f <= F_MAX), ticksY, formatX: fmtF, formatY });
+  const fx = (f) => FX(Math.max(F_MIN, Math.min(F_MAX, f)));
+  const Ydb = echelle(-60, 0, P.b, HAUT);
+  const barres = (teinte = () => coul) => H_.db.forEach((v, i) => barre(FX(H_.f[i]), Ydb(dbH(v)), teinte(i + 1), 3));
+  // Droite de régression des harmoniques (dB) en fonction du log de la fréquence : droite ici.
+  const regression = () => {
+    const pts = H_.db.map((v, i) => [Math.log2(i + 1), v]);
+    const mx = pts.reduce((a, q) => a + q[0], 0) / nh, my = pts.reduce((a, q) => a + q[1], 0) / nh;
+    const b = pts.reduce((a, q) => a + (q[0] - mx) * (q[1] - my), 0) / pts.reduce((a, q) => a + (q[0] - mx) ** 2, 0);
+    return (i) => my + b * (Math.log2(i + 1) - mx);
+  };
+  const droite = (fit, tiret = '6 4') => {
+    const clip = S('clipPath', { id: 'zp' + p }, g);
+    S('rect', { x: P.g, y: HAUT, width: P.d - P.g, height: P.b - HAUT }, clip);
+    S('path', { d: chemin(H_.db.map((_, i) => [FX(H_.f[0] * (i + 1)), Ydb(fit(i))])), fill: 'none', stroke: '#1e1e1e', 'stroke-width': 1.5, 'stroke-dasharray': tiret, 'clip-path': `url(#zp${p})` }, g);
+  };
   if (d.famille === 'spectral') {
-    if (d.cle === 'pente_spectrale') { // rang en octaves : la pente est une droite
-      const X = echelle(-0.4, Math.log2(24), P.g, P.d), Y = echelle(-60, 0, P.b, HAUT);
-      axes(g, { x: X, y: Y, ticksX: [1, 2, 4, 8, 16].map(Math.log2), ticksY: [-60, -30, 0], formatX: (l) => (l === 0 ? 'harm. 1' : String(2 ** l)), formatY: fDb });
-      H_.db.forEach((v, i) => barre(X(Math.log2(i + 1)), Y(dbH(v)), coul, 3));
-      const pts = H_.db.map((v, i) => [Math.log2(i + 1), v]);
-      const mx = pts.reduce((a, q) => a + q[0], 0) / nh, my = pts.reduce((a, q) => a + q[1], 0) / nh;
-      const b = pts.reduce((a, q) => a + (q[0] - mx) * (q[1] - my), 0) / pts.reduce((a, q) => a + (q[0] - mx) ** 2, 0);
-      const clip = S('clipPath', { id: 'zp' + p }, g);
-      S('rect', { x: P.g, y: HAUT, width: P.d - P.g, height: P.b - HAUT }, clip);
-      S('line', { x1: X(-0.4), y1: Y(my + b * (-0.4 - mx)), x2: X(Math.log2(nh)), y2: Y(my + b * (Math.log2(nh) - mx)), stroke: '#1e1e1e', 'stroke-width': 1.5, 'stroke-dasharray': '6 4', 'clip-path': `url(#zp${p})` }, g);
+    axesF(Ydb);
+    if (d.cle === 'pente_spectrale') {
+      barres();
+      droite(regression());
       leg([{ type: 'barre', couleur: coul, texte: 'harmonique' }, { type: 'tiret', texte: 'pente (dB/octave)' }]);
       return;
     }
-    const X = echelle(0, 6500, P.g, P.d);
-    const fmtHz = (f) => (f === 6000 ? '6000 Hz' : String(f));
     if (d.cle === 'rolloff') {
-      const Y = echelle(-60, 0, P.b, HAUT);
-      axes(g, { x: X, y: Y, ticksX: [0, 2000, 4000, 6000], ticksY: [-60, -30, 0], formatX: fmtHz, formatY: fDb });
-      zoneHachee(X(Math.min(vals.rolloff, 6500)), P.d, 'ro' + p);
-      H_.db.forEach((v, i) => barre(X(H_.f[i]), Y(dbH(v))));
-      marque(X(Math.min(vals.rolloff, 6500)));
+      zoneHachee(fx(vals.rolloff), P.d, 'ro' + p);
+      barres();
+      marque(fx(vals.rolloff));
       leg([{ type: 'barre', couleur: coul, texte: 'harmonique' }, { type: 'tiret', texte: 'coupure' }, { type: 'zone', couleur: '#adb5bd', texte: "5 % de l'énergie" }]);
       return;
     }
-    // Moments : amplitudes linéaires (le poids de chaque harmonique dans le calcul).
-    const Y = echelle(0, 1, P.b, HAUT);
-    axes(g, { x: X, y: Y, ticksX: [0, 2000, 4000, 6000], ticksY: [0, 1], formatX: fmtHz, formatY: String, titreY: 'ampl.' });
-    const cx = X(Math.min(vals.centroide, 6500)), sx = (f) => X(Math.max(0, Math.min(6500, f)));
-    if (d.cle !== 'centroide') zoneHachee(sx(vals.centroide - vals.etalement), sx(vals.centroide + vals.etalement), 'et' + p);
+    // Moments (calculés sur les amplitudes) : centroïde, ± écart type, traîne, ± 2 écarts types.
+    const cx = fx(vals.centroide);
+    if (d.cle !== 'centroide') zoneHachee(fx(vals.centroide - vals.etalement), fx(vals.centroide + vals.etalement), 'et' + p);
     if (d.cle === 'kurtosis') for (const s of [-2, 2]) {
-      const x = sx(vals.centroide + s * vals.etalement);
+      const f = vals.centroide + s * vals.etalement;
+      if (f <= F_MIN) continue;
+      const x = fx(f);
       S('line', { x1: x, x2: x, y1: HAUT, y2: P.b, stroke: GRIS, 'stroke-width': 1, 'stroke-dasharray': '2 3' }, g);
     }
-    H_.db.forEach((v, i) => barre(X(H_.f[i]), Y(10 ** (v / 20))));
+    barres();
     marque(cx);
     if (d.cle === 'asymetrie') { // traîne : du côté opposé à la masse, longueur selon l'asymétrie
       const l = Math.min(Math.abs(vals.asymetrie), 4) / 4 * 140 + 20;
-      fleche(g, cx, cx + Math.sign(vals.asymetrie) * l, Y(0.55), '#1e1e1e');
+      fleche(g, cx, cx + Math.sign(vals.asymetrie) * l, Ydb(-20), '#1e1e1e');
     }
     leg({ centroide: [{ type: 'barre', couleur: coul, texte: 'harmonique' }, { type: 'tiret', texte: 'centroïde' }],
       etalement: [{ type: 'tiret', texte: 'centroïde' }, { type: 'zone', couleur: '#adb5bd', texte: '± 1 écart type' }],
       asymetrie: [{ type: 'tiret', texte: 'centroïde' }, { type: 'fleche', texte: 'traîne (longueur : asymétrie)' }],
-      kurtosis: [{ type: 'zone', couleur: '#adb5bd', texte: '± 1 écart type' }, { type: 'pointille', texte: '± 2 écarts types' }] }[d.cle]
-      .map((it) => (it.type === 'pointille' ? { ...it, type: 'tiret', couleur: GRIS } : it)));
+      kurtosis: [{ type: 'zone', couleur: '#adb5bd', texte: '± 1 écart type' }, { type: 'tiret', couleur: GRIS, texte: '± 2 écarts types' }] }[d.cle]);
     return;
   }
 
-  // ── Harmonique : les harmoniques par rang (dB).
   if (d.famille === 'harmonique') {
-    const hX = echelle(0.5, nh + 0.5, P.g, P.d);
-    const fmtH = (h) => (h === 1 ? 'harm. 1' : String(h));
-    if (d.cle === 'inharmonicite') {
+    if (d.cle === 'inharmonicite') { // écart de chaque partiel à h × F0, en %
       const m = e.ecartMax, Y = echelle(-m, m, P.b, HAUT);
       const pasY = m >= 2 ? 1 : m >= 1 ? 0.5 : m >= 0.4 ? 0.2 : 0.1;
       const tY = [-Math.floor(m / pasY) * pasY, 0, Math.floor(m / pasY) * pasY];
-      axes(g, { x: hX, y: Y, ticksX: [1, 5, 10, 15, 20].filter((h) => h <= nh), ticksY: tY, formatX: fmtH, formatY: (v) => `${nb(v, pasY < 1 ? 1 : 0)}${v > 0 ? ' %' : ''}` });
+      axesF(Y, tY, (v) => `${nb(v, pasY < 1 ? 1 : 0)}${v > 0 ? ' %' : ''}`);
       horizontale(Y(0));
       H_.ecarts.forEach((v, i) => {
-        const faible = H_.db[i] < -40, y = Y(Math.max(-m, Math.min(m, v)));
-        const o = faible ? 0.3 : 1;
-        S('line', { x1: hX(i + 1), x2: hX(i + 1), y1: Y(0), y2: y, stroke: coul, 'stroke-width': 2, 'stroke-opacity': o }, g);
-        S('circle', { cx: hX(i + 1), cy: y, r: 3, fill: coul, 'fill-opacity': o }, g);
+        const x = FX(H_.f0 * (i + 1)), y = Y(Math.max(-m, Math.min(m, v)));
+        const o = H_.db[i] < -40 ? 0.3 : 1;
+        S('line', { x1: x, x2: x, y1: Y(0), y2: y, stroke: coul, 'stroke-width': 2, 'stroke-opacity': o }, g);
+        S('circle', { cx: x, cy: y, r: 3, fill: coul, 'fill-opacity': o }, g);
       });
       leg([{ type: 'tiret', texte: 'h × F0' }, { type: 'point', couleur: coul, texte: 'écart du partiel (pâle : faible)' }]);
       return;
     }
-    const Y = echelle(-60, 0, P.b, HAUT);
-    axes(g, { x: hX, y: Y, ticksX: [1, 5, 10, 15, 20].filter((h) => h <= nh), ticksY: [-60, -30, 0], formatX: fmtH, formatY: fDb });
-    const ecart = (x, y1, y2) => S('line', { x1: x, x2: x, y1: Math.min(P.b, y1), y2: Math.min(P.b, y2), stroke: '#1e1e1e', 'stroke-width': 1.5 }, g);
+    axesF(Ydb);
     if (d.cle === 'impairs_pairs') {
-      H_.db.forEach((v, i) => { const h = i + 1; barre(hX(h), Y(dbH(v)), h === 1 ? '#ced4da' : h % 2 ? coul : GRIS); });
+      barres((h) => (h === 1 ? '#ced4da' : h % 2 ? coul : GRIS));
       leg([{ type: 'barre', couleur: coul, texte: 'impaires' }, { type: 'barre', couleur: GRIS, texte: 'paires' }, { type: 'barre', couleur: '#ced4da', texte: 'fondamentale (exclue)' }]);
       return;
     }
-    H_.db.forEach((v, i) => barre(hX(i + 1), Y(dbH(v))));
+    barres();
     if (d.cle === 'deviation') {
-      const pts = H_.db.map((v, i) => [Math.log2(i + 1), v]);
-      const mx = pts.reduce((a, q) => a + q[0], 0) / nh, my = pts.reduce((a, q) => a + q[1], 0) / nh;
-      const b = pts.reduce((a, q) => a + (q[0] - mx) * (q[1] - my), 0) / pts.reduce((a, q) => a + (q[0] - mx) ** 2, 0);
-      const fit = (i) => my + b * (Math.log2(i + 1) - mx);
-      H_.db.forEach((v, i) => ecart(hX(i + 1), Y(dbH(v)), Y(dbH(fit(i)))));
-      S('path', { d: chemin(H_.db.map((_, i) => [hX(i + 1), Y(dbH(fit(i)))])), fill: 'none', stroke: '#1e1e1e', 'stroke-width': 1.2, 'stroke-dasharray': '6 4' }, g);
+      const fit = regression();
+      H_.db.forEach((v, i) => S('line', { x1: FX(H_.f[i]), x2: FX(H_.f[i]), y1: Ydb(dbH(v)), y2: Ydb(dbH(fit(i))), stroke: '#1e1e1e', 'stroke-width': 1.5 }, g));
+      droite(fit, '6 4');
       leg([{ type: 'barre', couleur: coul, texte: 'harmonique' }, { type: 'tiret', texte: 'pente spectrale' }, { type: 'ecart', texte: 'écart' }]);
       return;
     }
-    // Irrégularité : écart à la moyenne des voisines (h − 1, h, h + 1).
+    // Irrégularité : moyenne des voisines (h − 1, h, h + 1), un trait par harmonique.
     for (let i = 1; i < nh - 1; i++) {
-      const m = (H_.db[i - 1] + H_.db[i] + H_.db[i + 1]) / 3;
-      S('line', { x1: hX(i + 1) - 7, x2: hX(i + 1) + 7, y1: Y(dbH(m)), y2: Y(dbH(m)), stroke: '#1e1e1e', 'stroke-width': 1.5 }, g);
+      const m = (H_.db[i - 1] + H_.db[i] + H_.db[i + 1]) / 3, x = FX(H_.f[i]);
+      const demi = Math.min(7, 0.4 * (FX(H_.f[i + 1]) - FX(H_.f[i - 1])));
+      S('line', { x1: x - demi, x2: x + demi, y1: Ydb(dbH(m)), y2: Ydb(dbH(m)), stroke: '#1e1e1e', 'stroke-width': 1.5 }, g);
     }
     leg([{ type: 'barre', couleur: coul, texte: 'harmonique' }, { type: 'ligne', texte: 'moyenne des voisines' }]);
     return;
@@ -476,15 +479,14 @@ function tracer(g, d, c, coul, e, p, avecLegende) {
       leg([{ type: 'ligne', couleur: coul, texte: 'onde (10 ms)' }, { type: 'point', texte: 'passage par zéro' }]);
       return;
     }
-    const sp = c.spectre, X = echelle(0, 10000, P.g, P.d), Y = echelle(-110, 0, P.b, HAUT);
-    axes(g, { x: X, y: Y, ticksX: [0, 2500, 5000, 7500, 10000], ticksY: [-90, -45, 0], formatX: (f) => (f === 10000 ? '10 kHz' : nb(f / 1000, 1)), formatY: fDb });
-    const fx = (i) => X((i + 0.5) * sp.df);
+    const sp = c.spectre, X = echelle(F_MIN_BRUIT, 10000, P.g, P.d, true), Y = echelle(-110, 0, P.b, HAUT);
+    axes(g, { x: X, y: Y, ticksX: [...TICKS_F.slice(0, -1), 10000], ticksY: [-100, -50, 0], formatX: fmtF, formatY: fDb });
+    const visibles = (vs) => vs.map((v, i) => [(i + 0.5) * sp.df, v]).filter(([f, v]) => f >= F_MIN_BRUIT && v !== null).map(([f, v]) => [X(f), Y(Math.max(-110, v))]);
     if (d.cle === 'rapport_bruit') { // bruit : le spectre hors des harmoniques (trous comblés)
-      const pts = [];
-      sp.bruit.forEach((v, i) => { if (v !== null) pts.push([fx(i), Y(Math.max(-110, v))]); });
+      const pts = visibles(sp.bruit);
       S('path', { d: chemin([[pts[0][0], P.b], ...pts, [pts[pts.length - 1][0], P.b]]) + 'Z', fill: '#ced4da', stroke: 'none' }, g);
     }
-    courbe(sp.db.map((v, i) => [fx(i), Y(Math.max(-110, v))]), 1);
+    courbe(visibles(sp.db), 1);
     if (d.cle === 'crete' || d.cle === 'platitude') {
       const [haut, bas] = d.cle === 'crete' ? [0, sp.arith] : [sp.arith, sp.geo];
       S('line', { x1: P.g, x2: P.d, y1: Y(haut), y2: Y(haut), stroke: '#1e1e1e', 'stroke-width': 1.5, 'stroke-dasharray': d.cle === 'crete' ? '4 3' : null }, g);
@@ -502,38 +504,38 @@ function tracer(g, d, c, coul, e, p, avecLegende) {
 
   // ── Spectro-temporel : les harmoniques dans le temps (gris : niveau).
   const pasH = c.harmogramme.length > 1 ? c.harmogramme[1][0] - c.harmogramme[0][0] : 0.023;
-  const harmogramme = (Yh) => { // Yh(h) : centre de la rangée de l'harmonique h ; hauteur d'une rangée
-    const hr = Math.abs(Yh(1) - Yh(2));
+  const harmogramme = (Yh, Hh) => { // Yh(h) : centre de la rangée de l'harmonique h ; Hh(h) : sa hauteur
     for (const [t, niveau, rel] of c.harmogramme) {
       const x0 = tX(t - pasH / 2), w = tX(t + pasH / 2) - x0;
       rel.forEach((vr, i) => {
         const v = niveau + vr;
         if (v <= -60) return;
-        S('rect', { x: x0, y: Yh(i + 1) - hr / 2, width: w + 0.3, height: hr + 0.3, fill: '#495057', 'fill-opacity': ((v + 60) / 60) ** 1.5 * 0.55 }, g);
+        S('rect', { x: x0, y: Yh(i + 1) - Hh(i + 1) / 2, width: w + 0.3, height: Hh(i + 1) + 0.3, fill: '#495057', 'fill-opacity': ((v + 60) / 60) ** 1.5 * 0.55 }, g);
       });
     }
   };
   if (d.cle === 'variation_centroide') {
-    const f0 = H_.f0, Y = echelle(0, (nh + 0.5) * f0, P.b, HAUT);
-    harmogramme((h) => Y(h * f0));
-    axes(g, { x: tX, y: Y, ticksX: ticksT, ticksY: [0, 3000, 6000], formatX: fT, formatY: (f) => (f === 6000 ? '6 kHz' : String(f / 1000)) });
+    const f0 = H_.f0, Y = echelle(F_MIN, F_MAX, P.b, HAUT, true);
+    harmogramme((h) => Y(h * f0), (h) => Math.abs(Y((h - 0.5) * f0) - Y((h + 0.5) * f0)));
+    axes(g, { x: tX, y: Y, ticksX: ticksT, ticksY: [250, 1000, 4000], formatX: fT, formatY: fmtF });
     const tr = c.trames;
     const moy = tr.reduce((a, q) => a + q[1] * q[2] ** 2, 0) / tr.reduce((a, q) => a + q[2] ** 2, 0);
-    R('rectangle', g, [P.g, Y(moy + vals.variation_centroide), P.d - P.g, Math.max(3, Y(moy - vals.variation_centroide) - Y(moy + vals.variation_centroide))], { cle: 'vc' + p, stroke: 'none', fill: p === 'A' ? '#74c0fc' : '#ffc078', hachureGap: 3.5, fillWeight: 1.2 });
+    const yb = Y(Math.max(F_MIN, moy - vals.variation_centroide)), yh = Y(Math.min(F_MAX, moy + vals.variation_centroide));
+    R('rectangle', g, [P.g, yh, P.d - P.g, Math.max(3, yb - yh)], { cle: 'vc' + p, stroke: 'none', fill: p === 'A' ? '#74c0fc' : '#ffc078', hachureGap: 3.5, fillWeight: 1.2 });
     S('line', { x1: P.g, x2: P.d, y1: Y(moy), y2: Y(moy), stroke: '#1e1e1e', 'stroke-width': 1, 'stroke-dasharray': '5 4' }, g);
-    courbe(tr.map(([t, f]) => [tX(t), Y(f)]), 2);
+    courbe(tr.map(([t, f]) => [tX(t), Y(Math.max(F_MIN, f))]), 2);
     leg([{ type: 'plein', couleur: '#868e96', texte: 'harmoniques' }, { type: 'ligne', couleur: coul, texte: 'centroïde' }, { type: 'zone', couleur: '#74c0fc', texte: '± 1 écart type' }]);
     return;
   }
   // Flux : spectres successifs superposés (chacun ramené à son maximum : la corrélation ne
   // compare que leur forme), du plus pâle (début) au plus foncé (fin). Formes confondues : flux
   // faible ; formes qui changent : flux élevé.
-  const hX = echelle(0.5, nh + 0.5, P.g, P.d), Y = echelle(-60, 0, P.b, HAUT);
-  axes(g, { x: hX, y: Y, ticksX: [1, 5, 10, 15, 20].filter((h) => h <= nh), ticksY: [-60, -30, 0], formatX: (h) => (h === 1 ? 'harm. 1' : String(h)), formatY: fDb });
+  const FXf = echelle(F_MIN, F_MAX, P.g, P.d, true), Y = echelle(-60, 0, P.b, HAUT);
+  axes(g, { x: FXf, y: Y, ticksX: TICKS_F.filter((f) => f >= F_MIN), ticksY: [-60, -30, 0], formatX: fmtF, formatY: fDb });
   const tr = c.harmogramme, n = Math.min(8, tr.length);
   for (let j = 0; j < n; j++) {
     const rel = tr[Math.round((j * (tr.length - 1)) / Math.max(1, n - 1))][2];
-    S('path', { d: chemin(rel.map((v, i) => [hX(i + 1), Y(v)])), fill: 'none', stroke: coul, 'stroke-width': 1.4,
+    S('path', { d: chemin(rel.map((v, i) => [FXf(H_.f0 * (i + 1)), Y(v)])), fill: 'none', stroke: coul, 'stroke-width': 1.4,
       'stroke-opacity': 0.2 + (0.8 * j) / Math.max(1, n - 1) }, g);
   }
   leg([{ type: 'ligne', couleur: coul + '44', texte: 'début' }, { type: 'ligne', couleur: coul, texte: 'fin du son' }, { type: 'texte', texte: '(spectres successifs)' }]);
