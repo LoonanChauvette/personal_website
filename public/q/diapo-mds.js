@@ -31,6 +31,7 @@
 //
 // Options de départ (config, toutes facultatives) : "source" ("classe" | "reference"), "dim"
 // (1, 2, 3), "tous" (true : les 18 timbres de McAdams), "vertical" (0, 1, 2 : axe vertical en 3D).
+// "couleurs" (true) : chaque dimension a sa couleur (axe, nom, corrélat), dans toutes les vues.
 // "descripteurs" (donnees/descripteurs-mcadams1995.json) : chaque dimension porte en plus son
 // corrélat acoustique le plus fort sur la carte affichée (correlats.js, même calcul que la
 // diapositive des corrélats), avec r ; en gris si r n'est pas significatif (p ≥ 0.05).
@@ -45,6 +46,8 @@ const ID = String(conf.id || 'c7paires');
 const URL_REFERENCE = String(conf.reference || 'donnees/mcadams1995.json');
 const SOUS = Array.isArray(conf.sous_ensemble) ? conf.sous_ensemble.map(String) : [];
 const URL_DESCRIPTEURS = conf.descripteurs ? String(conf.descripteurs) : null;
+// Couleurs des dimensions (palette Excalidraw, sans le bleu du survol).
+const COULEURS = conf.couleurs === true ? ['#e8590c', '#2f9e44', '#9c36b5'] : null;
 const BEAUCOUP = 8; // au-delà : abréviations, pas de traits au survol
 
 const LD = 400, HD = 372; // repère de l'élément
@@ -317,7 +320,6 @@ function preparer(g, cleSource) {
     points = tournerSur(points, solutions.get(cleClasse).points);
   }
   const v = { g, cleSource, dim, sons, delta, final: points, stressFinal: s, correlats: correlatsDe(g, cleSource, points) };
-  if (dim === 3 && v.correlats) v.centreEcran = [CENTRE[0] + 6, CENTRE[1] + 4];
   // Échelle commune à tous les axes (les distances doivent rester comparables).
   const etendues = Array.from({ length: dim }, (_, k) => {
     const c = points.map((p) => p[k]);
@@ -334,8 +336,8 @@ function preparer(g, cleSource) {
     const marge = 0.08 * v.etendue;
     v.boite = etendues.map(([a, b]) => [a - marge, b + marge]);
     v.rayon = 0.5 * Math.hypot(...v.boite.map(([a, b]) => b - a));
-    // Coins hors cadre seulement aux angles extrêmes ; corrélats : boîte plus petite, place pour leur ligne.
-    v.echelle = (Math.min(largeur, hauteur) / 2 / v.rayon) * (v.correlats ? 1 : 1.12);
+    // Coins hors cadre seulement aux angles extrêmes.
+    v.echelle = (Math.min(largeur, hauteur) / 2 / v.rayon) * 1.12;
   }
   return v;
 }
@@ -351,8 +353,7 @@ function versEcran(v, p) {
   if (v.dim === 2) return [CENTRE[0] + (p[0] - v.centre[0]) * v.echelle, CENTRE[1] - (p[1] - v.centre[1]) * v.echelle, 0];
   const d = p.map((c, k) => c - v.centre[k]);
   const [x, y, z] = rotation.map((l) => l.reduce((s, r, k) => s + r * d[k], 0));
-  const [cx, cy] = v.centreEcran || CENTRE;
-  return [cx + x * v.echelle, cy - y * v.echelle, z / v.rayon];
+  return [CENTRE[0] + x * v.echelle, CENTRE[1] - y * v.echelle, z / v.rayon];
 }
 // ─── Tracé ─────────────────────────────────────────────────────────────────
 // Données : graphique propre (traits de 1 px, Nunito) ; pas de rough.js (la carte est redessinée
@@ -376,20 +377,27 @@ function correlat(v, j) {
 // Nom d'une dimension (et son corrélat dessous), à plat.
 function nomAxe(s, v, j, x, y, attrs = {}) {
   const c = correlat(v, j);
-  T(s, x, y, `Dimension ${j + 1}`, 'titre-axe', 'middle', attrs);
-  if (c) T(s, x, y + 15, c.texte, 'graduation', 'middle', { ...attrs, ...(c.couleur ? { fill: c.couleur } : {}) });
+  // style (et non fill) : la feuille de style des démos fixe la couleur des textes.
+  const teinte = (f) => (f ? { style: `fill: ${f}` } : {});
+  T(s, x, y, `Dimension ${j + 1}`, 'titre-axe', 'middle', { ...attrs, ...teinte(COULEURS && COULEURS[j]) });
+  if (c) T(s, x, y + 15, c.texte, 'graduation', 'middle', { ...attrs, ...teinte(c.couleur || (COULEURS && COULEURS[j])) });
+}
+
+// Axe d'une dimension en 2D / 1D (dans sa couleur s'il y en a).
+function axe(s, j, attrs) {
+  S('line', { ...attrs, class: 'trait', ...(COULEURS ? { style: `stroke: ${COULEURS[j]}; stroke-width: 1.5px` } : {}) }, s);
 }
 
 function axes(s, v) {
   if (v.dim === 2) {
-    S('line', { x1: ZONE.x0, x2: ZONE.x1, y1: ZONE.y1, y2: ZONE.y1, class: 'trait' }, s);
-    S('line', { x1: ZONE.x0, x2: ZONE.x0, y1: ZONE.y0, y2: ZONE.y1, class: 'trait' }, s);
+    axe(s, 0, { x1: ZONE.x0, x2: ZONE.x1, y1: ZONE.y1, y2: ZONE.y1 });
+    axe(s, 1, { x1: ZONE.x0, x2: ZONE.x0, y1: ZONE.y0, y2: ZONE.y1 });
     nomAxe(s, v, 0, CENTRE[0], ZONE.y1 + 20);
     // Vertical : avec corrélat, les deux lignes à gauche de l'axe.
     const x = v.correlats ? ZONE.x0 - 22 : ZONE.x0 - 12;
     nomAxe(s, v, 1, 0, 0, { transform: `translate(${x} ${CENTRE[1]}) rotate(-90)` });
   } else if (v.dim === 1) {
-    S('line', { x1: ZONE.x0, x2: ZONE.x1, y1: LIGNE_1D, y2: LIGNE_1D, class: 'trait' }, s);
+    axe(s, 0, { x1: ZONE.x0, x2: ZONE.x1, y1: LIGNE_1D, y2: LIGNE_1D });
     nomAxe(s, v, 0, CENTRE[0], ZONE.y1 + 20);
   } else {
     // Boîte ouverte (comme les figures d'espaces timbraux) : seulement le fond et les deux
@@ -428,8 +436,8 @@ function axes(s, v) {
     // Axes nommés : les deux arêtes avant du fond, et l'arête verticale extérieure la plus à gauche.
     // t : position du nom le long de l'arête (0 : A, 1 : B).
     const nommer = ([A, B], j, t = 0.5) => {
-      const couleur = j === k ? BLEU : ENCRE;
-      S('line', { x1: A[0], y1: A[1], x2: B[0], y2: B[1], stroke: couleur, 'stroke-width': 1.5, 'stroke-linecap': 'round' }, s);
+      const couleur = COULEURS ? COULEURS[j] : j === k ? BLEU : ENCRE;
+      S('line', { x1: A[0], y1: A[1], x2: B[0], y2: B[1], stroke: couleur, 'stroke-width': COULEURS ? 2 : 1.5, 'stroke-linecap': 'round' }, s);
       const [mx, my] = [A[0] + t * (B[0] - A[0]), A[1] + t * (B[1] - A[1])];
       let angle = (Math.atan2(B[1] - A[1], B[0] - A[0]) * 180) / Math.PI;
       if (angle >= 90) angle -= 180; // un axe vertical se lit de bas en haut
@@ -444,10 +452,10 @@ function axes(s, v) {
       const bas = -nx * Math.sin((angle * Math.PI) / 180) + ny * Math.cos((angle * Math.PI) / 180) > 0;
       const [dNom, dCorr] = !co ? [12, 0] : bas ? [12, 27] : [27, 12];
       T(s, 0, 0, `Dimension ${j + 1}`, 'titre-axe', 'middle',
-        { fill: couleur, transform: `translate(${mx + nx * dNom} ${my + ny * dNom}) rotate(${angle}) translate(0 5)` });
+        { style: `fill: ${couleur}`, transform: `translate(${mx + nx * dNom} ${my + ny * dNom}) rotate(${angle}) translate(0 5)` });
       if (co) {
         const t = T(s, 0, 0, co.texte, 'graduation', 'middle',
-          { fill: co.couleur || couleur, transform: `translate(${mx + nx * dCorr} ${my + ny * dCorr}) rotate(${angle}) translate(0 4.5)` });
+          { style: `fill: ${co.couleur || couleur}`, transform: `translate(${mx + nx * dCorr} ${my + ny * dCorr}) rotate(${angle}) translate(0 4.5)` });
         S('title', {}, t).textContent = co.r;
       }
     };
