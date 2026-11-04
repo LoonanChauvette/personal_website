@@ -5,15 +5,15 @@
 //     centroïde et spectre du son choisi. Instruments : les 12 instruments de McAdams et al.
 //     (1995) (même F0, 311 Hz) ; Synthèse : un son harmonique de 311 Hz dont un curseur règle
 //     l'énergie dans les aigus (pente en dB/octave), joué en continu.
-//   - c7etalement, c7asymetrie, c7kurtosis (« Autres descripteurs », 786 × 300) : spectre du son
-//     choisi avec le descripteur (mêmes représentations que la diapositive des corrélats) et
-//     classement des 12 instruments selon ce descripteur ; cliquer un nom le choisit et le joue.
+//   - c7etalement, c7asymetrie, c7kurtosis (« Autres descripteurs », 786 × 300) : enveloppe de
+//     synthèse (bruit filtré ou son harmonique) sur des échelles linéaires, réglée par un curseur
+//     qui ne change que le descripteur de la diapositive ; jouée en continu.
 //   - c7flux (« Flux spectral », 786 × 285) : harmoniques dans le temps (gris : niveau) et centroïde
 //     au fil du son (comme la vue « variation du centroïde » des corrélats), à côté du classement
 //     des 12 instruments selon le flux spectral (échelle log, sans valeur : nombres peu parlants).
 //   - c7pente (« Pente et coupure spectrale », 786 × 280) : le même son en deux tracés alignés
 //     sur les deux colonnes de texte, pente (droite de régression) et coupure (95 % de l'énergie).
-// Spectres : harmoniques en dB (0 dB : la plus forte), fréquence en échelle log, comme les
+// Autres spectres : harmoniques en dB (0 dB : la plus forte), fréquence en échelle log, comme les
 // corrélats. Données : donnees/mcadams1995.json, descripteurs-mcadams1995.json et
 // courbes-mcadams1995.json (tools/descripteurs_timbre.mjs).
 //
@@ -398,6 +398,196 @@ function vueCentroide() {
   };
 }
 
+// ─── Étendue, asymétrie, kurtosis : enveloppe de synthèse ──────────────────
+// Enveloppe spectrale (amplitude, 0 à 1) sur une échelle linéaire de 0 à 8 kHz, réglée par un
+// curseur ; seul le descripteur de la diapositive change :
+//   - étendue : gaussienne centrée à 4 kHz, écart type de 150 à 1200 Hz ;
+//   - asymétrie : deux demi-gaussiennes (mode à 4 kHz), traîne plus longue d'un côté ;
+//   - kurtosis : gaussienne généralisée de même écart type (900 Hz), de pointue à plate ; la
+//     gaussienne de même aire en pointillé (kurtosis 3).
+// Moments calculés sur les amplitudes, comme les descripteurs, sur ce qui est joué : la
+// densité du bruit, ou les harmoniques (F0 ≈ 200 Hz). Son en boucle (IFFT, phases aléatoires
+// fixes), énergie constante, 300 ms de silence avant le son.
+const F_LIN = 8000, PAS_F = 10, CENTRE = 4000, F0_SYNTH = 200;
+const gamma = (z) => { // Lanczos
+  if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
+  const g = 7, c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+  z -= 1;
+  let x = c[0];
+  for (let i = 1; i < g + 2; i++) x += c[i] / (z + i);
+  const t = z + g + 0.5;
+  return Math.sqrt(2 * Math.PI) * t ** (z + 0.5) * Math.exp(-t) * x;
+};
+const REGLAGES = {
+  etalement: { min: 150, max: 1200, depart: 400, gauche: 'étroite', droite: 'large', nom: 'étendue',
+    forme: (s) => (f) => Math.exp(-0.5 * ((f - CENTRE) / s) ** 2) },
+  asymetrie: { min: -0.8, max: 0.8, depart: 0.6, gauche: 'traîne grave', droite: 'traîne aiguë', nom: 'asymétrie',
+    forme: (a) => (f) => { const s = 700 * (f < CENTRE ? 1 - a : 1 + a); return Math.exp(-0.5 * ((f - CENTRE) / s) ** 2); } },
+  kurtosis: { min: 0, max: 1, depart: 0.2, gauche: 'pointue', droite: 'plate', nom: 'kurtosis',
+    // q de 0 à 1 → β de 0,8 à 10 (log) ; échelle choisie pour un écart type de 900 Hz.
+    forme: (q) => { const b = 0.8 * (10 / 0.8) ** q, al = 900 * Math.sqrt(gamma(1 / b) / gamma(3 / b)); return (f) => Math.exp(-((Math.abs(f - CENTRE) / al) ** b)); } },
+};
+
+function moments(f, a) {
+  const s = a.reduce((x, y) => x + y, 0);
+  const c = f.reduce((x, fi, i) => x + fi * a[i], 0) / s;
+  const m = (k) => f.reduce((x, fi, i) => x + (fi - c) ** k * a[i], 0) / s;
+  const v = m(2), e = Math.sqrt(v);
+  return { centroide: c, etalement: e, asymetrie: m(3) / e ** 3, kurtosis: m(4) / v ** 2 };
+}
+
+// FFT complexe en place (radix 2) ; inverse si inv.
+function fft(re, im, inv) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let b = n >> 1;
+    for (; j & b; b >>= 1) j ^= b;
+    j ^= b;
+    if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+  }
+  for (let l = 2; l <= n; l <<= 1) {
+    const a = ((inv ? 2 : -2) * Math.PI) / l, wr = Math.cos(a), wi = Math.sin(a);
+    for (let i = 0; i < n; i += l) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < l / 2; k++) {
+        const p = i + k, q = p + l / 2, tr = re[q] * cr - im[q] * ci, ti = re[q] * ci + im[q] * cr;
+        re[q] = re[p] - tr; im[q] = im[p] - ti; re[p] += tr; im[p] += ti;
+        [cr, ci] = [cr * wr - ci * wi, cr * wi + ci * wr];
+      }
+    }
+  }
+}
+
+// Lecture en boucle d'un spectre (amplitude par fréquence), fondu de 60 ms à chaque réglage.
+function creerBoucle() {
+  const N = 1 << 16;
+  let ctx = null, courant = null, phases = null;
+  const tampon = (amp, harmonique) => {
+    const sr = ctx.sampleRate, df = sr / N, re = new Float64Array(N), im = new Float64Array(N);
+    const k0 = Math.round(F0_SYNTH / df);
+    for (let k = 1; k < N / 2 && k * df <= F_LIN; k++) {
+      if (harmonique && k % k0) continue;
+      const a = amp(k * df);
+      re[k] = a * Math.cos(phases[k]); im[k] = a * Math.sin(phases[k]);
+      re[N - k] = re[k]; im[N - k] = -im[k];
+    }
+    fft(re, im, true);
+    let e = 0;
+    for (let i = 0; i < N; i++) e += re[i] ** 2;
+    const g = 0.07 / Math.sqrt(e / N || 1); // énergie constante
+    const b = ctx.createBuffer(1, N, sr), d = b.getChannelData(0);
+    for (let i = 0; i < N; i++) d[i] = Math.max(-0.95, Math.min(0.95, re[i] * g));
+    return b;
+  };
+  const lancer = (amp, harmonique, delai) => {
+    const t = ctx.currentTime + delai, s = ctx.createBufferSource(), g = ctx.createGain();
+    s.buffer = tampon(amp, harmonique);
+    s.loop = true;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(1, t + 0.06);
+    s.connect(g).connect(ctx.destination);
+    s.start(t);
+    return { s, g };
+  };
+  const couper = (v) => {
+    const t = ctx.currentTime;
+    v.g.gain.cancelScheduledValues(t);
+    v.g.gain.setValueAtTime(v.g.gain.value, t);
+    v.g.gain.linearRampToValueAtTime(0, t + 0.06);
+    v.s.stop(t + 0.08);
+  };
+  return {
+    enCours: () => !!courant,
+    jouer(amp, harmonique) {
+      ctx ||= new (window.AudioContext || window.webkitAudioContext)();
+      ctx.resume();
+      if (!phases) { let x = 12345; phases = Float64Array.from({ length: N / 2 }, () => ((x = (x * 16807) % 2147483647) / 2147483647) * 2 * Math.PI); }
+      courant = lancer(amp, harmonique, 0.3);
+    },
+    regler(amp, harmonique) {
+      if (!courant) return;
+      couper(courant);
+      courant = lancer(amp, harmonique, 0);
+    },
+    arreter() { if (courant) { couper(courant); courant = null; } },
+  };
+}
+
+function vueSynthMoment(cle) {
+  const r = REGLAGES[cle];
+  const etat = { p: r.depart, harmonique: false };
+  const boucle = creerBoucle();
+  arreterTout = () => boucle.arreter();
+  const forme = () => r.forme(etat.p);
+  let attente = 0; // réglage du son au plus toutes les 100 ms pendant le glissement
+  const resonner = () => {
+    if (attente) return;
+    attente = setTimeout(() => { attente = 0; boucle.regler(forme(), etat.harmonique); }, 100);
+  };
+  const barre = placer(H('div', null, null, demo), 0, 0);
+  barre.style.cssText += `display:flex;align-items:center;gap:${ECART_COMMANDES}px;width:${L}px`;
+  const jouer = bouton(barre, '', () => { if (boucle.enCours()) boucle.arreter(); else boucle.jouer(forme(), etat.harmonique); rendre(); }, { largeur: 34, jouer: true, titre: 'Écouter (en continu)' });
+  choix(barre, [{ texte: 'Bruit', valeur: false, titre: 'Bruit filtré : enveloppe continue' }, { texte: 'Harmonique', valeur: true, titre: `Son harmonique (F0 ≈ ${F0_SYNTH} Hz) : l'enveloppe est échantillonnée par les harmoniques` }],
+    etat.harmonique, (v) => { etat.harmonique = v; boucle.regler(forme(), v); rendre(); }, { compact: true });
+  const reglage = H('div', null, null, barre);
+  reglage.style.cssText = 'display:flex;align-items:center;gap:8px;flex:1';
+  H('span', 'indice-html', r.gauche, reglage).style.position = 'static';
+  curseur(reglage, { largeur: 200, min: r.min, max: r.max, valeur: r.depart, cle: 'c' + cle, action: (p) => { etat.p = p; resonner(); rendre(); } });
+  H('span', 'indice-html', r.droite, reglage).style.position = 'static';
+  const val = H('span', null, '', reglage);
+  val.style.cssText = `margin-left:auto;color:${BLEU};font-weight:700`;
+  const svg = placer(S('svg', { width: L, height: HT - 44 }), 0, 44);
+  demo.append(svg);
+  const fs = Array.from({ length: F_LIN / PAS_F + 1 }, (_, i) => i * PAS_F);
+  return () => {
+    jouer.lecture(boucle.enCours());
+    const amp = forme(), env = fs.map(amp);
+    const fh = Array.from({ length: Math.floor(F_LIN / F0_SYNTH) }, (_, i) => (i + 1) * F0_SYNTH);
+    const m = etat.harmonique ? moments(fh, fh.map(amp)) : moments(fs, env);
+    val.textContent = `${r.nom} : ${cle === 'etalement' ? hz(m.etalement) : nb(m[cle], cle === 'kurtosis' ? 1 : 2)}`;
+    val.title = `centroïde ${hz(m.centroide)} ; étendue ${hz(m.etalement)} ; asymétrie ${nb(m.asymetrie, 2)} ; kurtosis ${nb(m.kurtosis, 1)}`;
+    svg.replaceChildren();
+    // Gaussienne de référence (kurtosis) : même centroïde, même écart type, même aire.
+    let ref = null;
+    if (cle === 'kurtosis') {
+      const g = fs.map((f) => Math.exp(-0.5 * ((f - m.centroide) / m.etalement) ** 2));
+      const k = env.reduce((a, b) => a + b, 0) / g.reduce((a, b) => a + b, 0);
+      ref = g.map((v) => v * k);
+    }
+    const yMax = Math.max(1, ...(ref || [0])) * 1.05;
+    const b = { g: 34, d: L - 24, h: 30, b: HT - 44 - 24 };
+    const X = echelle(0, F_LIN, b.g, b.d), Y = echelle(0, yMax, b.b, b.h);
+    const zone = (f0, f1, k) => R('rectangle', svg, [X(Math.max(0, f0)), b.h, Math.max(3, X(Math.min(F_LIN, f1)) - X(Math.max(0, f0))), b.b - b.h], { cle: k, stroke: 'none', fill: '#ced4da', hachureGap: 4, fillWeight: 1 });
+    if (cle !== 'asymetrie') zone(m.centroide - m.etalement, m.centroide + m.etalement, 'z' + cle);
+    if (cle === 'kurtosis') for (const s of [-2, 2]) {
+      const x = X(m.centroide + s * m.etalement);
+      S('line', { x1: x, x2: x, y1: b.h, y2: b.b, stroke: GRIS, 'stroke-width': 1, 'stroke-dasharray': '2 3' }, svg);
+    }
+    const pts = fs.map((f, i) => [X(f), Y(env[i])]);
+    if (etat.harmonique) {
+      S('path', { d: chemin(pts), fill: 'none', stroke: GRIS, 'stroke-width': 1.2 }, svg);
+      fh.forEach((f) => { const a = amp(f); if (a > 0.004) S('line', { x1: X(f), x2: X(f), y1: b.b, y2: Y(a), stroke: BLEU, 'stroke-width': 3, 'stroke-linecap': 'round' }, svg); });
+    } else {
+      S('path', { d: chemin([[X(0), b.b], ...pts, [X(F_LIN), b.b]]) + 'Z', fill: '#a5d8ff', 'fill-opacity': 0.55, stroke: BLEU, 'stroke-width': 2 }, svg);
+    }
+    if (ref) S('path', { d: chemin(fs.map((f, i) => [X(f), Y(ref[i])])), fill: 'none', stroke: NOIR, 'stroke-width': 1.5, 'stroke-dasharray': '2 4' }, svg);
+    axes(svg, { x: X, y: Y, ticksX: [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000], ticksY: [], formatX: (f) => (f === F_LIN ? '8 kHz' : f ? `${f / 1000}k` : '0') });
+    T(svg, b.g + 6, b.h + 2, 'amplitude', 'indice', 'start').setAttribute('font-size', 13);
+    const cx = X(m.centroide);
+    S('line', { x1: cx, x2: cx, y1: b.h, y2: b.b, stroke: NOIR, 'stroke-width': 1.2, 'stroke-dasharray': '5 4' }, svg);
+    if (cle === 'asymetrie' && Math.abs(m.asymetrie) > 0.05) { // traîne : longueur selon l'asymétrie
+      const l = Math.min(Math.abs(m.asymetrie), 1.2) / 1.2 * 160 + 20;
+      fleche(svg, cx, cx + Math.sign(m.asymetrie) * l, Y(0.5 * yMax));
+    }
+    const source = etat.harmonique ? { type: 'barre', couleur: BLEU, texte: 'harmonique' } : { type: 'ligne', couleur: BLEU, texte: 'enveloppe' };
+    legende(svg, b.d, b.h - 14, {
+      etalement: [source, { type: 'tiret', texte: 'centroïde' }, { type: 'zone', couleur: '#adb5bd', texte: '± 1 écart type (étendue)' }],
+      asymetrie: [source, { type: 'tiret', texte: 'centroïde' }, { type: 'fleche', texte: 'traîne (longueur : asymétrie)' }],
+      kurtosis: [source, { type: 'pointille', texte: 'gaussienne (kurtosis 3)' }, { type: 'zone', couleur: '#adb5bd', texte: '± 1 écart type' }, { type: 'pointille', couleur: GRIS, texte: '± 2' }],
+    }[cle]);
+  };
+}
+
 // ─── Mise en route ─────────────────────────────────────────────────────────
 let rendre = () => {}, arreterTout = () => {};
 
@@ -417,7 +607,7 @@ ajuster(demo, L, HT, { surMasque: () => { lecteur.arreter(); arreterTout(); rend
       cle: c, nom: meta.get(c).nom, fichier: meta.get(c).fichier, valeurs: valeurs.get(c), h: courbes.sons[c].harmoniques, courbe: courbes.sons[c] }));
     rendre = VUE === 'pente' ? vuePente() : VUE === 'centroide' ? vueCentroide()
       : VUE === 'flux' ? vueClassement('flux', { log: true, valeurs: false, tracer: tracerFlux, valeurTete: (s) => `variation du centroïde : ± ${hz(s.valeurs.variation_centroide)}` })
-        : vueClassement(VUE);
+        : vueSynthMoment(VUE);
     rendre();
     document.fonts?.ready.then(() => rendre()); // largeurs de texte mesurées avec la vraie police
   } catch (e) {
