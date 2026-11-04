@@ -2,8 +2,8 @@
 // srcdoc), dans le style des démos (excali/excali.css, excali/excali.js).
 //
 // Passages par zéro (zero-crossing rate) : deux sons contrastés par catégorie (parole, musique,
-// environnement), une catégorie à la fois (bascule en haut), les deux sons l'un sous l'autre sur
-// toute la largeur. Pour chaque son : 10 ms d'onde représentatives, les passages par zéro marqués
+// environnement), une catégorie à la fois (bascule en haut), les deux sons côte à côte (peu de
+// passages à gauche, beaucoup à droite). Pour chaque son : 10 ms d'onde représentatives, les passages par zéro marqués
 // d'un point, et le taux moyen sur tout le son (passages par
 // seconde). Bleu : peu de passages ; orange : beaucoup. Cliquer ▶ ou l'onde : le son joue.
 // Données : donnees/zcr-sons.json (tools/zcr_sons.mjs) ; sons : sons/zcr/ et la clarinette de
@@ -19,7 +19,7 @@ import { creerLecteur } from './correlats-donnees.js';
 const L = 786, HT = 300;
 const COUL = ['#1971c2', '#f08c00'];
 const GRIS = '#868e96';
-const HAUT_BARRE = 44, RANG = 128, HAUT_RANG = 30; // bascule ; hauteur d'un son ; y du tracé sous la ligne de lecture
+const HAUT_BARRE = 44, ECART = 28, COL = (L - ECART) / 2, HAUT_RANG = 34; // bascule ; écart et largeur des colonnes ; y du tracé sous la ligne de lecture
 const conf = JSON.parse(document.getElementById('config')?.textContent || '{}');
 const lecteur = creerLecteur();
 const milliers = (v) => Math.round(v).toLocaleString('fr-CA').replace(/\s/g, ' ');
@@ -43,9 +43,9 @@ function rendre() {
   tetes.length = 0;
   [donnees.categories[categorie]].forEach((c) => {
     c.sons.forEach((s, i) => {
-      const y0 = i * RANG, coul = COUL[i];
+      const x0 = i * (COL + ECART), coul = COUL[i];
       // Ligne de lecture : ▶, nom (source en infobulle), taux moyen à droite.
-      const tete = placer(H('div', 'lecture', null, demo), 0, HAUT_BARRE + y0, L);
+      const tete = placer(H('div', 'lecture', null, demo), x0, HAUT_BARRE, COL);
       tete.style.display = 'flex';
       tete.style.alignItems = 'center';
       tete.style.gap = '8px';
@@ -55,11 +55,11 @@ function rendre() {
       const nom = H('span', null, s.nom, tete);
       nom.style.color = coul;
       nom.title = source(s);
-      const val = H('span', null, `${milliers(s.zcr)} passages par seconde`, tete);
+      const val = H('span', null, `${milliers(s.zcr)} passages/s`, tete);
       val.style.marginLeft = 'auto';
       val.style.color = coul;
       val.title = 'Passages par zéro par seconde, en moyenne sur tout le son';
-      tracer(S('g', { transform: `translate(0 ${y0 + HAUT_RANG})`, class: 'cliquable' }, svg), s, coul);
+      tracer(S('g', { transform: `translate(${x0} ${HAUT_RANG})`, class: 'cliquable' }, svg), s, coul);
     });
   });
 }
@@ -67,14 +67,14 @@ function rendre() {
 // 10 ms d'onde (amplitude ramenée à son maximum), ligne du zéro, un point par passage.
 function tracer(g, s, coul) {
   g.addEventListener('click', () => jouer(s));
-  const o = s.onde, dur = o.v.length * o.dt * 1000, h = 70;
-  const X = echelle(0, dur, 8, L - 28), Y = echelle(-1, 1, h, 2);
-  S('rect', { x: 0, y: 0, width: L, height: h + 26, fill: '#fff', 'fill-opacity': 0 }, g); // zone cliquable
+  const o = s.onde, dur = o.v.length * o.dt * 1000, h = 170;
+  const X = echelle(0, dur, 8, COL - 28), Y = echelle(-1, 1, h, 2);
+  S('rect', { x: 0, y: 0, width: COL, height: h + 26, fill: '#fff', 'fill-opacity': 0 }, g); // zone cliquable
   S('line', { x1: X(0), x2: X(dur), y1: Y(0), y2: Y(0), stroke: GRIS, 'stroke-width': 1 }, g);
   S('path', { d: chemin(o.v.map((v, k) => [X(k * o.dt * 1000), Y(v)])), fill: 'none', stroke: coul, 'stroke-width': 1.3, 'stroke-linejoin': 'round' }, g);
   for (let k = 1; k < o.v.length; k++) {
     const [a, b] = [o.v[k - 1], o.v[k]];
-    if ((a < 0) !== (b < 0)) S('circle', { cx: X((k - 1 + a / (a - b)) * o.dt * 1000), cy: Y(0), r: 2.6, fill: '#1e1e1e' }, g);
+    if ((a < 0) !== (b < 0)) S('circle', { cx: X((k - 1 + a / (a - b)) * o.dt * 1000), cy: Y(0), r: 2.2, fill: '#1e1e1e' }, g);
   }
   // Échelle de temps : une graduation par milliseconde.
   const bas = h + 6;

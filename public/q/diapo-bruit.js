@@ -19,9 +19,9 @@ import { creerLecteur } from './correlats-donnees.js';
 import { tracerSpectreBruit } from './spectre-bruit.js';
 
 const L = 420, HT = 436;
-const BLEU = '#1971c2', GRIS = '#868e96';
+const BLEU = '#1971c2', GRIS = '#868e96', NOIR = '#1e1e1e';
 const HAUT_SVG = 100; // y de l'échelle et du tracé (sous les commandes)
-const Y_ECHELLE = 34, Y_LEGENDE = 118; // dans le svg
+const Y_ECHELLE = 44, Y_LEGENDE = 122; // dans le svg
 const CADRE = { g: 40, d: L - 10, h: Y_LEGENDE + 16, b: HT - HAUT_SVG - 28, dbMin: -80, ticksDb: [-80, -40, 0] };
 const NOMS = { rapport_bruit: 'Ratio de bruit', platitude: 'Platitude', crete: 'Crête' };
 // Échelle tonal → bruité de chaque descripteur (valeurs aux deux bouts) et aide à la lecture.
@@ -54,31 +54,35 @@ function rendre() {
   legende(svg, tracerSpectreBruit(svg, etat.cle, son.spectre, CADRE, BLEU));
 }
 
-// Échelle tonal ↔ bruité : un point par son, son nom et sa valeur alternativement au-dessus et
-// au-dessous (de gauche à droite), l'aide à la lecture dessous.
+// Échelle tonal ↔ bruité sur toute la largeur : un point par son, son nom et sa valeur l'un sur
+// l'autre au-dessus du point ; « tonal » et « bruité » sous les deux bouts, l'aide à la lecture
+// dessous.
 function echelle(g) {
-  const e = ECHELLES[etat.cle], y = Y_ECHELLE;
-  const gauche = T(g, 2, y + 4, 'tonal', 'indice', 'start'), droite = T(g, L - 2, y + 4, 'bruité', 'indice', 'end');
-  const x0 = gauche.getComputedTextLength() + 10, x1 = L - droite.getComputedTextLength() - 10;
+  const e = ECHELLES[etat.cle], y = Y_ECHELLE, x0 = 8, x1 = L - 8;
   S('line', { x1: x0, x2: x1, y1: y, y2: y, class: 'trait' }, g);
   for (const x of [x0, x1]) S('line', { x1: x, x2: x, y1: y - 4, y2: y + 4, class: 'trait' }, g);
+  for (const [x, texte, ancre] of [[x0 - 6, 'tonal', 'start'], [x1 + 6, 'bruité', 'end']]) {
+    T(g, x, y + 22, texte, 'indice', ancre).style.fill = NOIR;
+  }
   const X = (v) => x0 + (x1 - x0) * Math.min(1, Math.max(0, (v - e.tonal) / (e.bruite - e.tonal)));
-  const points = donnees.sons.map((s, i) => ({ s, i, x: X(s[etat.cle]) })).sort((a, b) => a.x - b.x);
-  points.forEach(({ s, i, x }, rang) => {
-    const coul = i === etat.son ? BLEU : GRIS, choisir = () => { etat.son = i; choixSon.valeur(i); lecteur.arreter(); rendre(); };
-    const t = T(g, x, rang % 2 ? y + 22 : y - 10, `${s.nom} ${valeur(etat.cle, s[etat.cle])}`, 'indice', 'middle');
-    t.setAttribute('font-size', 13);
-    t.setAttribute('fill', coul);
-    const w = t.getComputedTextLength(); // dans le cadre
-    t.setAttribute('x', Math.min(L - w / 2, Math.max(w / 2, x)));
+  donnees.sons.forEach((s, i) => {
+    const x = X(s[etat.cle]), coul = i === etat.son ? BLEU : GRIS;
+    const choisir = () => { etat.son = i; choixSon.valeur(i); lecteur.arreter(); rendre(); };
+    const textes = [[s.nom, y - 26], [valeur(etat.cle, s[etat.cle]), y - 11]].map(([texte, ty]) => {
+      const t = T(g, x, ty, texte, 'indice', 'middle');
+      t.setAttribute('font-size', 13);
+      t.style.fill = coul;
+      const w = t.getComputedTextLength(); // dans le cadre
+      t.setAttribute('x', Math.min(L - 2 - w / 2, Math.max(2 + w / 2, x)));
+      return t;
+    });
     const c = S('circle', { cx: x, cy: y, r: 5, fill: coul, class: 'cliquable' }, g);
-    for (const el of [t, c]) { el.style.cursor = 'pointer'; el.addEventListener('click', choisir); }
-    c.append(S('title', {}));
-    c.firstChild.textContent = s.source || s.nom;
+    for (const el of [...textes, c]) { el.style.cursor = 'pointer'; el.addEventListener('click', choisir); }
+    S('title', {}, c).textContent = s.source || s.nom;
   });
-  const aide = T(g, L / 2, y + 52, e.aide, 'indice', 'middle');
+  const aide = T(g, L / 2, y + 50, e.aide, 'indice', 'middle');
   aide.setAttribute('font-size', 13);
-  aide.setAttribute('fill', GRIS);
+  aide.style.fill = NOIR;
 }
 
 // Légende alignée à droite au-dessus du tracé.
