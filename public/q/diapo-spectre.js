@@ -82,9 +82,8 @@ function fleche(g, x1, x2, y, c = NOIR) {
   S('path', { d: chemin([[x2, y], [x2 - s * 7, y - 4], [x2 - s * 7, y + 4]]) + 'Z', fill: c }, g);
 }
 
-// Centroïde : tirets orange épais sur un liseré blanc (lisible même sur une harmonique), triangle en haut.
+// Centroïde : tirets orange épais (l'harmonique reste visible entre les tirets), triangle en haut.
 function ligneCentroide(g, x, y1, y2) {
-  S('line', { x1: x, x2: x, y1, y2: y2 - 2, stroke: '#fff', 'stroke-width': 6 }, g); // s'arrête avant l'axe
   S('line', { x1: x, x2: x, y1, y2, stroke: ORANGE, 'stroke-width': 2.5, 'stroke-dasharray': '6 4' }, g);
   S('path', { d: chemin([[x - 6, y1 - 8], [x + 6, y1 - 8], [x, y1]]) + 'Z', fill: ORANGE }, g);
 }
@@ -598,7 +597,7 @@ function vueSynthMoment(cle) {
 // ─── Mise en route ─────────────────────────────────────────────────────────
 let rendre = () => {}, arreterTout = () => {};
 
-ajuster(demo, L, HT, { surMasque: () => { lecteur.arreter(); arreterTout(); rendre(); } });
+ajuster(demo, L, HT, { surMasque: () => { lecteur.arreter(); arreterTout(); rendre(); }, surAffiche: () => rendre() }); // légendes remesurées
 
 (async () => {
   try {

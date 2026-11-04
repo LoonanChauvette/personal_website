@@ -155,6 +155,8 @@ function suivreTaille(b) {
   requestAnimationFrame(() => tracerFond(b));
 }
 if (document.fonts) document.fonts.ready.then(() => document.querySelectorAll('.btn').forEach(tracerFond));
+// Mesures à refaire quand l'élément reparaît : masqué (display:none) au chargement, tout mesure 0.
+const A_REMESURER = new Set();
 
 /**
  * Rangée de boutons exclusifs : écart serré (ECART_GROUPE), même largeur (celle du plus large)
@@ -176,6 +178,7 @@ export function choix(parent, options, valeur, action, { largeur = 0, hauteur = 
     if (l > 0) g.boutons.forEach((b) => { b.style.minWidth = l + 'px'; });
   };
   if (egal) {
+    A_REMESURER.add(egaliser);
     requestAnimationFrame(egaliser);
     if (document.fonts) document.fonts.ready.then(egaliser);
   }
@@ -196,7 +199,13 @@ export function ajuster(racine, largeur, hauteur, { surMasque = () => {}, surAff
     if (cle === derniere) return;
     derniere = cle;
     if (innerWidth < 8 || innerHeight < 8) { if (!masque) { masque = true; surMasque(); } return; }
-    if (masque) { masque = false; surAffiche(); }
+    if (masque) {
+      masque = false;
+      const reafficher = () => { A_REMESURER.forEach((m) => m()); surAffiche(); };
+      reafficher();
+      // Masqué, le document n'a pas chargé ses polices : on remesure une fois qu'elles sont là.
+      if (document.fonts && document.fonts.status !== 'loaded') document.fonts.ready.then(reafficher);
+    }
     const marge = window.self === window.top ? 32 : 1;
     const s = Math.min((innerWidth - 2 * marge) / largeur, (innerHeight - 2 * marge) / hauteur) || 1;
     racine.style.transform = `scale(${s})`;

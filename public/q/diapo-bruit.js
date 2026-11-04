@@ -103,7 +103,7 @@ function legende(g, items) {
   }
 }
 
-ajuster(demo, L, HT, { surMasque: () => { lecteur.arreter(); rendre(); } });
+ajuster(demo, L, HT, { surMasque: () => { lecteur.arreter(); rendre(); }, surAffiche: () => rendre() }); // légendes remesurées
 
 (async () => {
   try {
