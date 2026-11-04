@@ -64,7 +64,7 @@ function spectre(g, h, b, coul, cle) {
   });
   const marque = (x, c = NOIR, tiret = '5 4') => S('line', { x1: x, x2: x, y1: b.h, y2: b.b, stroke: c, 'stroke-width': 1.2, 'stroke-dasharray': tiret }, g);
   const zone = (x0, x1, k) => R('rectangle', g, [x0, b.h, Math.max(3, x1 - x0), b.b - b.h], { cle: k, stroke: 'none', fill: '#ced4da', hachureGap: 4, fillWeight: 1 });
-  return { FX, Y, fx, barres, marque, zone };
+  return { FX, Y, fx, barres, marque, zone, centroide: (x) => ligneCentroide(g, x, b.h, b.b) };
 }
 
 // Droite de régression des harmoniques (dB) selon le log2 du rang, coupée au tracé.
@@ -82,6 +82,13 @@ function fleche(g, x1, x2, y, c = NOIR) {
   S('path', { d: chemin([[x2, y], [x2 - s * 7, y - 4], [x2 - s * 7, y + 4]]) + 'Z', fill: c }, g);
 }
 
+// Centroïde : tirets orange épais sur un liseré blanc (lisible même sur une harmonique), triangle en haut.
+function ligneCentroide(g, x, y1, y2) {
+  S('line', { x1: x, x2: x, y1, y2: y2 - 2, stroke: '#fff', 'stroke-width': 6 }, g); // s'arrête avant l'axe
+  S('line', { x1: x, x2: x, y1, y2, stroke: ORANGE, 'stroke-width': 2.5, 'stroke-dasharray': '6 4' }, g);
+  S('path', { d: chemin([[x - 6, y1 - 8], [x + 6, y1 - 8], [x, y1]]) + 'Z', fill: ORANGE }, g);
+}
+
 // Légende alignée à droite (x) sur la ligne y. Éléments : { type, texte, couleur }.
 function legende(g, x, y, items) {
   for (const it of [...items].reverse()) {
@@ -92,7 +99,7 @@ function legende(g, x, y, items) {
     if (it.type === 'barre') S('line', { x1: x - 6, x2: x - 6, y1: y - 5, y2: y + 5, stroke: c, 'stroke-width': 4, 'stroke-linecap': 'round' }, g);
     else if (it.type === 'zone') R('rectangle', g, [x - 16, y - 5, 16, 10], { cle: 'lz' + it.texte, stroke: 'none', fill: c, hachureGap: 3, fillWeight: 1 });
     else if (it.type === 'fleche') fleche(g, x - 18, x - 2, y, c);
-    else S('line', { x1: x - 18, x2: x - 2, y1: y, y2: y, stroke: c, 'stroke-width': 1.5, 'stroke-dasharray': it.type === 'tiret' ? '4 3' : it.type === 'pointille' ? '2 3' : null }, g);
+    else S('line', { x1: x - 18, x2: x - 2, y1: y, y2: y, stroke: c, 'stroke-width': it.type === 'tiret' && c === ORANGE ? 2.5 : 1.5, 'stroke-dasharray': it.type === 'tiret' ? '4 3' : it.type === 'pointille' ? '2 3' : null }, g);
     x -= (it.type === 'barre' ? 12 : 18) + 14;
   }
 }
@@ -107,15 +114,15 @@ function moment(g, son, b, cle, coul = BLEU) {
     if (f > F_MIN) sp.marque(sp.fx(f), GRIS, '2 3');
   }
   sp.barres();
-  sp.marque(cx);
+  sp.centroide(cx);
   if (cle === 'asymetrie') { // traîne : du côté opposé à la masse, longueur selon l'asymétrie
     const l = Math.min(Math.abs(v.asymetrie), 4) / 4 * 140 + 20;
     fleche(g, cx, cx + Math.sign(v.asymetrie) * l, sp.Y(-20));
   }
   legende(g, b.d, b.h - 14, {
-    centroide: [{ type: 'barre', couleur: coul, texte: 'harmonique' }, { type: 'tiret', texte: 'centroïde' }],
-    etalement: [{ type: 'tiret', texte: 'centroïde' }, { type: 'zone', couleur: '#adb5bd', texte: '± 1 écart type (étendue)' }],
-    asymetrie: [{ type: 'tiret', texte: 'centroïde' }, { type: 'fleche', texte: 'traîne (longueur : asymétrie)' }],
+    centroide: [{ type: 'barre', couleur: coul, texte: 'harmonique' }, { type: 'tiret', couleur: ORANGE, texte: 'centroïde' }],
+    etalement: [{ type: 'tiret', couleur: ORANGE, texte: 'centroïde' }, { type: 'zone', couleur: '#adb5bd', texte: '± 1 écart type (étendue)' }],
+    asymetrie: [{ type: 'tiret', couleur: ORANGE, texte: 'centroïde' }, { type: 'fleche', texte: 'traîne (longueur : asymétrie)' }],
     kurtosis: [{ type: 'zone', couleur: '#adb5bd', texte: '± 1 écart type' }, { type: 'pointille', couleur: GRIS, texte: '± 2 écarts types' }],
   }[cle]);
 }
@@ -574,15 +581,15 @@ function vueSynthMoment(cle) {
     axes(svg, { x: X, y: Y, ticksX: [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000], ticksY: [], formatX: (f) => (f === F_LIN ? '8 kHz' : f ? `${f / 1000}k` : '0') });
     T(svg, b.g + 6, b.h + 2, 'amplitude', 'indice', 'start').setAttribute('font-size', 13);
     const cx = X(m.centroide);
-    S('line', { x1: cx, x2: cx, y1: b.h, y2: b.b, stroke: NOIR, 'stroke-width': 1.2, 'stroke-dasharray': '5 4' }, svg);
+    ligneCentroide(svg, cx, b.h, b.b);
     if (cle === 'asymetrie' && Math.abs(m.asymetrie) > 0.05) { // traîne : longueur selon l'asymétrie
       const l = Math.min(Math.abs(m.asymetrie), 1.2) / 1.2 * 160 + 20;
       fleche(svg, cx, cx + Math.sign(m.asymetrie) * l, Y(0.5 * yMax));
     }
     const source = etat.harmonique ? { type: 'barre', couleur: BLEU, texte: 'harmonique' } : { type: 'ligne', couleur: BLEU, texte: 'enveloppe' };
     legende(svg, b.d, b.h - 14, {
-      etalement: [source, { type: 'tiret', texte: 'centroïde' }, { type: 'zone', couleur: '#adb5bd', texte: '± 1 écart type (étendue)' }],
-      asymetrie: [source, { type: 'tiret', texte: 'centroïde' }, { type: 'fleche', texte: 'traîne (longueur : asymétrie)' }],
+      etalement: [source, { type: 'tiret', couleur: ORANGE, texte: 'centroïde' }, { type: 'zone', couleur: '#adb5bd', texte: '± 1 écart type (étendue)' }],
+      asymetrie: [source, { type: 'tiret', couleur: ORANGE, texte: 'centroïde' }, { type: 'fleche', texte: 'traîne (longueur : asymétrie)' }],
       kurtosis: [source, { type: 'pointille', texte: 'gaussienne (kurtosis 3)' }, { type: 'zone', couleur: '#adb5bd', texte: '± 1 écart type' }, { type: 'pointille', couleur: GRIS, texte: '± 2' }],
     }[cle]);
   };
