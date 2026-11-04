@@ -1,9 +1,9 @@
-// Diapositive « Bruit (noisiness) » du Cours 7 (élément HTML d'Excalidraw+, srcdoc, demi-largeur),
+// Diapositive « Bruit (noisiness) » du Cours 7 (élément HTML d'Excalidraw+, srcdoc, moitié droite),
 // dans le style des démos (excali/excali.css, excali/excali.js).
 //
 // Bascule entre trois descripteurs de bruit (rapport de bruit, platitude spectrale, facteur de
-// crête) et entre trois sons, du plus tonal au plus bruité (son harmonique pur, flûte, bruit
-// blanc). En haut, une échelle « tonal ↔ bruité » place les trois sons selon le descripteur (la
+// crête) et entre trois sons réels, du plus tonal au plus bruité (vibraphone, bouteille soufflée,
+// cascade). En haut, une échelle « tonal ↔ bruité » place les trois sons selon le descripteur (la
 // crête est inversée : élevée = tonal), le choisi en bleu, avec une phrase d'aide à la lecture ;
 // cliquer un point choisit le son. Dessous, le spectre moyen du son choisi montre le descripteur
 // (spectre-bruit.js : bruit hors des harmoniques en gris ; paliers par bande d'octave pour la
@@ -18,17 +18,17 @@ import { ajuster, bouton, choix, ECART_COMMANDES, H, placer, S, T } from './exca
 import { creerLecteur } from './correlats-donnees.js';
 import { tracerSpectreBruit } from './spectre-bruit.js';
 
-const L = 400, HT = 370;
+const L = 420, HT = 436;
 const BLEU = '#1971c2', GRIS = '#868e96';
-const HAUT_SVG = 84; // y de l'échelle et du tracé (sous les commandes)
-const Y_ECHELLE = 28, Y_LEGENDE = 92; // dans le svg
-const CADRE = { g: 40, d: L - 10, h: Y_LEGENDE + 16, b: HT - HAUT_SVG - 26, dbMin: -80, ticksDb: [-80, -40, 0] };
+const HAUT_SVG = 100; // y de l'échelle et du tracé (sous les commandes)
+const Y_ECHELLE = 34, Y_LEGENDE = 118; // dans le svg
+const CADRE = { g: 40, d: L - 10, h: Y_LEGENDE + 16, b: HT - HAUT_SVG - 28, dbMin: -80, ticksDb: [-80, -40, 0] };
 const NOMS = { rapport_bruit: 'Ratio de bruit', platitude: 'Platitude', crete: 'Crête' };
 // Échelle tonal → bruité de chaque descripteur (valeurs aux deux bouts) et aide à la lecture.
 const ECHELLES = {
   rapport_bruit: { tonal: -80, bruite: 0, aide: 'Plus le ratio est élevé, plus le son est bruité.' },
   platitude: { tonal: 0, bruite: 1, aide: 'Plus la platitude est élevée (vers 1), plus le son est bruité.' },
-  crete: { tonal: 20, bruite: 0, aide: 'Plus la crête est élevée (pics marqués), plus le son est tonal.' },
+  crete: { tonal: 25, bruite: 0, aide: 'Plus la crête est élevée (pics marqués), plus le son est tonal.' },
 };
 const conf = JSON.parse(document.getElementById('config')?.textContent || '{}');
 const lecteur = creerLecteur();
@@ -38,7 +38,7 @@ const valeur = (cle, v) => (cle === 'platitude' ? nb(v, 3) : `${nb(v, 1)} dB`);
 
 const demo = document.getElementById('demo');
 const ligne1 = placer(H('div', null, null, demo), 0, 0);
-const ligne2 = placer(H('div', null, null, demo), 0, 44);
+const ligne2 = placer(H('div', null, null, demo), 0, 48);
 ligne2.style.display = 'flex';
 ligne2.style.gap = ECART_COMMANDES + 'px';
 const svg = placer(S('svg', { width: L, height: HT - HAUT_SVG }), 0, HAUT_SVG);
@@ -76,7 +76,7 @@ function echelle(g) {
     c.append(S('title', {}));
     c.firstChild.textContent = s.source || s.nom;
   });
-  const aide = T(g, L / 2, y + 46, e.aide, 'indice', 'middle');
+  const aide = T(g, L / 2, y + 52, e.aide, 'indice', 'middle');
   aide.setAttribute('font-size', 13);
   aide.setAttribute('fill', GRIS);
 }
