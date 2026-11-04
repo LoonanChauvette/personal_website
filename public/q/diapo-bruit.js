@@ -33,7 +33,7 @@ const ECHELLES = {
 const conf = JSON.parse(document.getElementById('config')?.textContent || '{}');
 const lecteur = creerLecteur();
 const etat = { cle: 'rapport_bruit', son: 0 };
-const nb = (v, d) => v.toFixed(d).replace('.', ',').replace('-', '−');
+const nb = (v, d) => v.toFixed(d).replace('-', '−'); // point décimal, comme les autres figures
 const valeur = (cle, v) => (cle === 'platitude' ? nb(v, 3) : `${nb(v, 1)} dB`);
 
 const demo = document.getElementById('demo');
@@ -64,7 +64,9 @@ function echelle(g) {
   for (const [x, texte, ancre] of [[x0 - 6, 'tonal', 'start'], [x1 + 6, 'bruité', 'end']]) {
     T(g, x, y + 22, texte, 'indice', ancre).style.fill = NOIR;
   }
-  const X = (v) => x0 + (x1 - x0) * Math.min(1, Math.max(0, (v - e.tonal) / (e.bruite - e.tonal)));
+  // Points gardés à MARGE des bouts (visuel seulement : le vibraphone, presque à 0 en platitude,
+  // ne colle pas au bout « tonal »).
+  const MARGE = 30, X = (v) => x0 + MARGE + (x1 - x0 - 2 * MARGE) * Math.min(1, Math.max(0, (v - e.tonal) / (e.bruite - e.tonal)));
   donnees.sons.forEach((s, i) => {
     const x = X(s[etat.cle]), coul = i === etat.son ? BLEU : GRIS;
     const choisir = () => { etat.son = i; choixSon.valeur(i); lecteur.arreter(); rendre(); };
