@@ -55,7 +55,7 @@ function rendre() {
       const nom = H('span', null, s.nom, tete);
       nom.style.color = coul;
       nom.title = source(s);
-      const val = H('span', null, `${milliers(s.zcr)} passages/s`, tete);
+      const val = H('span', null, `${milliers(s.zcr)} par seconde`, tete);
       val.style.marginLeft = 'auto';
       val.style.color = coul;
       val.title = 'Passages par zéro par seconde, en moyenne sur tout le son';
