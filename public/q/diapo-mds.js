@@ -25,19 +25,22 @@
 //   3D, « Vertical : D1 / D2 / D3 » : la vue tourne pour mettre cet axe à la verticale ; les
 //   tiges descendent le long de cet axe jusqu'au fond de la boîte (la coordonnée se lit à la
 //   longueur de la tige).
+// Chaque dimension a sa couleur (dimensions.js : axe, nom, corrélat), dans toutes les vues.
+// 3D : chaque axe est ramené à la même longueur (cube, comme la figure A–E) et la boîte est
+// vue à 45°, un peu aplatie, pour occuper la largeur ; les distances ne s'y lisent pas à l'échelle.
 // Survoler un point : traits vers les autres sons, avec la dissimilarité jugée (au-delà de
 // 8 sons : nom complet seulement, les points sont étiquetés par leur abréviation).
 // Cliquer un point : l'instrument joue (un second clic arrête), si le son est fourni.
 //
 // Options de départ (config, toutes facultatives) : "source" ("classe" | "reference"), "dim"
 // (1, 2, 3), "tous" (true : les 18 timbres de McAdams), "vertical" (0, 1, 2 : axe vertical en 3D).
-// "couleurs" (true) : chaque dimension a sa couleur (axe, nom, corrélat), dans toutes les vues.
 // "descripteurs" (donnees/descripteurs-mcadams1995.json) : chaque dimension porte en plus son
 // corrélat acoustique le plus fort sur la carte affichée (correlats.js, même calcul que la
 // diapositive des corrélats), avec r ; en gris si r n'est pas significatif (p ≥ 0.05).
 import { apiGarde, nombreEntier } from './commun.js';
 import { ajuster, bouton, choix, ECART_COMMANDES, H, placer, R, S, T } from './excali/excali.js';
 import { analyser } from './correlats.js';
+import { COULEURS_DIMENSIONS as COULEURS } from './dimensions.js';
 import { aligner, mds, pasGuttman, stress } from './mds.js';
 
 const conf = JSON.parse(document.getElementById('config').textContent);
@@ -46,8 +49,6 @@ const ID = String(conf.id || 'c7paires');
 const URL_REFERENCE = String(conf.reference || 'donnees/mcadams1995.json');
 const SOUS = Array.isArray(conf.sous_ensemble) ? conf.sous_ensemble.map(String) : [];
 const URL_DESCRIPTEURS = conf.descripteurs ? String(conf.descripteurs) : null;
-// Couleurs des dimensions (palette Excalidraw, sans le bleu du survol).
-const COULEURS = conf.couleurs === true ? ['#e8590c', '#2f9e44', '#9c36b5'] : null;
 const BEAUCOUP = 8; // au-delà : abréviations, pas de traits au survol
 
 const LD = 400, HD = 372; // repère de l'élément
@@ -59,6 +60,9 @@ const ENCRE = '#1e1e1e';
 const GRIS = '#868e96';
 const BLEU = '#1971c2';
 const LIGNE_1D = ZONE.y0 + (ZONE.y1 - ZONE.y0) * 0.62; // arcs au-dessus, noms au-dessous
+// 3D : place de la boîte (sous « Vertical » et l'indice, au-dessus des noms des axes du fond).
+const ZONE_3D = { x0: 48, x1: 362, y0: 46, y1: 252 };
+const APLAT = 0.75; // hauteur à l'écran (la boîte serait sinon plus haute que large)
 
 // ─── Mise en place ─────────────────────────────────────────────────────────
 const style = document.createElement('style');
@@ -163,7 +167,7 @@ const MISE_DEBOUT = [
   [[1, 0, 0], [0, 0, 1], [0, -1, 0]], // D3 vertical
 ];
 function vueCible(k) {
-  return produit(rotX(0.35), produit(rotY(-0.6), MISE_DEBOUT[k]));
+  return produit(rotX(0.35), produit(rotY(-Math.PI / 4), MISE_DEBOUT[k]));
 }
 function quaternion(R) {
   const t = R[0][0] + R[1][1] + R[2][2];
@@ -332,12 +336,18 @@ function preparer(g, cleSource) {
   if (dim === 1) v.echelle = (largeur / v.etendue) * 0.86;
   else if (dim === 2) v.echelle = Math.min(largeur / v.etendue, hauteur / v.etendue) * 0.86;
   else {
-    // 3D : boîte autour des points ; sa demi-diagonale tient dans le cadre quelle que soit la rotation.
-    const marge = 0.08 * v.etendue;
-    v.boite = etendues.map(([a, b]) => [a - marge, b + marge]);
-    v.rayon = 0.5 * Math.hypot(...v.boite.map(([a, b]) => b - a));
-    // Coins hors cadre seulement aux angles extrêmes.
-    v.echelle = (Math.min(largeur, hauteur) / 2 / v.rayon) * 1.12;
+    // 3D : boîte autour des points, chaque axe ramené à [−1, 1] (cube). Taille : le cube de la vue
+    // de départ remplit ZONE_3D (tourner autour de la verticale ne l'élargit pas : 45° est le plus large).
+    v.boite = etendues.map(([a, b]) => [a - 0.08 * (b - a), b + 0.08 * (b - a)]);
+    v.demi = v.boite.map(([a, b]) => (b - a) / 2 || 1e-9);
+    v.rayon = Math.sqrt(3);
+    const R0 = vueCible(axeVertical);
+    let [w, h] = [0, 0];
+    for (const c of [[1, 1, 1], [1, 1, -1], [1, -1, 1], [1, -1, -1]]) {
+      const [x, y] = R0.map((l) => l.reduce((s, r, k) => s + r * c[k], 0));
+      [w, h] = [Math.max(w, Math.abs(x)), Math.max(h, Math.abs(y) * APLAT)];
+    }
+    v.echelle = Math.min((ZONE_3D.x1 - ZONE_3D.x0) / 2 / w, (ZONE_3D.y1 - ZONE_3D.y0) / 2 / h);
   }
   return v;
 }
@@ -351,9 +361,9 @@ function nomDe(son) {
 function versEcran(v, p) {
   if (v.dim === 1) return [CENTRE[0] + (p[0] - v.centre[0]) * v.echelle, LIGNE_1D, 0];
   if (v.dim === 2) return [CENTRE[0] + (p[0] - v.centre[0]) * v.echelle, CENTRE[1] - (p[1] - v.centre[1]) * v.echelle, 0];
-  const d = p.map((c, k) => c - v.centre[k]);
+  const d = p.map((c, k) => (c - v.centre[k]) / v.demi[k]);
   const [x, y, z] = rotation.map((l) => l.reduce((s, r, k) => s + r * d[k], 0));
-  return [CENTRE[0] + x * v.echelle, CENTRE[1] - y * v.echelle, z / v.rayon];
+  return [(ZONE_3D.x0 + ZONE_3D.x1) / 2 + x * v.echelle, (ZONE_3D.y0 + ZONE_3D.y1) / 2 - y * v.echelle * APLAT, z / v.rayon];
 }
 // ─── Tracé ─────────────────────────────────────────────────────────────────
 // Données : graphique propre (traits de 1 px, Nunito) ; pas de rough.js (la carte est redessinée
@@ -378,14 +388,13 @@ function correlat(v, j) {
 function nomAxe(s, v, j, x, y, attrs = {}) {
   const c = correlat(v, j);
   // style (et non fill) : la feuille de style des démos fixe la couleur des textes.
-  const teinte = (f) => (f ? { style: `fill: ${f}` } : {});
-  T(s, x, y, `Dimension ${j + 1}`, 'titre-axe', 'middle', { ...attrs, ...teinte(COULEURS && COULEURS[j]) });
-  if (c) T(s, x, y + 15, c.texte, 'graduation', 'middle', { ...attrs, ...teinte(c.couleur || (COULEURS && COULEURS[j])) });
+  T(s, x, y, `Dimension ${j + 1}`, 'titre-axe', 'middle', { ...attrs, style: `fill: ${COULEURS[j]}` });
+  if (c) T(s, x, y + 15, c.texte, 'graduation', 'middle', { ...attrs, style: `fill: ${c.couleur || COULEURS[j]}` });
 }
 
-// Axe d'une dimension en 2D / 1D (dans sa couleur s'il y en a).
+// Axe d'une dimension en 2D / 1D, dans sa couleur.
 function axe(s, j, attrs) {
-  S('line', { ...attrs, class: 'trait', ...(COULEURS ? { style: `stroke: ${COULEURS[j]}; stroke-width: 1.5px` } : {}) }, s);
+  S('line', { ...attrs, class: 'trait', style: `stroke: ${COULEURS[j]}; stroke-width: 1.5px` }, s);
 }
 
 function axes(s, v) {
@@ -436,8 +445,8 @@ function axes(s, v) {
     // Axes nommés : les deux arêtes avant du fond, et l'arête verticale extérieure la plus à gauche.
     // t : position du nom le long de l'arête (0 : A, 1 : B).
     const nommer = ([A, B], j, t = 0.5) => {
-      const couleur = COULEURS ? COULEURS[j] : j === k ? BLEU : ENCRE;
-      S('line', { x1: A[0], y1: A[1], x2: B[0], y2: B[1], stroke: couleur, 'stroke-width': COULEURS ? 2 : 1.5, 'stroke-linecap': 'round' }, s);
+      const couleur = COULEURS[j];
+      S('line', { x1: A[0], y1: A[1], x2: B[0], y2: B[1], stroke: couleur, 'stroke-width': 2, 'stroke-linecap': 'round' }, s);
       const [mx, my] = [A[0] + t * (B[0] - A[0]), A[1] + t * (B[1] - A[1])];
       let angle = (Math.atan2(B[1] - A[1], B[0] - A[0]) * 180) / Math.PI;
       if (angle >= 90) angle -= 180; // un axe vertical se lit de bas en haut
@@ -479,7 +488,7 @@ function axes(s, v) {
 function tiges(s, v, X) {
   const k = axeVertical;
   const [a, b] = [0, 1, 2].filter((j) => j !== k);
-  const pas = v.rayon * 0.025; // ombre : petit disque sur le fond
+  const pas = 0.04; // ombre : petit disque sur le fond (unités du cube)
   X.forEach((p) => {
     const pied = p.map((c, j) => (j === k ? v.boite[k][0] : c));
     const [x1, y1] = versEcran(v, p);
@@ -487,7 +496,7 @@ function tiges(s, v, X) {
     S('line', { x1, y1, x2, y2, stroke: GRIS, 'stroke-width': 1, 'stroke-dasharray': '3 3' }, s);
     const ombre = Array.from({ length: 12 }, (_, m) => {
       const t = (m / 12) * 2 * Math.PI;
-      return versEcran(v, pied.map((c, j) => c + (j === a ? pas * Math.cos(t) : 0) + (j === b ? pas * Math.sin(t) : 0)));
+      return versEcran(v, pied.map((c, j) => c + (j === a ? pas * v.demi[a] * Math.cos(t) : 0) + (j === b ? pas * v.demi[b] * Math.sin(t) : 0)));
     }).map(([x, y]) => `${x},${y}`).join(' ');
     S('polygon', { points: ombre, fill: GRIS }, s);
   });

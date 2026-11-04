@@ -24,6 +24,7 @@
 //   <script type="application/json" id="config">{"id": "c7paires", "sous_ensemble": ["tpt", …]}</script>
 import { ajuster, axes, bouton, chemin, choix, ECART_COMMANDES, echelle, H, placer, R, S, T } from './excali/excali.js';
 import { creerDonnees, creerLecteur } from './correlats-donnees.js';
+import { COULEURS_DIMENSIONS as COUL_DIM } from './dimensions.js';
 import { tracerSpectreBruit } from './spectre-bruit.js';
 
 const L = 786, HT = 384;
@@ -109,11 +110,12 @@ function rendreTable(v) {
   const lignes = new Map(v.analyse.lignes.map((l) => [l.cle, l]));
   const meilleurs = v.analyse.meilleurs;
   let y = 16;
-  xs.forEach((x, k) => T(g, x - 3, y, `D${k + 1}`, 'titre-axe'));
+  xs.forEach((x, k) => T(g, x - 3, y, `D${k + 1}`, 'titre-axe', 'middle', { style: `fill: ${COUL_DIM[k]}` })); // couleurs de la carte MDS
   if (v.comparaison) {
     y += 19;
     T(g, 0, y, 'proche de McAdams', 'indice', 'start');
-    v.comparaison.forEach((c, k) => T(g, xs[k] - 3, y, c.dim === null ? '-' : `D${c.dim + 1} ${nb(Math.abs(c.r))}`, 'graduation'));
+    v.comparaison.forEach((c, k) => T(g, xs[k] - 3, y, c.dim === null ? '-' : `D${c.dim + 1} ${nb(Math.abs(c.r))}`, 'graduation', 'middle',
+      c.dim === null ? {} : { style: `fill: ${COUL_DIM[c.dim]}` }));
   }
   y += 4;
   for (const f of familles) {
@@ -186,10 +188,12 @@ function rendreNuage(v, d, surComparer) {
   else { pasX = nicePas(x1 - x0); for (let t = Math.ceil(x0 / pasX) * pasX; t <= x1 + pasX * 1e-9; t += pasX) ticksX.push(t); }
   axes(g, { x: X, y: Y, ticksX, formatX: (t) => formatDesc(d, t, true, pasX), titreX: `${d.nom}${d.cle === 'attaque' ? ' (ms, échelle log)' : d.unite ? ` (${d.unite})` : ''}` });
   // Titre vertical près de l'axe (pas de graduations à gauche).
-  T(g, 34, 175, `Dimension ${etat.k + 1}`, 'titre-axe', 'middle', { transform: 'rotate(-90 34 175)' });
+  T(g, 34, 175, `Dimension ${etat.k + 1}`, 'titre-axe', 'middle', { transform: 'rotate(-90 34 175)', style: `fill: ${COUL_DIM[etat.k]}` });
   // Ligne d'en-tête : r en bleu (une seule taille), ramenée à la largeur du cadre.
   const tete = T(g, 186, 18, '', 'lecture-svg'); // centré sur le tracé (46 → 326) ; accents dans le cadre
-  tete.append(`${d.nom} × D${etat.k + 1} : r = `);
+  tete.append(`${d.nom} × `);
+  S('tspan', { style: `fill: ${COUL_DIM[etat.k]}` }, tete).textContent = `D${etat.k + 1}`;
+  tete.append(' : r = ');
   const val = S('tspan', { fill: Math.abs(r ?? 0) >= v.analyse.seuil ? '#1971c2' : GRIS }, tete);
   val.textContent = nb(r);
   ajusterTexte(tete, 340, 16);

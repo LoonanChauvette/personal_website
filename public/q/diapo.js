@@ -31,6 +31,7 @@ import {
   qrSvg,
 } from './commun.js';
 import { etapesPaires } from './core.js';
+import { COULEURS_DIMENSIONS } from './dimensions.js';
 
 const conf = JSON.parse(document.getElementById('question').textContent);
 const Q = { id: String(conf.id), type: conf.type, gabarit: conf.gabarit || {} };
@@ -267,7 +268,12 @@ function grilleSerie(q) {
     const groupe = el('div', 'grille-groupe');
     groupe.style.setProperty('--n', String(valeurs.length));
     groupe.append(el('div', 'grille-titre', (g.titres_colonnes || [])[c] || ''));
-    groupe.append(el('div', 'grille-entete', ''), ...valeurs.map((v) => el('div', 'grille-entete', `D${v}`)));
+    // En-têtes D1, D2, D3 : couleurs des dimensions (figure A–E, carte MDS, corrélats).
+    groupe.append(el('div', 'grille-entete', ''), ...valeurs.map((v) => {
+      const e = el('div', 'grille-entete', `D${v}`);
+      if (COULEURS_DIMENSIONS[v - 1]) e.style.color = COULEURS_DIMENSIONS[v - 1];
+      return e;
+    }));
     for (const sq of sousQ.slice(c * parCol, (c + 1) * parCol)) {
       const sous = (q.resultats.parties || {})[sq.cle] || {};
       const n = Number(sous.n) || 0;
