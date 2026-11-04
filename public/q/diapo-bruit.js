@@ -2,10 +2,12 @@
 // dans le style des démos (excali/excali.css, excali/excali.js).
 //
 // Bascule entre trois descripteurs de bruit (rapport de bruit, platitude spectrale, facteur de
-// crête) et entre trois instruments réels (flûte, violon, clarinette). Le spectre moyen du son
-// choisi montre le descripteur (spectre-bruit.js : bruit hors des harmoniques en gris ; paliers par
-// bande d'octave pour la platitude et la crête) ; au-dessus, la valeur des trois sons, le choisi
-// en bleu. ▶ : le son joue.
+// crête) et entre trois sons, du plus tonal au plus bruité (son harmonique pur, flûte, bruit
+// blanc). En haut, une échelle « tonal ↔ bruité » place les trois sons selon le descripteur (la
+// crête est inversée : élevée = tonal), le choisi en bleu, avec une phrase d'aide à la lecture ;
+// cliquer un point choisit le son. Dessous, le spectre moyen du son choisi montre le descripteur
+// (spectre-bruit.js : bruit hors des harmoniques en gris ; paliers par bande d'octave pour la
+// platitude et la crête), de −80 à 0 dB. ▶ : le son joue.
 // Données : donnees/bruit-sons.json (tools/bruit_sons.mjs, mêmes calculs que les corrélats).
 //
 // Document hôte (tools/bruit_cours7.py) :
@@ -18,9 +20,16 @@ import { tracerSpectreBruit } from './spectre-bruit.js';
 
 const L = 400, HT = 370;
 const BLEU = '#1971c2', GRIS = '#868e96';
-const HAUT_SVG = 120; // y du tracé (sous les commandes et les valeurs)
-const CADRE = { g: 40, d: L - 10, h: 30, b: HT - HAUT_SVG - 26 };
+const HAUT_SVG = 84; // y de l'échelle et du tracé (sous les commandes)
+const Y_ECHELLE = 28, Y_LEGENDE = 92; // dans le svg
+const CADRE = { g: 40, d: L - 10, h: Y_LEGENDE + 16, b: HT - HAUT_SVG - 26, dbMin: -80, ticksDb: [-80, -40, 0] };
 const NOMS = { rapport_bruit: 'Ratio de bruit', platitude: 'Platitude', crete: 'Crête' };
+// Échelle tonal → bruité de chaque descripteur (valeurs aux deux bouts) et aide à la lecture.
+const ECHELLES = {
+  rapport_bruit: { tonal: -80, bruite: 0, aide: 'Plus le ratio est élevé, plus le son est bruité.' },
+  platitude: { tonal: 0, bruite: 1, aide: 'Plus la platitude est élevée (vers 1), plus le son est bruité.' },
+  crete: { tonal: 20, bruite: 0, aide: 'Plus la crête est élevée (pics marqués), plus le son est tonal.' },
+};
 const conf = JSON.parse(document.getElementById('config')?.textContent || '{}');
 const lecteur = creerLecteur();
 const etat = { cle: 'rapport_bruit', son: 0 };
@@ -32,30 +41,50 @@ const ligne1 = placer(H('div', null, null, demo), 0, 0);
 const ligne2 = placer(H('div', null, null, demo), 0, 44);
 ligne2.style.display = 'flex';
 ligne2.style.gap = ECART_COMMANDES + 'px';
-const valeurs = placer(H('div', 'lecture', null, demo), 0, 88, L);
-valeurs.style.display = 'flex';
-valeurs.style.justifyContent = 'space-between';
 const svg = placer(S('svg', { width: L, height: HT - HAUT_SVG }), 0, HAUT_SVG);
 demo.append(svg);
-let donnees = null, jouer = null;
+let donnees = null, jouer = null, choixSon = null;
 
 function rendre() {
   if (!donnees) return;
   const son = donnees.sons[etat.son];
   jouer.lecture(lecteur.enCours() === son);
-  valeurs.replaceChildren();
-  for (const [i, s] of donnees.sons.entries()) {
-    const e = H('span', null, `${s.nom} ${valeur(etat.cle, s[etat.cle])}`, valeurs);
-    e.style.color = i === etat.son ? BLEU : GRIS;
-  }
   svg.replaceChildren();
+  echelle(svg);
   legende(svg, tracerSpectreBruit(svg, etat.cle, son.spectre, CADRE, BLEU));
+}
+
+// Échelle tonal ↔ bruité : un point par son, son nom et sa valeur alternativement au-dessus et
+// au-dessous (de gauche à droite), l'aide à la lecture dessous.
+function echelle(g) {
+  const e = ECHELLES[etat.cle], y = Y_ECHELLE;
+  const gauche = T(g, 2, y + 4, 'tonal', 'indice', 'start'), droite = T(g, L - 2, y + 4, 'bruité', 'indice', 'end');
+  const x0 = gauche.getComputedTextLength() + 10, x1 = L - droite.getComputedTextLength() - 10;
+  S('line', { x1: x0, x2: x1, y1: y, y2: y, class: 'trait' }, g);
+  for (const x of [x0, x1]) S('line', { x1: x, x2: x, y1: y - 4, y2: y + 4, class: 'trait' }, g);
+  const X = (v) => x0 + (x1 - x0) * Math.min(1, Math.max(0, (v - e.tonal) / (e.bruite - e.tonal)));
+  const points = donnees.sons.map((s, i) => ({ s, i, x: X(s[etat.cle]) })).sort((a, b) => a.x - b.x);
+  points.forEach(({ s, i, x }, rang) => {
+    const coul = i === etat.son ? BLEU : GRIS, choisir = () => { etat.son = i; choixSon.valeur(i); lecteur.arreter(); rendre(); };
+    const t = T(g, x, rang % 2 ? y + 22 : y - 10, `${s.nom} ${valeur(etat.cle, s[etat.cle])}`, 'indice', 'middle');
+    t.setAttribute('font-size', 13);
+    t.setAttribute('fill', coul);
+    const w = t.getComputedTextLength(); // dans le cadre
+    t.setAttribute('x', Math.min(L - w / 2, Math.max(w / 2, x)));
+    const c = S('circle', { cx: x, cy: y, r: 5, fill: coul, class: 'cliquable' }, g);
+    for (const el of [t, c]) { el.style.cursor = 'pointer'; el.addEventListener('click', choisir); }
+    c.append(S('title', {}));
+    c.firstChild.textContent = s.source || s.nom;
+  });
+  const aide = T(g, L / 2, y + 46, e.aide, 'indice', 'middle');
+  aide.setAttribute('font-size', 13);
+  aide.setAttribute('fill', GRIS);
 }
 
 // Légende alignée à droite au-dessus du tracé.
 function legende(g, items) {
   let x = CADRE.d;
-  const y = 10;
+  const y = Y_LEGENDE;
   for (const it of [...items].reverse()) {
     const t = T(g, x, y + 4, it.texte, 'indice', 'end');
     t.setAttribute('font-size', 13);
@@ -78,8 +107,8 @@ ajuster(demo, L, HT, { surMasque: () => { lecteur.arreter(); rendre(); } });
     choix(ligne1, donnees.descripteurs.map((d) => ({ texte: NOMS[d.cle] || d.nom, valeur: d.cle, titre: d.definition })), etat.cle,
       (v) => { etat.cle = v; rendre(); }, { compact: true });
     jouer = bouton(ligne2, '', () => { lecteur.jouer(donnees.sons[etat.son], rendre); rendre(); }, { largeur: 34, jouer: true, titre: 'Écouter' });
-    choix(ligne2, donnees.sons.map((s, i) => ({ texte: s.nom, valeur: i })), etat.son,
-      (i) => { etat.son = i; lecteur.arreter(); rendre(); }, { compact: true });
+    choixSon = choix(ligne2, donnees.sons.map((s, i) => ({ texte: s.nom, valeur: i, titre: s.source })), etat.son,
+      (i) => { etat.son = i; lecteur.arreter(); rendre(); }, { compact: true, egal: false });
     rendre();
     document.fonts?.ready.then(rendre); // largeurs de la légende mesurées avec la vraie police
   } catch (e) {
