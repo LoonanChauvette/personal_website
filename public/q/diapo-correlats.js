@@ -430,19 +430,21 @@ function tracer(g, d, c, coul, e, p, avecLegende) {
   }
 
   if (d.famille === 'harmonique') {
-    if (d.cle === 'inharmonicite') { // écart de chaque partiel à h × F0, en %
-      const m = e.ecartMax, Y = echelle(-m, m, P.b, HAUT);
-      const pasY = m >= 2 ? 1 : m >= 1 ? 0.5 : m >= 0.4 ? 0.2 : 0.1;
-      const tY = [-Math.floor(m / pasY) * pasY, 0, Math.floor(m / pasY) * pasY];
-      axesF(Y, tY, (v) => `${nb(v, pasY < 1 ? 1 : 0)}${v > 0 ? ' %' : ''}`);
-      horizontale(Y(0));
-      H_.ecarts.forEach((v, i) => {
-        const x = FX(H_.f0 * (i + 1)), y = Y(Math.max(-m, Math.min(m, v)));
+    if (d.cle === 'inharmonicite') { // partiels contre les multiples de F0 (tirets), comme la diapositive « Inharmonicité »
+      // Rang en abscisse, 12 premiers partiels (l'inharmonicité est pondérée par l'énergie : les
+      // graves comptent) ; écarts agrandis du même facteur pour A et B : un écart de ecartMax %
+      // vaut au plus 0,6 rang. Hauteur : niveau en dB ; pâle si faible (< −40 dB).
+      const NI = Math.min(12, nh), X = echelle(0.4, NI + 0.6, P.g, P.d);
+      const facteur = [10, 20, 50, 100, 200, 500, 1000].reduce((m, k) => (k * e.ecartMax / 100 <= 0.6 ? k : m), 10);
+      for (let h = 1; h <= NI; h++) S('line', { x1: X(h), x2: X(h), y1: HAUT, y2: P.b, stroke: GRIS, 'stroke-width': 1, 'stroke-dasharray': '3 3' }, g);
+      axes(g, { x: X, y: Ydb, ticksX: [1, 4, 8, 12].filter((h) => h <= NI), ticksY: [-60, -30, 0], formatX: (h) => (h === 1 ? 'F0' : `${h}F0`), formatY: fDb });
+      H_.ecarts.slice(0, NI).forEach((v, i) => {
+        const r = i + 1, x0 = X(r), x = X(r + Math.max(-0.75, Math.min(0.75, (v / 100) * facteur))), y = Ydb(dbH(H_.db[i]));
         const o = H_.db[i] < -40 ? 0.3 : 1;
-        S('line', { x1: x, x2: x, y1: Y(0), y2: y, stroke: coul, 'stroke-width': 2, 'stroke-opacity': o }, g);
-        S('circle', { cx: x, cy: y, r: 3, fill: coul, 'fill-opacity': o }, g);
+        barre(x, y, coul, 3).setAttribute('stroke-opacity', o);
+        if (Math.abs(x - x0) > 5 && o === 1) fleche(g, x0, x, Math.max(HAUT + 4, y - 7), '#1e1e1e');
       });
-      leg([{ type: 'tiret', texte: 'h × F0' }, { type: 'point', couleur: coul, texte: 'écart du partiel (pâle : faible)' }]);
+      leg([{ type: 'tiret', couleur: GRIS, texte: 'h × F0' }, { type: 'barre', couleur: coul, texte: `partiel (écarts × ${facteur})` }]);
       return;
     }
     axesF(Ydb);
