@@ -1,6 +1,8 @@
-// Diapositive « Bruit et voix » du Cours 7 (élément HTML d'Excalidraw+, srcdoc, moitié droite sous
-// le schéma de la glotte) : les cinq modes de phonation des puces (rauque, craquée, modale,
-// murmurée, chuchotement), un même locuteur. Cliquer un mode le joue et affiche son spectrogramme
+// Diapositive « Bruit et voix » du Cours 7 (élément HTML d'Excalidraw+, srcdoc, moitié droite) :
+// les cinq modes de phonation des puces (rauque, craquée, modale, murmurée, chuchotement), un même
+// locuteur. Au-dessus de chaque bouton, sa glotte (découpée par viewBox dans
+// images/glotte-phonation.png, où l'ordre est inverse). Cliquer un mode ou sa glotte
+// le joue et affiche son spectrogramme
 // (large bande : les impulsions glottiques font des stries verticales, le bruit remplit les
 // harmoniques) ; recliquer le mode l'arrête ou le rejoue, cliquer le spectrogramme aussi. Une
 // barre bleue suit la lecture.
@@ -14,16 +16,17 @@
 //   <script type="application/json" id="config">{"id": "c7phonation"}</script>
 import { ajuster, axes, choix, echelle, H, placer, S } from './excali/excali.js';
 
-const L = 444, HT = 260;
-const HAUT_SVG = 44;
+const L = 444, HT = 324;
+const HAUT_GLOTTE = 60, HAUT_SVG = HAUT_GLOTTE + 4 + 44;
 const BLEU = '#1971c2';
 const T_MAX = 1.2, F_MAX = 4000; // s, Hz (sons à 8 kHz)
+// cx : centre de la glotte dans images/glotte-phonation.png (1055 × 244 px)
 const SONS = [
-  { cle: 'rauque', nom: 'Rauque' },
-  { cle: 'craquee', nom: 'Craquée' },
-  { cle: 'modale', nom: 'Modale' },
-  { cle: 'murmuree', nom: 'Murmurée' },
-  { cle: 'chuchotement', nom: 'Chuchotement' },
+  { cle: 'rauque', nom: 'Rauque', cx: 870 }, // (constricted) voiceless
+  { cle: 'craquee', nom: 'Craquée', cx: 688 },
+  { cle: 'modale', nom: 'Modale', cx: 501 },
+  { cle: 'murmuree', nom: 'Murmurée', cx: 319 },
+  { cle: 'chuchotement', nom: 'Chuchotement', cx: 137 }, // (spread) voiceless
 ].map((s) => ({ ...s, fichier: `sons/phonation/${s.cle}.wav` }));
 const AMORCE = 0.3; // s de silence en tête de chaque fichier
 
@@ -33,11 +36,41 @@ const etat = { son: 2 };
 let lecture = null; // { son, a }
 
 const demo = document.getElementById('demo');
-const ligne = placer(H('div', null, null, demo), 0, 0);
+const choisir = (i) => { etat.son = i; modes.valeur(i); basculer(SONS[i]); };
+// Une glotte (sans les étiquettes ni la flèche) par bouton, centrée sur lui ; assez étroite pour que
+// deux voisines ne se touchent pas (centres des boutons à 77 px au plus près).
+const DECOUPE = { l: 162, y: 71, h: 140 };
+const LARG_GLOTTE = HAUT_GLOTTE * DECOUPE.l / DECOUPE.h;
+const glottes = placer(S('svg', { width: L, height: HAUT_GLOTTE }), 0, 0);
+demo.append(glottes);
+const vues = SONS.map((s, i) => {
+  const v = S('svg', { y: 0, width: LARG_GLOTTE, height: HAUT_GLOTTE,
+    viewBox: `${s.cx - DECOUPE.l / 2} ${DECOUPE.y} ${DECOUPE.l} ${DECOUPE.h}` }, glottes);
+  S('image', { href: 'images/glotte-phonation.png', width: 1055, height: 244, 'pointer-events': 'none' }, v);
+  // Le clic tombe sur ce rectangle : l'image, même rognée, capterait les clics des colonnes voisines.
+  S('rect', { x: s.cx - DECOUPE.l / 2, y: DECOUPE.y, width: DECOUPE.l, height: DECOUPE.h, fill: 'transparent' }, v);
+  v.style.overflow = 'hidden'; // excali.css met overflow: visible sur tous les svg
+  v.style.cursor = 'pointer';
+  v.addEventListener('click', () => choisir(i));
+  return v;
+});
+const ligne = placer(H('div', null, null, demo), 0, HAUT_GLOTTE + 4);
 const modes = choix(ligne, SONS.map((s, i) => ({ texte: s.nom, valeur: i, titre: `Écouter : ${s.nom.toLowerCase()}` })), etat.son,
   (i) => { etat.son = i; basculer(SONS[i]); }, { compact: true, egal: false });
 modes.style.width = L + 'px';
 modes.style.justifyContent = 'space-between'; // la rangée occupe toute la largeur du tracé
+// Centre chaque glotte sur son bouton (mesuré : la largeur des boutons dépend de la police).
+const CENTRES = [35, 114, 191, 273, 382]; // avant mesure
+function alignerGlottes() {
+  vues.forEach((v, i) => {
+    const b = modes.boutons[i];
+    const c = b.offsetWidth ? b.offsetLeft + b.offsetWidth / 2 : CENTRES[i];
+    v.setAttribute('x', c - LARG_GLOTTE / 2);
+  });
+}
+alignerGlottes();
+requestAnimationFrame(alignerGlottes);
+if (document.fonts) document.fonts.ready.then(alignerGlottes);
 const svg = placer(S('svg', { width: L, height: HT - HAUT_SVG }), 0, HAUT_SVG);
 demo.append(svg);
 const image = S('image', { x: x(0), y: y(F_MAX), height: y(0) - y(F_MAX), preserveAspectRatio: 'none' }, svg);
@@ -147,7 +180,7 @@ function fft(re, im) {
   }
 }
 
-ajuster(demo, L, HT, { surMasque: () => { arreter(); rendre(); }, surAffiche: () => rendre() });
+ajuster(demo, L, HT, { surMasque: () => { arreter(); rendre(); }, surAffiche: () => { alignerGlottes(); rendre(); } });
 
 (async () => {
   try {
