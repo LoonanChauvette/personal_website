@@ -8,7 +8,9 @@
 // octaves, fenêtre de 40 ms : les harmoniques sont résolues). Cliquer-glisser sur le spectrogramme
 // trace la fenêtre d'analyse (rectangle de forme libre, au moins 100 ms × 0.5 octave) ; en bas, cette fenêtre ≈ la somme de ses trois modulations les plus fortes, en rouge
 // (crêtes) et bleu (creux), comme les ellipses de la figure d'origine ; une composante plus faible
-// est plus pâle. Pas de valeurs : la figure sert l'intuition (les valeurs sont sur la diapositive
+// est plus pâle. Cliquer une ellipse fait entendre sa modulation : le ripple de même ω et Ω
+// (250 à 8000 Hz, comme sur la diapositive des ripples), son contour s'épaissit pendant l'écoute.
+// Pas de valeurs : la figure sert l'intuition (les valeurs sont sur la diapositive
 // des ripples).
 // Spectrogramme et analyse calculés ici (modulations.js).
 //
@@ -20,20 +22,21 @@
 //   <script src="…/q/excali/rough.js"></script> <div id="demo" class="demo"></div>
 //   <script type="application/json" id="config">{"id": "c7modparole"}</script>
 import { ajuster, axes, bouton, choix, echelle, H, placer, S, T } from './excali/excali.js';
-import { BLEU, creerLecteurTampon, imageGris, lireWav, modulationsLocales, nb, ROUGE, spectrogrammeLog } from './modulations.js';
+import { BLEU, creerLecteurTampon, creerRipple, imageGris, lireWav, modulationsLocales, nb, ROUGE, spectrogrammeLog } from './modulations.js';
 
 const L = 416, HT = 366, HAUT_SVG = 44;
 const G = 66, D = L - 10;
 const F_MIN = 125, OCTAVES = 6, PAR_OCTAVE = 32, PAS = 0.005;
 const T_MIN = 0.1, O_MIN = 0.5; // plus petite fenêtre analysable (en deçà, aucune modulation n'est résolue)
 const lecteur = creerLecteurTampon();
-let son = null, sp = null, fx = null;
+const ripple = creerRipple({ duree: 1.5 });
+let son = null, sp = null, fx = null, mods = [], joue = null; // joue : 'phrase', indice d'une composante ou null
 // Exemples (fenêtres en s et Hz), trouvés en balayant la phrase (composante dominante, poids de la
-// deuxième) : rythme des syllabes ±4 Hz / 0 c/oct ; harmoniques d'une voyelle tenue 0 Hz / 2 c/oct ;
+// deuxième) : rythme des syllabes ±4 Hz / 0 c/oct ; harmoniques graves d'une voyelle tenue 0 Hz / 2 c/oct ;
 // harmoniques qui montent avec la voix +3 Hz / 2.1 c/oct (deuxième composante à 0.46).
 const EXEMPLES = [
   { texte: 'Temporelle', ta: 0.2, tb: 1.0, fa: 500, fb: 1000 },
-  { texte: 'Spectrale', ta: 0.33, tb: 0.47, fa: 280, fb: 800 },
+  { texte: 'Spectrale', ta: 0.345, tb: 0.455, fa: 145, fb: 1100 },
   { texte: 'Spectro-temporelle', ta: 0.825, tb: 0.975, fa: 250, fb: 500 },
 ];
 const etat = { ...EXEMPLES[2] };
@@ -41,12 +44,20 @@ const etat = { ...EXEMPLES[2] };
 const demo = document.getElementById('demo');
 const ligne = placer(H('div', 'lecture', null, demo), 0, 0, L);
 ligne.style.cssText += 'display:flex;align-items:center;gap:16px';
-const jouer = bouton(ligne, '', () => {
-  if (lecteur.enCours()) lecteur.arreter(); else if (son) { lecteur.jouer(son.x, son.taux, rendreLecture); suivre(); }
+// Un seul son à la fois : la phrase (▶) ou la modulation d'une ellipse ; relancer le même l'arrête.
+function ecouter(quoi) {
+  const meme = lecteur.enCours() && joue === quoi;
+  lecteur.arreter();
+  if (meme) return;
+  if (quoi === 'phrase') { if (!son) return; lecteur.jouer(son.x, son.taux, finEcoute); suivre(); }
+  else { const m = mods[quoi]; if (!m) return; lecteur.jouer(ripple.signal(m.om, m.Om, 0.9), ripple.taux, finEcoute); }
+  joue = quoi;
   rendreLecture();
-}, { largeur: 34, jouer: true, titre: 'Écouter' });
+}
+function finEcoute() { joue = null; rendreLecture(); }
+const jouer = bouton(ligne, '', () => ecouter('phrase'), { largeur: 34, jouer: true, titre: 'Écouter' });
 const exemples = choix(ligne, EXEMPLES.map((e, i) => ({ texte: e.texte, valeur: i })), 2,
-  (i) => { Object.assign(etat, EXEMPLES[i]); rendre(); }, { compact: true, egal: false });
+  (i) => { Object.assign(etat, EXEMPLES[i]); if (typeof joue === 'number') lecteur.arreter(); rendre(); }, { compact: true, egal: false });
 
 const svg = placer(S('svg', { width: L, height: HT - HAUT_SVG }), 0, HAUT_SVG);
 demo.append(svg);
@@ -76,6 +87,8 @@ const composantes = [0, 1, 2].map((i) => {
   const forme = S('ellipse', { cx, cy: Y_BAS }, clip);
   const im = S('image', { preserveAspectRatio: 'none', 'clip-path': `url(#ellipse${i})` }, svg);
   const contour = S('ellipse', { cx, cy: Y_BAS, class: 'trait' }, svg);
+  contour.style.cssText = 'fill:transparent;cursor:pointer'; // tout l'intérieur se clique (.trait : fill none)
+  contour.addEventListener('click', () => ecouter(i));
   signe(cx + RX + PAS_SIGNE / 2, i < 2 ? '+' : '+ …');
   return { cx, forme, im, contour };
 });
@@ -98,6 +111,7 @@ function tracer(e) {
     fa = F_MIN * 2 ** (c - O_MIN / 2); fb = F_MIN * 2 ** (c + O_MIN / 2);
   }
   Object.assign(etat, { ta, tb, fa, fb });
+  if (typeof joue === 'number') lecteur.arreter(); // ses composantes changent
   rendre();
 }
 zone.addEventListener('pointerdown', (e) => {
@@ -151,7 +165,8 @@ function rendre() {
   // rouge = crête, bleu = creux ; contraste proportionnel au poids.
   const [rx, ry] = dans(2 * RX, 2 * RY).map((v) => v / 2);
   toile.width = Math.max(8, Math.round(4 * rx)); toile.height = Math.max(8, Math.round(4 * ry));
-  modulationsLocales(sp, t0, j0, nt, nj, 3).forEach((m, i) => {
+  mods = modulationsLocales(sp, t0, j0, nt, nj, 3);
+  mods.forEach((m, i) => {
     const { cx, forme, im, contour } = composantes[i];
     for (const e of [forme, contour]) { e.setAttribute('rx', rx); e.setAttribute('ry', ry); }
     im.setAttribute('x', cx - rx); im.setAttribute('y', Y_BAS - ry); im.setAttribute('width', 2 * rx); im.setAttribute('height', 2 * ry);
@@ -171,7 +186,10 @@ function rendre() {
   });
 }
 
-function rendreLecture() { jouer.lecture(lecteur.enCours()); }
+function rendreLecture() {
+  jouer.lecture(joue === 'phrase');
+  composantes.forEach((c, i) => { c.contour.style.strokeWidth = joue === i ? 3 : ''; });
+}
 function suivre() {
   const t = lecteur.temps();
   if (lecteur.enCours() && t >= 0 && fx) {
@@ -182,7 +200,7 @@ function suivre() {
   if (lecteur.enCours()) requestAnimationFrame(suivre);
 }
 
-ajuster(demo, L, HT, { surMasque: () => { lecteur.arreter(); rendreLecture(); }, surAffiche: () => rendre() });
+ajuster(demo, L, HT, { surMasque: () => lecteur.arreter(), surAffiche: () => rendre() });
 
 (async () => {
   try {
