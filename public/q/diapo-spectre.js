@@ -545,14 +545,16 @@ function axeAmplitude(svg, X, Y, b, ticksX, formatX) {
 const fmtLin = (f) => (f === F_AFF ? '5 kHz' : f ? `${f / 1000}k` : '0');
 const TICKS_LIN = [0, 1000, 2000, 3000, 4000, 5000];
 
-// Centroïde : tirets orange du haut de la barre jusqu'à l'axe, et la barre qu'il porte :
+// Centroïde : tirets orange de la barre jusqu'à l'axe (sous la barre partagée, sans la traverser),
+// et la barre qu'il porte :
 //   { etendue: [f0, f1] } : ± 1 écart type, trait à butées ;
 //   { dessous, coul } : barre partagée au centroïde, longueur de chaque côté selon la part de la
 //     densité (foncé : dessous ; pâle : au-dessus), pourcentages dedans.
 //   rien : un triangle, comme sur les autres diapositives.
 function centroideBarre(svg, cx, b, X, barre = null) {
   const yB = b.h - 14;
-  S('line', { x1: cx, x2: cx, y1: yB, y2: b.b, stroke: ORANGE, 'stroke-width': 2.5, 'stroke-dasharray': '6 4' }, svg);
+  const y1 = barre?.dessous != null ? yB + 9 : yB;
+  S('line', { x1: cx, x2: cx, y1, y2: b.b, stroke: ORANGE, 'stroke-width': 2.5, 'stroke-dasharray': '6 4' }, svg);
   if (barre?.etendue) {
     const [x0, x1] = barre.etendue.map(X);
     S('line', { x1: x0, x2: x1, y1: yB, y2: yB, stroke: NOIR, 'stroke-width': 2 }, svg);
