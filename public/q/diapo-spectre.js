@@ -10,9 +10,12 @@
 //     linéaire de 0 à 5 kHz, centroïde portant une barre (étendue ; part sous / au-dessus).
 //     Étendue : étroite, moyenne, large ; asymétrie : bruits colorés (bascule linéaire / log) ;
 //     kurtosis : plate, gaussienne, pointue, à même étendue, gaussienne en référence.
-//   - c7flux (« Flux spectral », 786 × 285) : harmoniques dans le temps (gris : niveau) et centroïde
-//     au fil du son (comme la vue « variation du centroïde » des corrélats), à côté du classement
+//   - c7flux (« Flux spectral », 786 × 285) : spectres d'harmoniques successifs superposés, du plus
+//     pâle au plus foncé (comme la vue « flux » des corrélats), à côté du classement
 //     des 12 instruments selon le flux spectral (échelle log, sans valeur : nombres peu parlants).
+//   - c7variation (« Variation du centroïde », 786 × 285) : harmoniques dans le temps (gris : niveau),
+//     centroïde au fil du son et ± 1 écart type (comme la vue des corrélats), à côté du classement
+//     des 12 instruments selon cet écart type (en Hz).
 //   - c7pente (« Pente et coupure spectrale », 786 × 280) : le même son en deux tracés alignés
 //     sur les deux colonnes de texte, pente (droite de régression) et coupure (95 % de l'énergie).
 // Autres spectres : harmoniques en dB (0 dB : la plus forte), fréquence en échelle log, comme les
@@ -28,7 +31,7 @@ import { creerLecteur } from './correlats-donnees.js';
 
 const conf = JSON.parse(document.getElementById('config')?.textContent || '{}');
 const VUE = String(conf.id || 'c7centroide').replace(/^c7/, '');
-const TAILLES = { centroide: [390, 390], etalement: [786, 300], asymetrie: [786, 300], kurtosis: [786, 300], pente: [786, 280], flux: [786, 285] };
+const TAILLES = { centroide: [390, 390], etalement: [786, 300], asymetrie: [786, 300], kurtosis: [786, 300], pente: [786, 280], flux: [786, 285], variation: [786, 285] };
 const [L, HT] = TAILLES[VUE] || TAILLES.centroide;
 const BLEU = '#1971c2', ORANGE = '#f08c00', GRIS = '#868e96', NOIR = '#1e1e1e';
 // Les 12 instruments (sans les hybrides de McAdams et al., 1995).
@@ -46,6 +49,7 @@ const DESC = {
   asymetrie: { nom: 'Asymétrie', val: (v) => nb(v, 2) },
   kurtosis: { nom: 'Kurtosis', val: (v) => nb(v, 1) },
   flux: { nom: 'Flux', val: (v) => v.toPrecision(2) },
+  variation_centroide: { nom: 'Variation du centroïde', val: (v) => `± ${hz(v)}` },
   pente_spectrale: { nom: 'Pente', val: (v) => `${nb(v, 1)} dB/oct` },
   rolloff: { nom: 'Coupure', val: hz },
 };
@@ -198,8 +202,28 @@ function vueClassement(cle, { log = false, valeurs = true, tracer = null, valeur
   };
 }
 
-// ─── Flux : harmoniques dans le temps et centroïde ─────────────────────────
+// ─── Flux : spectres successifs superposés ─────────────────────────────────
+// Comme la vue « flux » des corrélats : chaque spectre d'harmoniques ramené à son maximum (la
+// corrélation ne compare que leur forme), du plus pâle (début) au plus foncé (fin du son).
+// Formes confondues : flux faible ; formes qui changent : flux élevé.
 function tracerFlux(g, son, b) {
+  const c = son.courbe, f0 = c.harmoniques.f0;
+  const FX = echelle(F_MIN, F_MAX, b.g, b.d, true), Y = echelle(-60, 0, b.b, b.h + 16);
+  axes(g, { x: FX, y: Y, ticksX: TICKS_F, ticksY: [-60, -30, 0], formatX: fmtF, formatY: fDb });
+  const tr = c.harmogramme, n = Math.min(8, tr.length);
+  for (let j = 0; j < n; j++) {
+    const rel = tr[Math.round((j * (tr.length - 1)) / Math.max(1, n - 1))][2];
+    const pts = rel.map((v, i) => [f0 * (i + 1), v]).filter(([f]) => f >= F_MIN && f <= F_MAX);
+    S('path', { d: chemin(pts.map(([f, v]) => [FX(f), Y(v)])), fill: 'none', stroke: BLEU, 'stroke-width': 1.4,
+      'stroke-opacity': 0.2 + (0.8 * j) / Math.max(1, n - 1) }, g);
+  }
+  legende(g, b.d, b.h - 14, [{ type: 'ligne', couleur: BLEU + '44', texte: 'début' }, { type: 'ligne', couleur: BLEU, texte: 'fin du son' }]);
+}
+
+// ─── Variation du centroïde : harmoniques dans le temps et centroïde ───────
+// Comme la vue « variation du centroïde » des corrélats : harmoniques (gris : niveau), centroïde au
+// fil du son, moyenne pondérée par l'énergie (tirets) et ± 1 écart type (zone hachurée).
+function tracerVariation(g, son, b) {
   const c = son.courbe, f0 = c.harmoniques.f0, nh = c.harmoniques.db.length;
   const tX = echelle(0, c.duree, b.g, b.d), fMax = (nh + 0.5) * f0, Y = echelle(0, fMax, b.b, b.h + 16);
   const pasT = c.duree > 1.2 ? 0.4 : c.duree > 0.6 ? 0.2 : 0.1, ticksT = [];
@@ -214,8 +238,13 @@ function tracerFlux(g, son, b) {
   }
   axes(g, { x: tX, y: Y, ticksX: ticksT, ticksY: [0, 3000, 6000].filter((f) => f <= fMax), formatX: (t) => (t === ticksT[ticksT.length - 1] ? `${nb(t, 1)} s` : nb(t, 1)),
     formatY: (f) => (f === 6000 ? '6 kHz' : String(f / 1000)) });
-  S('path', { d: chemin(c.trames.map(([t, f]) => [tX(t), Y(Math.min(fMax, f))])), fill: 'none', stroke: BLEU, 'stroke-width': 2 }, g);
-  legende(g, b.d, b.h - 14, [{ type: 'barre', couleur: '#868e96', texte: 'harmoniques (foncé : fort)' }, { type: 'ligne', couleur: BLEU, texte: 'centroïde' }]);
+  const tr = c.trames, et = son.valeurs.variation_centroide;
+  const moy = tr.reduce((a, q) => a + q[1] * q[2] ** 2, 0) / tr.reduce((a, q) => a + q[2] ** 2, 0);
+  const yh = Y(Math.min(fMax, moy + et)), yb = Y(Math.max(0, moy - et));
+  R('rectangle', g, [b.g, yh, b.d - b.g, Math.max(3, yb - yh)], { cle: 'vc' + son.cle, stroke: 'none', fill: '#74c0fc', hachureGap: 3.5, fillWeight: 1.2 });
+  S('line', { x1: b.g, x2: b.d, y1: Y(moy), y2: Y(moy), stroke: NOIR, 'stroke-width': 1, 'stroke-dasharray': '5 4' }, g);
+  S('path', { d: chemin(tr.map(([t, f]) => [tX(t), Y(Math.min(fMax, f))])), fill: 'none', stroke: BLEU, 'stroke-width': 2 }, g);
+  legende(g, b.d, b.h - 14, [{ type: 'barre', couleur: '#868e96', texte: 'harmoniques' }, { type: 'ligne', couleur: BLEU, texte: 'centroïde' }, { type: 'zone', couleur: '#74c0fc', texte: '± 1 écart type' }]);
 }
 
 // ─── Pente et coupure ──────────────────────────────────────────────────────
@@ -686,7 +715,8 @@ ajuster(demo, L, HT, { surMasque: () => { lecteur.arreter(); arreterTout(); rend
     rendre = VUE === 'pente' ? vuePente() : VUE === 'centroide' ? vueCentroide()
       : VUE === 'asymetrie' ? vueAsymetrie() : VUE === 'kurtosis' ? vueKurtosis()
       : VUE === 'etalement' ? vueEtendue()
-        : vueClassement('flux', { log: true, valeurs: false, tracer: tracerFlux, valeurTete: (s) => `variation du centroïde : ± ${hz(s.valeurs.variation_centroide)}` });
+        : VUE === 'variation' ? vueClassement('variation_centroide', { tracer: tracerVariation })
+        : vueClassement('flux', { log: true, valeurs: false, tracer: tracerFlux, valeurTete: () => 'spectres successifs' });
     rendre();
     document.fonts?.ready.then(() => rendre()); // largeurs de texte mesurées avec la vraie police
   } catch (e) {
