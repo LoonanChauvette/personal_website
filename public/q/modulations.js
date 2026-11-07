@@ -197,7 +197,8 @@ export function planModulations(g, { gauche, droite, haut, bas }) {
       const aDroite = om < 0;
       valY.setAttribute('text-anchor', aDroite ? 'start' : 'end');
       valY.setAttribute('x', x(0) + (aDroite ? 7 : -7));
-      valY.setAttribute('y', y1 + 4);
+      // À droite de l'axe, près du haut, la valeur passe sous son tiret : sinon elle chevauche « Ω (c/oct) ».
+      valY.setAttribute('y', y1 + (aDroite && y1 - y(O_MAX) < 16 ? 18 : 4));
       valY.setAttribute('visibility', Om > 0 ? 'visible' : 'hidden');
       for (const { v, t } of etiqX) t.setAttribute('visibility', Math.abs(x(v) - x1) < 30 ? 'hidden' : 'visible');
       for (const { v, t } of etiqY) t.setAttribute('visibility', !aDroite && Om > 0 && Math.abs(y(v) - y1) < 14 ? 'hidden' : 'visible');
