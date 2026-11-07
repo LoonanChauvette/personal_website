@@ -567,7 +567,7 @@ function rendre() {
 
 ajuster(demo, L, HT, {
   surMasque: () => lecteur.arreter(),
-  surAffiche: async () => { await donnees.chargerClasse(); rendre(); },
+  surAffiche: async () => { if (!donnees.d.descripteurs) return; await donnees.chargerClasse(); rendre(); },
 });
 
 (async () => {

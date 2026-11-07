@@ -194,18 +194,25 @@ export function ajuster(racine, largeur, hauteur, { surMasque = () => {}, surAff
   racine.style.width = largeur + 'px';
   racine.style.height = hauteur + 'px';
   let derniere = '', masque = false;
+  const reafficher = () => { A_REMESURER.forEach((m) => m()); surAffiche(); };
+  // Masqué (display:none) en gardant sa taille, le document n'a pas de mise en page : les textes
+  // mesurent 0 et innerWidth ne bouge pas. On remesure quand la racine prend une taille, puis
+  // à chaque police chargée (rien ne se charge tant que le document est masqué).
+  let vide = false;
+  if (window.ResizeObserver) {
+    new ResizeObserver(([e]) => {
+      const v = !e.contentRect.width;
+      if (vide && !v) reafficher();
+      vide = v;
+    }).observe(racine);
+  }
+  document.fonts?.addEventListener('loadingdone', reafficher);
   const f = () => {
     const cle = innerWidth + 'x' + innerHeight;
     if (cle === derniere) return;
     derniere = cle;
     if (innerWidth < 8 || innerHeight < 8) { if (!masque) { masque = true; surMasque(); } return; }
-    if (masque) {
-      masque = false;
-      const reafficher = () => { A_REMESURER.forEach((m) => m()); surAffiche(); };
-      reafficher();
-      // Masqué, le document n'a pas chargé ses polices : on remesure une fois qu'elles sont là.
-      if (document.fonts && document.fonts.status !== 'loaded') document.fonts.ready.then(reafficher);
-    }
+    if (masque) { masque = false; reafficher(); }
     const marge = window.self === window.top ? 32 : 1;
     const s = Math.min((innerWidth - 2 * marge) / largeur, (innerHeight - 2 * marge) / hauteur) || 1;
     racine.style.transform = `scale(${s})`;
