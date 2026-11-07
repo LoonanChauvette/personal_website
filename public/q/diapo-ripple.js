@@ -5,7 +5,7 @@
 // des modulations : glisser la pointe de la flèche règle la vélocité ω (Hz, horizontale ; à droite
 // les stries montent, à gauche elles descendent) et la densité Ω (cycles/octave, verticale) ; ses
 // deux composantes sont tracées et chiffrées le long de leur segment. Couleurs comme les
-// soulignements du texte de la diapositive : ω orange, Ω bleu, profondeur rouge. En bas,
+// soulignements du texte de la diapositive : ω orange, Ω rouge, profondeur bleu. En bas,
 // l'enveloppe spectro-temporelle du ripple (2 s, 250 à 8000 Hz en octaves), une barre bleue suit
 // la lecture. Le son est calculé ici (modulations.js) ; changer un réglage pendant la lecture la
 // relance avec le nouveau son.

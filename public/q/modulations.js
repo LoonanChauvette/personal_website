@@ -9,8 +9,8 @@ import { echelle, R, S, T } from './excali/excali.js';
 
 export const BLEU = '#1971c2', ROUGE = '#e03131', NOIR = '#1e1e1e', GRIS = '#868e96', ORANGE = '#f08c00';
 // Code couleur de la diapositive des ripples (soulignements du texte, segments, curseur) :
-// vélocité ω en orange, densité Ω en bleu, profondeur en rouge.
-export const C_OMEGA = ORANGE, C_DENSITE = BLEU, C_PROFONDEUR = ROUGE;
+// vélocité ω en orange, densité Ω en rouge, profondeur en bleu.
+export const C_OMEGA = ORANGE, C_DENSITE = ROUGE, C_PROFONDEUR = BLEU;
 export const W_MAX = 12, O_MAX = 4; // plan des modulations : ω ∈ [−12, 12] Hz, Ω ∈ [0, 4] c/oct
 const nb = (v) => (Number.isInteger(v) ? String(v) : String(+v.toFixed(2))).replace('-', '−'); // point décimal
 
@@ -164,7 +164,7 @@ export function imageGris(db, trames, lignes, dyn = 60, maxImpose = null) {
 /**
  * Axes du plan dans g : ω horizontal (−W_MAX … W_MAX Hz), Ω vertical (0 … O_MAX c/oct), origine
  * en bas au milieu. Renvoie { x, y, fleche(ω, Ω) } : la flèche (encre) part de l'origine ; ses deux
- * composantes sont des segments de couleur, ω (orange) de l'axe vertical à la pointe, Ω (bleu) de
+ * composantes sont des segments de couleur, ω (orange) de l'axe vertical à la pointe, Ω (rouge) de
  * l'axe horizontal à la pointe, chacun avec sa valeur écrite le long du segment (comme la durée
  * « 1.16 s » de la figure de l'enveloppe).
  */
