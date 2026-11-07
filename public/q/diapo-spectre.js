@@ -506,9 +506,9 @@ function creerBoucle(fMax = F_LIN) {
 }
 
 // ▶, choix des formes et valeur à droite ; le bruit change aussitôt si l'on change de forme.
-function cadreForme(options, depart, amp) {
+function cadreForme(options, depart, amp, fMax = F_LIN) {
   const etat = { choisi: options.find((o) => o.cle === depart) };
-  const boucle = creerBoucle();
+  const boucle = creerBoucle(fMax);
   arreterTout = () => boucle.arreter();
   const barre = placer(H('div', null, null, demo), 0, 0);
   barre.style.cssText += `display:flex;align-items:center;gap:${ECART_COMMANDES}px;width:${L}px`;
@@ -597,13 +597,11 @@ function vueEtendue() {
 }
 
 // ─── Asymétrie : bruits colorés ────────────────────────────────────────────
-// Amplitude ∝ f^α de 20 Hz à 5 kHz (puissance ∝ f^2α) : brun (−1), rose (−1/2), blanc (0), bleu
-// (1/2), violet (1), chacun dans sa couleur. Bascule d'échelles :
-//   - linéaires (par défaut) : amplitude à aire égale (le blanc au tiers de la hauteur ; le brun et le
-//     rose dépassent en haut sous quelques centaines de Hz, fondu sans contour) ;
-//   - log : fréquence log et dB (0 dB à 1 kHz), une droite par bruit (−6 à +6 dB/octave). Le
-//     centroïde (fréquence linéaire) y paraît décalé vers la droite.
-// La barre du centroïde donne la part de la densité sous et au-dessus de lui.
+// Amplitude ∝ f^α sur tout le spectre audible, 20 Hz à 20 kHz (puissance ∝ f^2α) : brun (−1), rose
+// (−1/2), blanc (0), bleu (1/2), violet (1), chacun dans sa couleur. Niveau en dB (0 dB à 1 kHz) dans
+// les deux échelles de fréquence ; la bascule ne change que l'axe des fréquences (en log, une droite
+// par bruit, −6 à +6 dB/octave). La fréquence du centroïde est dans la légende : elle ne change pas
+// quand l'axe change. La barre du centroïde donne la part de la densité sous et au-dessus de lui.
 const BRUITS = [
   { cle: 'brun', nom: 'Brun', alpha: -1, couleur: '#8b5a2b' },
   { cle: 'rose', nom: 'Rose', alpha: -0.5, couleur: '#e64980' },
@@ -611,47 +609,31 @@ const BRUITS = [
   { cle: 'bleu', nom: 'Bleu', alpha: 0.5, couleur: '#1971c2' },
   { cle: 'violet', nom: 'Violet', alpha: 1, couleur: '#7048e8' },
 ].map((b) => ({ ...b, titre: `Bruit ${b.nom.toLowerCase()} : amplitude ∝ f^${nb(b.alpha, b.alpha % 1 ? 1 : 0)} (${b.alpha > 0 ? '+' : b.alpha ? '−' : ''}${Math.abs(b.alpha * 6)} dB/octave)` }));
-const F_BAS = 20;
+const F_BAS = 20, F_HAUT = 20000;
 function vueAsymetrie() {
-  const amp = (b) => (f) => (f < F_BAS || f > F_AFF ? 0 : (f / 1000) ** b.alpha);
-  const { etat, jouer, boucle, val, svg, barre } = cadreForme(BRUITS, 'rose', amp);
+  const amp = (b) => (f) => (f < F_BAS || f > F_HAUT ? 0 : (f / 1000) ** b.alpha);
+  const { etat, jouer, boucle, val, svg, barre } = cadreForme(BRUITS, 'rose', amp, F_HAUT);
   let log = false;
   const bascule = H('div', null, null, null);
   bascule.style.marginLeft = '18px';
   barre.insertBefore(bascule, val); // dans la ligne du haut : rien ne gêne la barre du centroïde
-  choix(bascule, [{ texte: 'Linéaire', valeur: false, titre: 'Fréquence et amplitude linéaires (ce que pèsent les moments)' },
-    { texte: 'Log', valeur: true, titre: 'Fréquence log, niveau en dB : une droite par bruit' }], log, (v) => { log = v; rendre(); }, { compact: true });
-  const fs = Array.from({ length: (F_AFF - F_BAS) / PAS_F + 1 }, (_, i) => F_BAS + i * PAS_F);
-  const ft = Array.from({ length: 241 }, (_, i) => F_BAS * (F_AFF / F_BAS) ** (i / 240)); // points du tracé log
+  choix(bascule, [{ texte: 'Linéaire', valeur: false, titre: 'Axe des fréquences linéaire (ce que pèsent les moments)' },
+    { texte: 'Log', valeur: true, titre: 'Axe des fréquences logarithmique : une droite par bruit' }], log, (v) => { log = v; rendre(); }, { compact: true });
+  const fs = Array.from({ length: (F_HAUT - F_BAS) / PAS_F + 1 }, (_, i) => F_BAS + i * PAS_F);
+  const ft = Array.from({ length: 241 }, (_, i) => F_BAS * (F_HAUT / F_BAS) ** (i / 240)); // points du tracé log
+  const kHz = (f) => (f === F_HAUT ? '20 kHz' : f >= 1000 ? `${f / 1000}k` : String(f));
   return () => {
     jouer.lecture(boucle.enCours());
     const br = etat.choisi, coul = br.couleur, a = fs.map(amp(br)), m = moments(fs, a), b = BOITE;
     const somme = a.reduce((p, q) => p + q, 0), dessous = fs.reduce((p, f, i) => p + (f < m.centroide ? a[i] : 0), 0) / somme;
     afficherValeurs(val, [[`asymétrie : ${nb(Math.abs(m.asymetrie) < 0.005 ? 0 : m.asymetrie, 2)}`, coul, true]]);
     svg.replaceChildren();
-    let X;
-    if (log) {
-      X = echelle(F_BAS, F_AFF, b.g, b.d, true);
-      const Y = echelle(-40, 40, b.b, b.h);
-      aireCourbe(svg, ft.map((f) => [X(f), Y(20 * br.alpha * Math.log10(f / 1000))]), b, coul, coul, 0.22);
-      axes(svg, { x: X, y: Y, ticksX: [20, 50, 100, 200, 500, 1000, 2000, 5000], ticksY: [-40, 0, 40],
-        formatX: (f) => (f === F_AFF ? '5 kHz' : f >= 1000 ? `${f / 1000}k` : String(f)), formatY: (v) => (v === 40 ? '+40 dB' : v > 0 ? `+${v}` : fDb(v).replace(' dB', '')) });
-    } else {
-      // Aire égale : le blanc (amplitude 1 sur la bande) au tiers de la hauteur ; au-delà, fondu.
-      X = echelle(0, F_AFF, b.g, b.d);
-      const Y = echelle(0, 3, b.b, b.h), moy = somme / fs.length, v = a.map((x) => x / moy);
-      const pts = fs.map((f, i) => [X(f), Y(Math.min(3, v[i]))]), deborde = v.some((x) => x > 3);
-      if (deborde) {
-        const deg = S('linearGradient', { id: 'fondu', x1: 0, x2: 0, y1: 0, y2: 1 }, S('defs', {}, svg));
-        S('stop', { offset: 0, 'stop-color': coul, 'stop-opacity': 0 }, deg);
-        S('stop', { offset: 0.3, 'stop-color': coul, 'stop-opacity': 0.22 }, deg);
-      }
-      S('path', { d: chemin([[X(F_BAS), b.b], ...pts, [X(F_AFF), b.b]]) + 'Z', fill: deborde ? 'url(#fondu)' : coul, 'fill-opacity': deborde ? 1 : 0.22, stroke: 'none' }, svg);
-      S('path', { d: chemin([...(deborde ? [] : [[X(F_BAS), b.b]]), ...pts.filter((_, i) => v[i] <= 3), [X(F_AFF), b.b]]), fill: 'none', stroke: coul, 'stroke-width': 2.5 }, svg);
-      axeAmplitude(svg, X, Y, b, TICKS_LIN, fmtLin);
-    }
+    const X = log ? echelle(F_BAS, F_HAUT, b.g, b.d, true) : echelle(0, F_HAUT, b.g, b.d), Y = echelle(-40, 40, b.b, b.h);
+    aireCourbe(svg, (log ? ft : fs.filter((f, i) => f < 400 || i % 10 === 0)).map((f) => [X(f), Y(20 * br.alpha * Math.log10(f / 1000))]), b, coul, coul, 0.22);
+    axes(svg, { x: X, y: Y, ticksX: log ? [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000] : [0, 5000, 10000, 15000, 20000], ticksY: [-40, 0, 40],
+      formatX: kHz, formatY: (v) => (v === 40 ? '+40 dB' : v > 0 ? `+${v}` : fDb(v).replace(' dB', '')) });
     centroideBarre(svg, X(m.centroide), b, X, { dessous, coul });
-    legende(svg, b.d, 14, [{ type: 'tiret', couleur: ORANGE, texte: 'centroïde' },
+    legende(svg, b.d, 14, [{ type: 'tiret', couleur: ORANGE, texte: `centroïde : ${nb(m.centroide / 1000, 1)} kHz` },
       { type: 'aire', couleur: coul, opacite: 0.55, texte: 'part sous le centroïde' }, { type: 'aire', couleur: coul, opacite: 0.12, texte: 'au-dessus' }]);
   };
 }
