@@ -7,7 +7,10 @@
 // flèche du plan (ω, Ω) ait le même sens partout.
 import { echelle, R, S, T } from './excali/excali.js';
 
-export const BLEU = '#1971c2', ROUGE = '#e03131', NOIR = '#1e1e1e', GRIS = '#868e96';
+export const BLEU = '#1971c2', ROUGE = '#e03131', NOIR = '#1e1e1e', GRIS = '#868e96', ORANGE = '#f08c00';
+// Code couleur de la diapositive des ripples (soulignements du texte, segments, curseur) :
+// vélocité ω en orange, densité Ω en bleu, profondeur en rouge.
+export const C_OMEGA = ORANGE, C_DENSITE = BLEU, C_PROFONDEUR = ROUGE;
 export const W_MAX = 12, O_MAX = 4; // plan des modulations : ω ∈ [−12, 12] Hz, Ω ∈ [0, 4] c/oct
 const nb = (v) => (Number.isInteger(v) ? String(v) : String(+v.toFixed(2))).replace('-', '−'); // point décimal
 
@@ -157,51 +160,56 @@ export function imageGris(db, trames, lignes, dyn = 60, maxImpose = null) {
   return c.toDataURL();
 }
 
-// ─── Plan des modulations (ω, Ω) : flèche nette et ses projections ─────────────────────────
+// ─── Plan des modulations (ω, Ω) : flèche nette et ses deux composantes ──────────────────────
 /**
  * Axes du plan dans g : ω horizontal (−W_MAX … W_MAX Hz), Ω vertical (0 … O_MAX c/oct), origine
- * en bas au milieu. Renvoie { x, y, fleche(ω, Ω) } : la flèche part de l'origine ; deux tirets gris
- * la projettent sur les axes, où la vélocité et la densité s'écrivent en bleu (les graduations
- * qu'elles recouvriraient sont masquées).
+ * en bas au milieu. Renvoie { x, y, fleche(ω, Ω) } : la flèche (encre) part de l'origine ; ses deux
+ * composantes sont des segments de couleur, ω (orange) de l'axe vertical à la pointe, Ω (bleu) de
+ * l'axe horizontal à la pointe, chacun avec sa valeur écrite le long du segment (comme la durée
+ * « 1.16 s » de la figure de l'enveloppe).
  */
 export function planModulations(g, { gauche, droite, haut, bas }) {
   const x = echelle(-W_MAX, W_MAX, gauche, droite), y = echelle(0, O_MAX, bas, haut);
-  const projX = S('line', { stroke: GRIS, 'stroke-width': 1, 'stroke-dasharray': '4 3' }, g);
-  const projY = S('line', { stroke: GRIS, 'stroke-width': 1, 'stroke-dasharray': '4 3' }, g);
   S('line', { x1: gauche, x2: droite, y1: bas, y2: bas, class: 'trait' }, g);
-  const etiqX = [-12, -8, -4, 0, 4, 8, 12].map((v) => {
+  for (const v of [-12, -8, -4, 0, 4, 8, 12]) {
     S('line', { x1: x(v), x2: x(v), y1: bas, y2: bas + 4, class: 'trait' }, g);
-    return { v, t: T(g, x(v), bas + 17, nb(v)) };
-  });
+    T(g, x(v), bas + 17, nb(v));
+  }
   T(g, droite, bas + 34, 'ω (Hz)', 'titre-axe', 'end');
   S('line', { x1: x(0), x2: x(0), y1: bas, y2: haut, class: 'trait' }, g);
-  const etiqY = [1, 2, 3, 4].map((v) => { // pas de « 0 » : il tomberait sur l'axe des ω (qui a déjà le sien)
+  for (const v of [1, 2, 3, 4]) { // pas de « 0 » : il tomberait sur l'axe des ω (qui a déjà le sien)
     S('line', { x1: x(0) - 4, x2: x(0), y1: y(v), y2: y(v), class: 'trait' }, g);
-    return { v, t: T(g, x(0) - 7, y(v) + 4, nb(v), 'graduation', 'end') };
-  });
-  T(g, x(0) + 8, haut + 4, 'Ω (c/oct)', 'titre-axe', 'start');
-  const valX = T(g, 0, bas + 17, ''), valY = T(g, 0, 0, '', 'graduation', 'end');
-  valX.style.fill = BLEU; valY.style.fill = BLEU;
-  const trait = S('line', { x1: x(0), y1: y(0), stroke: BLEU, 'stroke-width': 2.5, 'stroke-linecap': 'round' }, g);
-  const pointe = S('polygon', { fill: BLEU }, g);
+    T(g, x(0) - 7, y(v) + 4, nb(v), 'graduation', 'end');
+  }
+  T(g, x(0), haut - 19, 'Ω (c/oct)', 'titre-axe'); // au-dessus de l'axe : la valeur de ω (au-dessus de son segment) ne l'atteint jamais
+  const segW = S('line', { stroke: C_OMEGA, 'stroke-width': 2.5, 'stroke-linecap': 'round' }, g);
+  const segO = S('line', { stroke: C_DENSITE, 'stroke-width': 2.5, 'stroke-linecap': 'round' }, g);
+  const valW = T(g, 0, 0, '', 'graduation'), valO = T(g, 0, 0, '', 'graduation', 'start');
+  valW.style.fill = C_OMEGA; valO.style.fill = C_DENSITE;
+  const trait = S('line', { x1: x(0), y1: y(0), stroke: NOIR, 'stroke-width': 2, 'stroke-linecap': 'round' }, g);
+  const pointe = S('polygon', { fill: NOIR }, g);
   return {
     x, y,
     fleche(om, Om) {
       const x1 = x(om), y1 = y(Om), dx = x1 - x(0), dy = y1 - y(0), l = Math.hypot(dx, dy);
-      // Projections et valeurs : ω sous l'axe horizontal, Ω du côté de l'axe vertical opposé à la pointe.
-      projX.setAttribute('x1', x1); projX.setAttribute('x2', x1); projX.setAttribute('y1', y1); projX.setAttribute('y2', y(0));
-      projY.setAttribute('x1', x1); projY.setAttribute('x2', x(0)); projY.setAttribute('y1', y1); projY.setAttribute('y2', y1);
-      valX.textContent = `${nb(om)} Hz`;
-      valX.setAttribute('x', x1);
-      valY.textContent = `${nb(Om)} c/oct`;
-      const aDroite = om < 0;
-      valY.setAttribute('text-anchor', aDroite ? 'start' : 'end');
-      valY.setAttribute('x', x(0) + (aDroite ? 7 : -7));
-      // À droite de l'axe, près du haut, la valeur passe sous son tiret : sinon elle chevauche « Ω (c/oct) ».
-      valY.setAttribute('y', y1 + (aDroite && y1 - y(O_MAX) < 16 ? 18 : 4));
-      valY.setAttribute('visibility', Om > 0 ? 'visible' : 'hidden');
-      for (const { v, t } of etiqX) t.setAttribute('visibility', Math.abs(x(v) - x1) < 30 ? 'hidden' : 'visible');
-      for (const { v, t } of etiqY) t.setAttribute('visibility', !aDroite && Om > 0 && Math.abs(y(v) - y1) < 14 ? 'hidden' : 'visible');
+      // ω : segment horizontal, valeur au milieu.
+      segW.setAttribute('x1', x(0)); segW.setAttribute('x2', x1); segW.setAttribute('y1', y1); segW.setAttribute('y2', y1);
+      valW.textContent = `${nb(om)} Hz`;
+      const court = Math.abs(x1 - x(0)) < valW.textContent.length * 6.5 + 8; // segment plus court que sa valeur : valeur après la pointe
+      valW.setAttribute('text-anchor', !court ? 'middle' : om < 0 ? 'end' : 'start');
+      valW.setAttribute('x', !court ? (x(0) + x1) / 2 : x1 + (om < 0 ? -7 : 7));
+      valW.setAttribute('y', y1 - 7);
+      // Ω : segment vertical, valeur au milieu, du côté extérieur (vers l'axe s'il manque la place
+      // ou si l'extérieur tombe sur les graduations de l'axe vertical).
+      segO.setAttribute('x1', x1); segO.setAttribute('x2', x1); segO.setAttribute('y1', y(0)); segO.setAttribute('y2', y1);
+      valO.textContent = `${nb(Om)} c/oct`;
+      let aDroite = om >= 0;
+      if (om >= 0 && x1 + 58 > droite + 8) aDroite = false; // bord droit
+      if (om < 0 && x(0) - x1 < 58 && Om >= 0.75) aDroite = true; // graduations de l'axe vertical (de 1 à 4)
+      valO.setAttribute('text-anchor', aDroite ? 'start' : 'end');
+      valO.setAttribute('x', x1 + (aDroite ? 7 : -7));
+      valO.setAttribute('y', Math.min((y(0) + y1) / 2 + 4, y(0) - 4)); // jamais sur l'axe horizontal
+      for (const [e, v] of [[segW, om], [valW, om], [segO, Om], [valO, Om]]) e.setAttribute('visibility', v !== 0 ? 'visible' : 'hidden');
       const vis = l > 1 ? 'visible' : 'hidden';
       trait.setAttribute('visibility', vis); pointe.setAttribute('visibility', vis);
       if (l <= 1) return;
@@ -215,7 +223,7 @@ export function planModulations(g, { gauche, droite, haut, bas }) {
 export { nb };
 
 // ─── Curseur dessiné (port de teaching-demos, shared/pitch/kit.js ; comme diapo-harmonique.js) ─
-export function curseur(parent, { largeur, min, max, valeur, action, cle = 'curseur' }) {
+export function curseur(parent, { largeur, min, max, valeur, action, cle = 'curseur', couleur = BLEU }) {
   const h = 30, x0 = 12, x1 = largeur - 12, y = h / 2;
   const s = S('svg', { class: 'curseur', width: largeur, height: h }, parent);
   s.style.touchAction = 'none';
@@ -223,7 +231,7 @@ export function curseur(parent, { largeur, min, max, valeur, action, cle = 'curs
   R('line', s, [x0, y, x1, y], { cle: cle + 'rail', strokeWidth: 1.5 });
   const clip = S('clipPath', { id: cle + 'clip' }, S('defs', {}, s));
   const rc = S('rect', { x: 0, y: 0, width: 0, height: h }, clip);
-  R('line', s, [x0, y, x1, y], { cle: cle + 'actif', stroke: BLEU, strokeWidth: 3 }).setAttribute('clip-path', `url(#${cle}clip)`);
+  R('line', s, [x0, y, x1, y], { cle: cle + 'actif', stroke: couleur, strokeWidth: 3 }).setAttribute('clip-path', `url(#${cle}clip)`);
   const p = S('g', { class: 'poignee' }, s);
   R('circle', p, [0, 0, 15], { cle: cle + 'poignee', fill: NOIR, fillStyle: 'solid', roughness: 0.7, strokeWidth: 1.3 });
   let courant = valeur;

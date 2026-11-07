@@ -4,7 +4,8 @@
 // En haut, ▶ et la profondeur (0 = bruit non modulé, 1 = complètement modulé). Au milieu, le plan
 // des modulations : glisser la pointe de la flèche règle la vélocité ω (Hz, horizontale ; à droite
 // les stries montent, à gauche elles descendent) et la densité Ω (cycles/octave, verticale) ; ses
-// projections sur les axes portent les deux valeurs. En bas,
+// deux composantes sont tracées et chiffrées le long de leur segment. Couleurs comme les
+// soulignements du texte de la diapositive : ω orange, Ω bleu, profondeur rouge. En bas,
 // l'enveloppe spectro-temporelle du ripple (2 s, 250 à 8000 Hz en octaves), une barre bleue suit
 // la lecture. Le son est calculé ici (modulations.js) ; changer un réglage pendant la lecture la
 // relance avec le nouveau son.
@@ -14,7 +15,7 @@
 //   <script src="…/q/excali/rough.js"></script> <div id="demo" class="demo"></div>
 //   <script type="application/json" id="config">{"id": "c7ripple"}</script>
 import { ajuster, axes, bouton, echelle, H, placer, S } from './excali/excali.js';
-import { BLEU, creerLecteurTampon, creerRipple, curseur, nb, O_MAX, planModulations, W_MAX } from './modulations.js';
+import { C_PROFONDEUR, NOIR, creerLecteurTampon, creerRipple, curseur, nb, O_MAX, planModulations, W_MAX } from './modulations.js';
 
 const L = 420, HT = 384, HAUT_SVG = 44;
 const G = 64, D = L - 10; // bords horizontaux communs du plan et de l'enveloppe
@@ -28,17 +29,18 @@ ligne.style.cssText += 'display:flex;align-items:center;gap:10px';
 const jouer = bouton(ligne, '', () => { if (lecteur.enCours()) { lecteur.arreter(); rendre(); } else lancer(); },
   { largeur: 34, jouer: true, titre: 'Écouter' });
 H('span', null, 'Profondeur', ligne).style.marginLeft = '10px';
-curseur(ligne, { largeur: 170, min: 0, max: 1, valeur: etat.m, cle: 'profondeur',
+curseur(ligne, { largeur: 170, min: 0, max: 1, valeur: etat.m, cle: 'profondeur', couleur: C_PROFONDEUR,
   action: (v, fin) => { etat.m = Math.round(v * 20) / 20; rendre(); if (fin) relancer(); } });
 const valeurM = H('span', null, '', ligne);
-valeurM.style.color = BLEU;
+valeurM.style.color = C_PROFONDEUR;
 
 const svg = placer(S('svg', { width: L, height: HT - HAUT_SVG }), 0, HAUT_SVG);
+svg.style.overflow = 'visible'; // valeur de ω au-dessus de son segment, même tout en haut du plan
 demo.append(svg);
 
 // Plan (ω, Ω) : la pointe de la flèche se glisse ; un clic ailleurs dans le plan l'y amène.
 // (Pas de poignée ronde : elle cacherait la pointe.)
-const plan = planModulations(S('g', {}, svg), { gauche: G, droite: D, haut: 14, bas: 118 });
+const plan = planModulations(S('g', {}, svg), { gauche: G, droite: D, haut: 24, bas: 118 }); // haut : place du titre « Ω (c/oct) »
 const zone = S('rect', { x: G - 8, y: 4, width: D - G + 16, height: 124, fill: 'transparent' }, svg);
 zone.style.cursor = 'pointer';
 zone.style.touchAction = 'none';
@@ -59,7 +61,7 @@ const fy = echelle(ripple.fMin, ripple.fMin * 2 ** ripple.octaves, 300, 178, tru
 const image = S('image', { x: G, y: fy.r1, width: D - G, height: fy.r0 - fy.r1, preserveAspectRatio: 'none' }, svg);
 axes(S('g', {}, svg), { x: tx, y: fy, ticksX: [0, 0.5, 1, 1.5, 2], ticksY: [250, 500, 1000, 2000, 4000, 8000],
   titreX: 'Temps (s)', titreY: 'kHz', formatX: (v) => nb(v), formatY: (v) => nb(v / 1000) });
-const curseurT = S('line', { y1: fy.r1, y2: fy.r0, stroke: BLEU, 'stroke-width': 2, visibility: 'hidden' }, svg);
+const curseurT = S('line', { y1: fy.r1, y2: fy.r0, stroke: NOIR, 'stroke-width': 2, visibility: 'hidden' }, svg);
 
 const toile = document.createElement('canvas');
 toile.width = 2 * (D - G); toile.height = 2 * (fy.r0 - fy.r1);

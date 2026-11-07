@@ -2,9 +2,11 @@
 // srcdoc, moitié droite) : les modulations spectro-temporelles locales d'une phrase, d'après la
 // figure d'Elliott et Theunissen (2009).
 //
-// En haut, ▶ joue la phrase (une barre bleue suit la lecture). Au milieu, son spectrogramme (125 à
-// 8000 Hz en octaves). Survoler (ou toucher) le spectrogramme déplace une fenêtre de 300 ms × 1.5
-// octave ; en bas, cette fenêtre ≈ la somme de ses trois modulations les plus fortes, en rouge
+// En haut, ▶ joue la phrase (une barre bleue suit la lecture) et trois exemples placent la fenêtre
+// sur une modulation surtout temporelle, surtout spectrale (harmoniques) ou spectro-temporelle,
+// comme les trois ellipses de la figure d'origine. Au milieu, son spectrogramme (125 à 8000 Hz en
+// octaves, fenêtre de 40 ms : les harmoniques sont résolues). Cliquer-glisser sur le spectrogramme
+// déplace la fenêtre d'analyse de 300 ms × 1.5 octave, qui reste où on la lâche ; en bas, cette fenêtre ≈ la somme de ses trois modulations les plus fortes, en rouge
 // (crêtes) et bleu (creux), comme les ellipses de la figure d'origine ; une composante plus faible
 // est plus pâle. Pas de valeurs : la figure sert l'intuition (les valeurs sont sur la diapositive
 // des ripples).
@@ -17,7 +19,7 @@
 //   <base href="https://SITE/q/"> <link rel="stylesheet" href="…/q/excali/excali.css">
 //   <script src="…/q/excali/rough.js"></script> <div id="demo" class="demo"></div>
 //   <script type="application/json" id="config">{"id": "c7modparole"}</script>
-import { ajuster, axes, bouton, echelle, H, placer, S, T } from './excali/excali.js';
+import { ajuster, axes, bouton, choix, echelle, H, placer, S, T } from './excali/excali.js';
 import { BLEU, creerLecteurTampon, imageGris, lireWav, modulationsLocales, nb, ROUGE, spectrogrammeLog } from './modulations.js';
 
 const L = 416, HT = 366, HAUT_SVG = 44;
@@ -26,7 +28,15 @@ const F_MIN = 125, OCTAVES = 6, PAR_OCTAVE = 32, PAS = 0.005;
 const FEN_T = 0.3, FEN_O = 1.5; // fenêtre d'analyse : 300 ms × 1.5 octave
 const lecteur = creerLecteurTampon();
 let son = null, sp = null, fx = null;
-const etat = { t: 1.02, f: 2000 }; // avant tout survol : la transition descendante vers 2 kHz (ω < 0, Ω ≈ 1.5)
+// Exemples (centre de la fenêtre), choisis en balayant la phrase : composante dominante
+// −4 Hz / 0.25 c/oct (attaque de syllabe), ≈ 0 Hz / 2 c/oct (harmoniques d'une voyelle tenue),
+// −3.5 Hz / 1.6 c/oct (transition de formant descendante vers 2 kHz).
+const EXEMPLES = [
+  { texte: 'Temporelle', t: 0.7, f: 1345 },
+  { texte: 'Spectrale', t: 0.4, f: 476 },
+  { texte: 'Spectro-temporelle', t: 1.02, f: 2000 },
+];
+const etat = { t: EXEMPLES[2].t, f: EXEMPLES[2].f };
 
 const demo = document.getElementById('demo');
 const ligne = placer(H('div', 'lecture', null, demo), 0, 0, L);
@@ -35,7 +45,8 @@ const jouer = bouton(ligne, '', () => {
   if (lecteur.enCours()) lecteur.arreter(); else if (son) { lecteur.jouer(son.x, son.taux, rendreLecture); suivre(); }
   rendreLecture();
 }, { largeur: 34, jouer: true, titre: 'Écouter' });
-H('span', 'indice-html', 'survoler le spectrogramme', ligne);
+const exemples = choix(ligne, EXEMPLES.map((e, i) => ({ texte: e.texte, valeur: i })), 2,
+  (i) => { etat.t = EXEMPLES[i].t; etat.f = EXEMPLES[i].f; rendre(); }, { compact: true, egal: false });
 
 const svg = placer(S('svg', { width: L, height: HT - HAUT_SVG }), 0, HAUT_SVG);
 demo.append(svg);
@@ -45,7 +56,7 @@ const gAxes = S('g', {}, svg);
 const cadre = S('rect', { fill: 'none', stroke: BLEU, 'stroke-width': 2 }, svg);
 const curseurT = S('line', { y1: fy.r1, y2: fy.r0, stroke: BLEU, 'stroke-width': 2, visibility: 'hidden' }, svg);
 const zone = S('rect', { x: G, y: fy.r1, width: D - G, height: fy.r0 - fy.r1, fill: 'transparent' }, svg);
-zone.style.cursor = 'crosshair';
+zone.style.cursor = 'grab';
 zone.style.touchAction = 'none';
 
 // Bas : la fenêtre (extrait du spectrogramme, cadre bleu) = composante 1 + 2 + 3 + …
@@ -75,8 +86,9 @@ function regler(e) {
   etat.f = fy.inverse((e.clientY - r.top) / k);
   rendre();
 }
-zone.addEventListener('pointermove', regler);
-zone.addEventListener('pointerdown', (e) => { zone.setPointerCapture(e.pointerId); regler(e); });
+// Cliquer-glisser (le survol seul ne fait rien) : la fenêtre suit le pointeur et reste où on la lâche.
+zone.addEventListener('pointerdown', (e) => { zone.setPointerCapture(e.pointerId); exemples.valeur(null); regler(e); });
+zone.addEventListener('pointermove', (e) => { if (zone.hasPointerCapture(e.pointerId)) regler(e); });
 
 const melange = (c, a) => { // c : couleur hex, a ∈ [0, 1] : part de la couleur sur le blanc
   const v = [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
@@ -138,7 +150,7 @@ ajuster(demo, L, HT, { surMasque: () => { lecteur.arreter(); rendreLecture(); },
     const r = await fetch('sons/modulations/parole.wav');
     if (!r.ok) throw new Error(`Son introuvable (${r.status})`);
     son = lireWav(await r.arrayBuffer());
-    sp = spectrogrammeLog(son.x, son.taux, { fMin: F_MIN, octaves: OCTAVES, parOctave: PAR_OCTAVE, pas: PAS });
+    sp = spectrogrammeLog(son.x, son.taux, { fMin: F_MIN, octaves: OCTAVES, parOctave: PAR_OCTAVE, pas: PAS, fenetre: 0.04 });
     const duree = son.x.length / son.taux;
     fx = echelle(0, duree, G, D);
     image.setAttribute('x', fx(0)); image.setAttribute('width', fx(sp.trames * PAS) - fx(0));
