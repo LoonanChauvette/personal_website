@@ -10,7 +10,9 @@
 //
 // En haut, ▶ tire une nouvelle séquence de 9 bouffées (3 modulées, jamais la première ni deux de
 // suite) et la joue ; le contraste (bleu, comme la profondeur des ripples) se règle de −30 à 0 dB,
-// affiché en dB puis en profondeur linéaire m (« −20 dB = 0.10 »).
+// affiché sur trois lignes : dB FS (re modulation complète, l'axe « STM threshold » de la figure des
+// régressions), ≈ dB nCL de la clinique (dB FS + 16 : 16 dB nCL = modulation complète, 0 dB nCL
+// ≈ −16 dB FS ; décalage rapporté par une source secondaire, pas vérifié) et m linéaire.
 // Au milieu, le spectrogramme (200 à 3000 Hz en octaves) se dévoile derrière la barre de lecture ;
 // les cadres rouges des bouffées modulées n'apparaissent qu'à la fin : la classe compte d'abord à
 // l'oreille. À l'arrêt, changer le contraste refait la même séquence (mêmes bruits) à ce contraste.
@@ -26,6 +28,7 @@ const L = 400, HT = 170, HAUT_SVG = 40;
 const G = 66, D = L - 8;
 const TAUX = 22050, N = 9, NB_MOD = 3, F_BAS = 354, F_HAUT = 2000, OM = 4, OMEGA_S = 2, RAMPE = 0.05;
 const F_MIN = 200, OCTAVES = Math.log2(3000 / 200), PAR_OCTAVE = 24, PAS = 0.02;
+const NCL = 16; // dB nCL ≈ dB FS + 16 : 16 dB nCL = modulation complète (0 dB FS)
 const etat = { db: -6 };
 const lecteur = creerLecteurTampon();
 let seq = null; // { bouffees: [ripple], modulees: Set, x: Float32Array }
@@ -43,14 +46,14 @@ curseur(ligne, { largeur: 140, min: -30, max: 0, valeur: etat.db, cle: 'contrast
     afficher();
     if (fin && !lecteur.enCours()) { synthetiser(); dessiner(); }
   } });
-const valeur = H('span', null, null, ligne);
-valeur.style.cssText = `color:${C_PROFONDEUR};white-space:nowrap`;
-const valeurDb = H('span', null, '', valeur), valeurM = H('span', null, '', valeur);
-valeurM.style.fontSize = '0.8em';
-function afficher() { // dB d'abord (unité de la clinique) ; puis m = 10^(dB/20), deux chiffres significatifs
+const valeur = H('div', null, null, ligne); // trois lignes : dB FS, dB nCL, m
+valeur.style.cssText = `color:${C_PROFONDEUR};white-space:nowrap;font-size:12px;line-height:13px;text-align:right;margin-left:auto`;
+const [valeurFs, valeurNcl, valeurM] = [0, 1, 2].map(() => H('div', null, '', valeur));
+function afficher() { // m = 10^(dB/20), deux chiffres significatifs
   const m = 10 ** (etat.db / 20);
-  valeurDb.textContent = nb(etat.db) + ' dB';
-  valeurM.textContent = ' = ' + (m >= 0.995 ? '1' : m >= 0.1 ? m.toFixed(2) : m.toFixed(3));
+  valeurFs.textContent = nb(etat.db) + ' dB FS';
+  valeurNcl.textContent = '≈ ' + nb(etat.db + NCL) + ' dB nCL';
+  valeurM.textContent = (m >= 0.995 ? '1' : m >= 0.1 ? m.toFixed(2) : m.toFixed(3));
 }
 afficher();
 
