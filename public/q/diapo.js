@@ -313,7 +313,8 @@ function grilleChoix(q) {
   if (!EXCALI || q.type !== 'serie' || !sousQ.length || !sousQ.every((sq) => CHOIX.has(sq.type))) return null;
   const lettresDe = (sq) => (sq.type === 'vraifaux' ? ['V', 'F'] : (sq.options || []).map((o) => o.cle));
   const n = Math.max(...sousQ.map((sq) => lettresDe(sq).length));
-  const grille = el('div', 'grille choix');
+  // Cinq ou six lettres (repères A–F, Cours 7) : cases plus étroites, l'élément garde sa largeur.
+  const grille = el('div', `grille choix${n > 4 ? ' serree' : ''}`);
   const groupe = el('div', 'grille-groupe');
   groupe.style.setProperty('--n', String(n));
   for (const sq of sousQ) {
@@ -335,9 +336,10 @@ function grilleChoix(q) {
       caseV.title = `Question ${sq.etiquette || sq.cle}, ${v} : ${nombreEntier(k)} réponse${k === 1 ? '' : 's'}${bonne ? ' (bonne réponse)' : ''}`;
       if (bonne) {
         const f = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        f.setAttribute('width', 64);
+        const l = n > 4 ? 44 : 64;
+        f.setAttribute('width', l);
         f.setAttribute('height', 28);
-        R('rectangle', f, [3, 2, 58, 24], { cle: 'g' + sq.cle + v, stroke: 'none', fill: '#b2f2bb', hachureGap: 4, fillWeight: 1.2 });
+        R('rectangle', f, [3, 2, l - 6, 24], { cle: 'g' + sq.cle + v, stroke: 'none', fill: '#b2f2bb', hachureGap: 4, fillWeight: 1.2 });
         caseV.prepend(f);
       }
       groupe.append(caseV);

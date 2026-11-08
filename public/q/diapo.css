@@ -611,6 +611,14 @@ button.principal {
 .theme-excali .grille.choix .grille-lettre {
   color: var(--encre);
 }
+.theme-excali .grille.choix.serree {
+  font-size: 12px;
+}
+.theme-excali .grille.choix.serree .grille-groupe {
+  grid-template-columns: 18px repeat(var(--n), 44px);
+  column-gap: 4px;
+  row-gap: 6px;
+}
 /* Élément dans une colonne de texte (Cours 7, exercice) : tout part du bord gauche, comme le
    texte au-dessus ; commandes à gauche du pied, statut à droite. */
 .theme-excali.aligne-gauche .corps {
