@@ -258,9 +258,14 @@ function grilleSerie(q) {
   const sousQ = g.questions || [];
   if (!EXCALI || q.type !== 'serie' || !sousQ.length) return null;
   const echelles = sousQ.every((sq) => sq.type === 'echelle' && Number.isInteger(sq.min) && Number.isInteger(sq.max) && sq.max - sq.min <= 4);
-  if (!echelles) return null;
+  // Ou sélection multiple, mêmes options courtes partout (« D1 », « D2 », « D3 ») : plusieurs bonnes réponses.
+  const cles = (sq) => (sq.options || []).map((o) => `${o.cle}:${o.texte}`).join('|');
+  const multiples = sousQ.every((sq) => sq.type === 'multiple' && (sq.options || []).length <= 5 && cles(sq) === cles(sousQ[0]));
+  if (!echelles && !multiples) return null;
   const valeurs = [];
-  for (let v = sousQ[0].min; v <= sousQ[0].max; v += 1) valeurs.push(v);
+  if (echelles) for (let v = sousQ[0].min; v <= sousQ[0].max; v += 1) valeurs.push(v);
+  else valeurs.push(...sousQ[0].options.map((o) => o.cle));
+  const nomValeur = (v, i) => (echelles ? `D${v}` : sousQ[0].options[i].texte || v);
   const colonnes = Math.max(1, Math.min(3, Number(g.colonnes) || 1));
   const parCol = Math.ceil(sousQ.length / colonnes);
   const grille = el('div', 'grille');
@@ -269,9 +274,9 @@ function grilleSerie(q) {
     groupe.style.setProperty('--n', String(valeurs.length));
     groupe.append(el('div', 'grille-titre', (g.titres_colonnes || [])[c] || ''));
     // En-têtes D1, D2, D3 : couleurs des dimensions (figure A–E, carte MDS, corrélats).
-    groupe.append(el('div', 'grille-entete', ''), ...valeurs.map((v) => {
-      const e = el('div', 'grille-entete', `D${v}`);
-      if (COULEURS_DIMENSIONS[v - 1]) e.style.color = COULEURS_DIMENSIONS[v - 1];
+    groupe.append(el('div', 'grille-entete', ''), ...valeurs.map((v, i) => {
+      const e = el('div', 'grille-entete', nomValeur(v, i));
+      if (COULEURS_DIMENSIONS[i]) e.style.color = COULEURS_DIMENSIONS[i];
       return e;
     }));
     for (const sq of sousQ.slice(c * parCol, (c + 1) * parCol)) {
@@ -283,7 +288,7 @@ function grilleSerie(q) {
         const k = Number((sous.comptes || {})[v] ?? (sous.comptes || {})[String(v)]) || 0;
         const bonne = bonnes.has(String(v));
         const caseV = el('div', `grille-case${bonne ? ' bonne' : ''}`, n ? `${nombreEntier((100 * k) / n)} %` : '-');
-        caseV.title = `${sq.texte || sq.cle}, dimension ${v} : ${nombreEntier(k)} réponse${k === 1 ? '' : 's'}${bonne ? ' (bonne réponse)' : ''}`;
+        caseV.title = `${sq.texte || sq.cle}, ${nomValeur(v, valeurs.indexOf(v))} : ${nombreEntier(k)} réponse${k === 1 ? '' : 's'}${bonne ? ' (bonne réponse)' : ''}`;
         if (bonne) {
           const f = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
           f.setAttribute('width', 44);
@@ -296,6 +301,49 @@ function grilleSerie(q) {
     }
     grille.append(groupe);
   }
+  return grille;
+}
+
+// Thème excali, série de questions à choix (Cours 7, révisions) : une ligne par question (son
+// numéro), une case par lettre (% des répondants), bonnes réponses hachurées en vert. Les énoncés
+// et les options sont sur la diapositive ; ici, seulement les numéros et les lettres.
+const CHOIX = new Set(['choix', 'multiple', 'vraifaux']);
+function grilleChoix(q) {
+  const sousQ = (q.gabarit || {}).questions || [];
+  if (!EXCALI || q.type !== 'serie' || !sousQ.length || !sousQ.every((sq) => CHOIX.has(sq.type))) return null;
+  const lettresDe = (sq) => (sq.type === 'vraifaux' ? ['V', 'F'] : (sq.options || []).map((o) => o.cle));
+  const n = Math.max(...sousQ.map((sq) => lettresDe(sq).length));
+  const grille = el('div', 'grille choix');
+  const groupe = el('div', 'grille-groupe');
+  groupe.style.setProperty('--n', String(n));
+  for (const sq of sousQ) {
+    const sous = (q.resultats.parties || {})[sq.cle] || {};
+    const total = Number(sous.n) || 0;
+    const bonnes = new Set((sq.bonnes || []).map(String));
+    groupe.append(el('div', 'grille-nom', sq.etiquette || sq.cle));
+    const lettres = lettresDe(sq);
+    for (let i = 0; i < n; i += 1) {
+      const v = lettres[i];
+      if (!v) {
+        groupe.append(el('div', 'grille-case'));
+        continue;
+      }
+      const k = Number((sous.comptes || {})[v]) || 0;
+      const bonne = bonnes.has(v);
+      const caseV = el('div', `grille-case${bonne ? ' bonne' : ''}`);
+      caseV.append(el('b', 'grille-lettre', v), document.createTextNode(total ? ` ${nombreEntier((100 * k) / total)} %` : ' -'));
+      caseV.title = `Question ${sq.etiquette || sq.cle}, ${v} : ${nombreEntier(k)} réponse${k === 1 ? '' : 's'}${bonne ? ' (bonne réponse)' : ''}`;
+      if (bonne) {
+        const f = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        f.setAttribute('width', 64);
+        f.setAttribute('height', 28);
+        R('rectangle', f, [3, 2, 58, 24], { cle: 'g' + sq.cle + v, stroke: 'none', fill: '#b2f2bb', hachureGap: 4, fillWeight: 1.2 });
+        caseV.prepend(f);
+      }
+      groupe.append(caseV);
+    }
+  }
+  grille.append(groupe);
   return grille;
 }
 
@@ -361,7 +409,7 @@ function tracerGraphique(q) {
   const zone = el('div', 'graphique');
   ui.corps.appendChild(zone);
   if (!q.resultats) return;
-  const grille = grilleSerie(q) || matricePaires(q);
+  const grille = grilleSerie(q) || grilleChoix(q) || matricePaires(q);
   if (grille) {
     zone.append(grille);
     return;

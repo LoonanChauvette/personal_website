@@ -270,6 +270,17 @@ body {
   min-width: 0;
 }
 
+/* Options avec libellés dans une série (révisions) : liste verticale, comme une question seule. */
+.serie-controle .liste-options.avec-libelles {
+  display: flex;
+  flex-direction: column;
+}
+.serie-controle .liste-options.avec-libelles .touche {
+  justify-content: flex-start;
+  padding: 8px 12px;
+  text-align: left;
+}
+
 /* Résultats d'une série (liste) : mêmes blocs que le formulaire, réponses à droite. */
 .serie-resultats.liste {
   display: flex;

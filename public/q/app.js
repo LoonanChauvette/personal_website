@@ -125,7 +125,9 @@ function grilleLettres(q, multiple) {
   const avecTextes = DIAPO || !(q.gabarit && q.gabarit.masquer_texte);
   // Liste verticale : lettres alignées, libellé éventuel à droite de la lettre.
   const grille = element('div', 'liste-options');
-  if (avecTextes && options.some((o) => o.texte)) grille.classList.add('avec-libelles');
+  // Libellés très courts (« D1 », « D2 »…) : ils remplacent les lettres, boutons sur une ligne.
+  const etiquettes = options.every((o) => o.texte && o.texte.length <= 4);
+  if (avecTextes && !etiquettes && options.some((o) => o.texte)) grille.classList.add('avec-libelles');
 
   const selection = new Set();
   if (reponseLocale && reponseLocale.reponse !== null && reponseLocale.reponse !== undefined) {
@@ -142,17 +144,17 @@ function grilleLettres(q, multiple) {
   }
 
   for (const option of options) {
-    const libelle = avecTextes ? option.texte : '';
+    const libelle = avecTextes && !etiquettes ? option.texte : '';
     const bouton = element('button', multiple ? 'touche case' : 'touche');
     bouton.type = 'button';
     bouton.dataset.cle = option.cle;
     bouton.setAttribute('aria-pressed', selection.has(option.cle) ? 'true' : 'false');
     // Dans une série en colonnes, la place manque : « V » / « F » (l'énoncé dit « vrai ou faux »).
     const court = q.court === true;
-    const nomOption = court ? option.cle : option.cle === 'V' && q.type === 'vraifaux' ? 'Vrai' : option.cle === 'F' && q.type === 'vraifaux' ? 'Faux' : option.cle;
+    const nomOption = etiquettes ? option.texte : court ? option.cle : option.cle === 'V' && q.type === 'vraifaux' ? 'Vrai' : option.cle === 'F' && q.type === 'vraifaux' ? 'Faux' : option.cle;
     if (court && q.type === 'vraifaux') bouton.setAttribute('aria-label', option.cle === 'V' ? 'Vrai' : 'Faux');
     bouton.innerHTML =
-      (multiple ? '<span class="coche" aria-hidden="true"></span>' : '') +
+      (multiple && !etiquettes ? '<span class="coche" aria-hidden="true"></span>' : '') +
       `<span class="lettre">${echapper(nomOption)}</span>` +
       (libelle && q.type !== 'vraifaux' ? `<span class="libelle">${echapper(libelle)}</span>` : '');
     bouton.addEventListener('click', () => {
