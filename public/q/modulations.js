@@ -118,10 +118,10 @@ export function fft(re, im) {
 /**
  * Spectrogramme (dB) sur une grille régulière en octaves : trames tous les `pas` s, `parOctave`
  * lignes par octave de fMin à fMin·2^octaves. Fenêtre de Hann de `fenetre` s, FFT complétée de
- * zéros (N = 4096), interpolation linéaire entre les raies.
+ * zéros (N, 4096 par défaut), interpolation linéaire entre les raies.
  */
-export function spectrogrammeLog(x, taux, { fMin, octaves, parOctave = 32, pas = 0.005, fenetre = 0.016 } = {}) {
-  const N = 4096, L = Math.round(fenetre * taux), P = Math.round(pas * taux);
+export function spectrogrammeLog(x, taux, { fMin, octaves, parOctave = 32, pas = 0.005, fenetre = 0.016, N = 4096 } = {}) {
+  const L = Math.round(fenetre * taux), P = Math.round(pas * taux);
   const trames = Math.max(1, Math.floor((x.length - L) / P) + 1), lignes = Math.round(octaves * parOctave) + 1;
   const hann = Float64Array.from({ length: L }, (_, k) => 0.5 - 0.5 * Math.cos(2 * Math.PI * k / (L - 1)));
   const raie = Float64Array.from({ length: lignes }, (_, j) => fMin * 2 ** (j / parOctave) / taux * N);
