@@ -645,28 +645,40 @@ function controleSerie(q) {
     const grille = element('div', 'serie-grille matrice');
     grille.style.setProperty('--cols', String(colonnes));
     grille.style.setProperty('--lignes', String(nLignes));
+    // Sans titres de lignes, chaque sous-question a son nom (ex. « B et C ») dans une colonne à
+    // gauche de ses réponses : les noms d'un groupe alignés entre eux, le titre du groupe
+    // centré au-dessus des réponses seulement.
+    const noms = !tLig.length;
+    const colRep = (c) => String(noms ? 2 * c + 2 : c + 2);
+    if (noms) {
+      grille.classList.add('avec-noms');
+      grille.style.gridTemplateColumns = `repeat(${colonnes}, max-content minmax(0, 1fr))`;
+    }
     for (let c = 0; c < colonnes; c++) {
       const t = element('div', 'serie-titre-col', tCol[c] || '');
       t.style.gridRow = '1';
-      t.style.gridColumn = String(c + 2);
+      t.style.gridColumn = colRep(c);
       grille.appendChild(t);
     }
-    for (let r = 0; r < nLignes; r++) {
+    for (let r = 0; r < nLignes && !noms; r++) {
       const t = element('div', 'serie-titre-lig', tLig[r] || '');
       t.style.gridRow = String(r + 2);
       t.style.gridColumn = '1';
       grille.appendChild(t);
     }
     sous.forEach((sq, i) => {
-      const rangee = element('div', 'serie-rangee');
-      rangee.style.gridColumn = String(Math.floor(i / nLignes) + 2);
-      rangee.style.gridRow = String((i % nLignes) + 2);
-      rangee.setAttribute('aria-label', `${tCol[Math.floor(i / nLignes)] || ''} ${nomDe(sq, i)}`.trim());
-      // Sans titres de lignes, chaque case nomme sa sous-question (ex. « B et C » sous « Diffèrent sur… »).
-      if (!tLig.length) {
-        rangee.classList.add('avec-nom');
-        rangee.appendChild(element('div', 'serie-nom', nomDe(sq, i)));
+      const c = Math.floor(i / nLignes);
+      const ligne = String((i % nLignes) + 2);
+      if (noms) {
+        const nom = element('div', `serie-nom${c ? ' suite' : ''}`, nomDe(sq, i));
+        nom.style.gridColumn = String(2 * c + 1);
+        nom.style.gridRow = ligne;
+        grille.appendChild(nom);
       }
+      const rangee = element('div', 'serie-rangee');
+      rangee.style.gridColumn = colRep(c);
+      rangee.style.gridRow = ligne;
+      rangee.setAttribute('aria-label', `${tCol[c] || ''} ${nomDe(sq, i)}`.trim());
       rangee.appendChild(commande(sq, true));
       grille.appendChild(rangee);
     });
