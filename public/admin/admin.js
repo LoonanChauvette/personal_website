@@ -84,6 +84,53 @@ async function approuver(code) {
   }
 }
 
+// ─── Question en cours ──────────────────────────────────────────────────────
+const STATUTS = { ouverte: 'ouverte', fermee: 'fermée', revelee: 'révélée' };
+let questionCourante = null;
+
+async function afficherQuestion() {
+  try {
+    const { question } = await api('etat');
+    questionCourante = question || null;
+  } catch (err) {
+    $('question-etat').textContent = err.message;
+    return;
+  }
+  const q = questionCourante;
+  $('question-etat').classList.toggle('actif', !!q);
+  $('btn-effacer-question').hidden = !q;
+  if (!q) {
+    $('question-etat').textContent = 'Aucune question en cours';
+    return;
+  }
+  if (!confirmerQuestion) $('question-message').textContent = '';
+  const n = Number(q.nb_reponses) || 0;
+  const depuis = q.ouverte_a
+    ? `, depuis le ${new Date(q.ouverte_a).toLocaleString('fr-CA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+    : '';
+  $('question-etat').textContent = `${q.id} · ${STATUTS[q.statut] || q.statut} · ${n} réponse${n > 1 ? 's' : ''}${depuis}`;
+}
+
+let confirmerQuestion = false;
+async function effacerQuestion() {
+  const n = Number(questionCourante?.nb_reponses) || 0;
+  if (n > 0 && !confirmerQuestion) {
+    confirmerQuestion = true;
+    $('btn-effacer-question').textContent = 'Confirmer : effacer';
+    $('question-message').textContent = `${n} réponse${n > 1 ? 's' : ''} : la question ne pourra plus être révélée.`;
+    return;
+  }
+  confirmerQuestion = false;
+  $('btn-effacer-question').textContent = 'Effacer la question en cours';
+  try {
+    await api('effacer', { methode: 'POST', corps: {} });
+    $('question-message').textContent = 'Question effacée.';
+  } catch (err) {
+    $('question-message').textContent = err.message;
+  }
+  await afficherQuestion();
+}
+
 // ─── Diapositives Excalidraw+ ──────────────────────────────────────────────
 // Gabarit « empty » de l'enseignant : cadre 854 × 480, titre Lilita (famille 7)
 // en 36 px à (+34, +11), corps en famille 5, © gris #ced4da en bas.
@@ -334,6 +381,11 @@ async function demarrer() {
     approuver($('champ-code').value);
   });
   $('form-diapos').addEventListener('submit', produireDiapositives);
+  $('btn-effacer-question').addEventListener('click', effacerQuestion);
+  afficherQuestion();
+  setInterval(() => {
+    if (!document.hidden && !confirmerQuestion) afficherQuestion();
+  }, 5000);
   let confirmer = false;
   $('btn-effacer-gardes').addEventListener('click', async () => {
     if (!confirmer) {
