@@ -26,7 +26,7 @@
 //   <base href="https://SITE/q/"> <link rel="stylesheet" href="…/q/excali/excali.css">
 //   <script src="…/q/excali/rough.js"></script> <div id="demo" class="demo"></div>
 //   <script type="application/json" id="config">{"id": "c7centroide"}</script>
-import { ajuster, axes, bouton, chemin, choix, ECART_COMMANDES, echelle, H, placer, R, S, T } from './excali/excali.js';
+import { ajuster, axes, bouton, chemin, choix, ECART_COMMANDES, echelle, figurePrete, H, IMPRESSION, placer, R, S, T } from './excali/excali.js';
 import { creerLecteur } from './correlats-donnees.js';
 
 const conf = JSON.parse(document.getElementById('config')?.textContent || '{}');
@@ -157,6 +157,37 @@ function ligne(x, y, l) {
 }
 
 // ─── Autres descripteurs : spectre + classement ────────────────────────────
+// Classement : du plus faible au plus fort ; un point sur une petite échelle commune. actifs : en
+// bleu ; clic(son) : rangées cliquables (absent : version imprimée).
+function classement(liste, cle, { valeurs = true, log = false, actifs = [], clic = null } = {}) {
+  const LL = +liste.getAttribute('width');
+  liste.replaceChildren();
+  const haut = valeurs ? 0 : 18, ordre = [...sons].sort((a, b) => a.valeurs[cle] - b.valeurs[cle]), pas = (HT - haut) / ordre.length;
+  const vals = ordre.map((s) => s.valeurs[cle]);
+  const X = echelle(Math.min(...vals), Math.max(...vals), 130, valeurs ? LL - 74 : LL - 12, log);
+  S('line', { x1: X.r0, x2: X.r0, y1: haut + 4, y2: HT - 4, stroke: '#dee2e6' }, liste);
+  S('line', { x1: X.r1, x2: X.r1, y1: haut + 4, y2: HT - 4, stroke: '#dee2e6' }, liste);
+  if (!valeurs) { // bouts de l'échelle, en haut
+    T(liste, X.r0, 12, 'faible', 'indice', 'start').setAttribute('font-size', 12);
+    T(liste, X.r1, 12, 'élevé', 'indice', 'end').setAttribute('font-size', 12);
+  }
+  ordre.forEach((s, i) => {
+    const y = haut + pas * (i + 0.5), actif = actifs.includes(s), coul = actif ? BLEU : NOIR;
+    const r = S('g', clic ? { class: 'cliquable' } : {}, liste);
+    S('rect', { x: 0, y: y - pas / 2, width: LL, height: pas, fill: 'transparent' }, r);
+    if (actif) S('rect', { x: 0, y: y - pas / 2 + 1, width: LL, height: pas - 2, fill: '#e7f5ff', rx: 4 }, r);
+    const n = T(r, 6, y + 5, s.nom, 'indice', 'start');
+    const v = valeurs ? T(r, LL - 4, y + 5, DESC[cle].val(s.valeurs[cle]), 'indice', 'end') : null;
+    for (const t of [n, v].filter(Boolean)) { t.setAttribute('font-size', 14); t.style.fill = coul; if (actif) t.setAttribute('font-weight', 700); }
+    S('line', { x1: X.r0, x2: X(s.valeurs[cle]), y1: y, y2: y, stroke: actif ? BLEU : '#ced4da', 'stroke-width': 2 }, r);
+    S('circle', { cx: X(s.valeurs[cle]), cy: y, r: actif ? 5 : 4, fill: actif ? BLEU : GRIS }, r);
+    if (clic) {
+      S('title', {}, r).textContent = `Choisir et écouter : ${s.nom}`;
+      r.addEventListener('click', () => clic(s));
+    }
+  });
+}
+
 function vueClassement(cle, { log = false, valeurs = true, tracer = null, valeurTete = null } = {}) {
   const GL = 470, XL = 500, LL = L - XL;
   const tete = ligne(0, 0, GL);
@@ -171,34 +202,11 @@ function vueClassement(cle, { log = false, valeurs = true, tracer = null, valeur
     const boite = { g: 46, d: GL - 22, h: 26, b: HT - 34 - 24 };
     if (tracer) tracer(svg, choisi, boite);
     else moment(svg, choisi, boite, cle);
-    // Classement : du plus faible au plus fort ; un point sur une petite échelle commune.
-    liste.replaceChildren();
-    const haut = valeurs ? 0 : 18, ordre = tri(), pas = (HT - haut) / ordre.length;
-    const vals = ordre.map((s) => s.valeurs[cle]);
-    const X = echelle(Math.min(...vals), Math.max(...vals), 130, valeurs ? LL - 74 : LL - 12, log);
-    S('line', { x1: X.r0, x2: X.r0, y1: haut + 4, y2: HT - 4, stroke: '#dee2e6' }, liste);
-    S('line', { x1: X.r1, x2: X.r1, y1: haut + 4, y2: HT - 4, stroke: '#dee2e6' }, liste);
-    if (!valeurs) { // bouts de l'échelle, en haut
-      T(liste, X.r0, 12, 'faible', 'indice', 'start').setAttribute('font-size', 12);
-      T(liste, X.r1, 12, 'élevé', 'indice', 'end').setAttribute('font-size', 12);
-    }
-    ordre.forEach((s, i) => {
-      const y = haut + pas * (i + 0.5), actif = s === choisi, coul = actif ? BLEU : NOIR;
-      const r = S('g', { class: 'cliquable' }, liste);
-      S('rect', { x: 0, y: y - pas / 2, width: LL, height: pas, fill: 'transparent' }, r);
-      if (actif) S('rect', { x: 0, y: y - pas / 2 + 1, width: LL, height: pas - 2, fill: '#e7f5ff', rx: 4 }, r);
-      const n = T(r, 6, y + 5, s.nom, 'indice', 'start');
-      const v = valeurs ? T(r, LL - 4, y + 5, DESC[cle].val(s.valeurs[cle]), 'indice', 'end') : null;
-      for (const t of [n, v].filter(Boolean)) { t.setAttribute('font-size', 14); t.style.fill = coul; if (actif) t.setAttribute('font-weight', 700); }
-      S('line', { x1: X.r0, x2: X(s.valeurs[cle]), y1: y, y2: y, stroke: actif ? BLEU : '#ced4da', 'stroke-width': 2 }, r);
-      S('circle', { cx: X(s.valeurs[cle]), cy: y, r: actif ? 5 : 4, fill: actif ? BLEU : GRIS }, r);
-      S('title', {}, r).textContent = `Choisir et écouter : ${s.nom}`;
-      r.addEventListener('click', () => {
-        if (choisi !== s) { choisi = s; lecteur.arreter(); }
-        lecteur.jouer(s, rendre);
-        rendre();
-      });
-    });
+    classement(liste, cle, { valeurs, log, actifs: [choisi], clic: (s) => {
+      if (choisi !== s) { choisi = s; lecteur.arreter(); }
+      lecteur.jouer(s, rendre);
+      rendre();
+    } });
   };
 }
 
@@ -206,10 +214,10 @@ function vueClassement(cle, { log = false, valeurs = true, tracer = null, valeur
 // Comme la vue « flux » des corrélats : chaque spectre d'harmoniques ramené à son maximum (la
 // corrélation ne compare que leur forme), du plus pâle (début) au plus foncé (fin du son).
 // Formes confondues : flux faible ; formes qui changent : flux élevé.
-function tracerFlux(g, son, b) {
+function tracerFlux(g, son, b, { avecLegende = true, gradY = true, finX = true } = {}) {
   const c = son.courbe, f0 = c.harmoniques.f0;
   const FX = echelle(F_MIN, F_MAX, b.g, b.d, true), Y = echelle(-60, 0, b.b, b.h + 16);
-  axes(g, { x: FX, y: Y, ticksX: TICKS_F, ticksY: [-60, -30, 0], formatX: fmtF, formatY: fDb });
+  axes(g, { x: FX, y: Y, ticksX: TICKS_F, ticksY: gradY ? [-60, -30, 0] : [], formatX: (f) => (f === F_MAX && !finX ? '' : fmtF(f)), formatY: fDb });
   const tr = c.harmogramme, n = Math.min(8, tr.length);
   for (let j = 0; j < n; j++) {
     const rel = tr[Math.round((j * (tr.length - 1)) / Math.max(1, n - 1))][2];
@@ -217,7 +225,7 @@ function tracerFlux(g, son, b) {
     S('path', { d: chemin(pts.map(([f, v]) => [FX(f), Y(v)])), fill: 'none', stroke: BLEU, 'stroke-width': 1.4,
       'stroke-opacity': 0.2 + (0.8 * j) / Math.max(1, n - 1) }, g);
   }
-  legende(g, b.d, b.h - 14, [{ type: 'ligne', couleur: BLEU + '44', texte: 'début' }, { type: 'ligne', couleur: BLEU, texte: 'fin du son' }]);
+  if (avecLegende) legende(g, b.d, b.h - 14, [{ type: 'ligne', couleur: BLEU + '44', texte: 'début' }, { type: 'ligne', couleur: BLEU, texte: 'fin du son' }]);
 }
 
 // ─── Variation du centroïde : harmoniques dans le temps et centroïde ───────
@@ -580,7 +588,7 @@ const TICKS_LIN = [0, 1000, 2000, 3000, 4000, 5000];
 //   { dessous, coul } : barre partagée au centroïde, longueur de chaque côté selon la part de la
 //     densité (foncé : dessous ; pâle : au-dessus), pourcentages dedans.
 //   rien : un triangle, comme sur les autres diapositives.
-function centroideBarre(svg, cx, b, X, barre = null) {
+function centroideBarre(svg, cx, b, X, barre = null, bords = [4, L - 4], largeur = 150) {
   const yB = b.h - 14;
   const y1 = barre?.dessous != null ? yB + 9 : yB;
   S('line', { x1: cx, x2: cx, y1, y2: b.b, stroke: ORANGE, 'stroke-width': 2.5, 'stroke-dasharray': '6 4' }, svg);
@@ -590,16 +598,20 @@ function centroideBarre(svg, cx, b, X, barre = null) {
     for (const x of [x0, x1]) S('line', { x1: x, x2: x, y1: yB - 7, y2: yB + 7, stroke: NOIR, 'stroke-width': 2 }, svg);
   } else if (barre) {
     const p = barre.dessous;
-    let W = 150; // la barre reste dans le cadre si le centroïde est près d'un bord
-    W = Math.min(W, (L - 4 - cx) / Math.max(0.01, 1 - p), (cx - 4) / Math.max(0.01, p));
+    let W = largeur; // la barre reste dans le cadre (ou son tracé) si le centroïde est près d'un bord
+    W = Math.min(W, (bords[1] - cx) / Math.max(0.01, 1 - p), (cx - bords[0]) / Math.max(0.01, p));
     const g0 = cx - W * p, d1 = cx + W * (1 - p);
     S('rect', { x: g0, y: yB - 9, width: cx - g0, height: 18, fill: barre.coul, 'fill-opacity': 0.55 }, svg);
     S('rect', { x: cx, y: yB - 9, width: d1 - cx, height: 18, fill: barre.coul, 'fill-opacity': 0.12 }, svg);
     S('rect', { x: g0, y: yB - 9, width: d1 - g0, height: 18, fill: 'none', stroke: barre.coul, 'stroke-width': 1.2 }, svg);
-    for (const [x, t] of [[(g0 + cx) / 2, pct(p)], [(cx + d1) / 2, pct(1 - p)]]) {
+    for (const [x, t, l, cote] of [[(g0 + cx) / 2, pct(p), cx - g0, -1], [(cx + d1) / 2, pct(1 - p), d1 - cx, 1]]) {
       const e = T(svg, x, yB + 4.5, t, 'indice', 'middle');
       e.setAttribute('font-size', 12);
       e.style.fill = NOIR;
+      if (e.getComputedTextLength() + 2 > l) { // part trop étroite : le pourcentage à côté de la barre
+        e.setAttribute('x', cote < 0 ? g0 - 4 : d1 + 4);
+        e.setAttribute('text-anchor', cote < 0 ? 'end' : 'start');
+      }
     }
   } else S('path', { d: chemin([[cx - 6, yB - 8], [cx + 6, yB - 8], [cx, yB]]) + 'Z', fill: ORANGE }, svg);
 }
@@ -695,6 +707,125 @@ function vueKurtosis() {
   };
 }
 
+// Flux : le plus faible et le plus fort côte à côte (nom à gauche, au-dessus), à côté du classement
+// où ils sont en bleu.
+function imprimerFlux() {
+  const GL = 470, XL = 500, LL = L - XL;
+  const ordre = [...sons].sort((a, b) => a.valeurs.flux - b.valeurs.flux), deux = [ordre[0], ordre[ordre.length - 1]];
+  const svg = placer(S('svg', { width: GL, height: HT }), 0, 0), liste = placer(S('svg', { width: LL, height: HT }), XL, 0);
+  demo.append(svg, liste);
+  // Même échelle : graduations de niveau sur le premier, « 8 kHz » sur le second seulement.
+  const larg = (GL - 46 - 10 - 24) / 2;
+  deux.forEach((son, i) => {
+    const g0 = 46 + i * (larg + 24), b = { g: g0, d: g0 + larg, h: 40, b: HT - 24 };
+    tracerFlux(S('g', {}, svg), son, b, { avecLegende: false, gradY: i === 0, finX: i === 1 });
+    const t = T(svg, g0, 40, son.nom, 'indice', 'start');
+    t.setAttribute('font-size', 14); t.style.fill = BLEU; t.style.fontWeight = 700;
+  });
+  legende(svg, GL - 10, 12, [{ type: 'ligne', couleur: BLEU + '44', texte: 'début' }, { type: 'ligne', couleur: BLEU, texte: 'fin du son' }]);
+  classement(liste, 'flux', { valeurs: false, log: true, actifs: deux });
+}
+
+// Étendue : étroite, moyenne et large côte à côte, comme la kurtosis.
+function imprimerEtendue() {
+  const svg = placer(S('svg', { width: L, height: HT }), 0, 0);
+  demo.append(svg);
+  const fs = Array.from({ length: F_LIN / PAS_F + 1 }, (_, i) => i * PAS_F), vis = fs.filter((f) => f <= F_AFF);
+  const boites = panneaux(ETENDUES.length, 40, L - 24, 32);
+  ETENDUES.forEach((o, i) => {
+    const b = boites[i], a = (f) => Math.exp(-0.5 * ((f - C_FORME) / o.s) ** 2), m = moments(fs, fs.map(a));
+    const X = echelle(0, F_AFF, b.g, b.d), Y = echelle(0, 1.08, b.b, b.h);
+    aireCourbe(svg, vis.map((f) => [X(f), Y(a(f))]), b, BLEU, '#a5d8ff', 0.55);
+    const fx = (f) => (f === F_AFF && i < ETENDUES.length - 1 ? '' : fmtLin(f));
+    if (i) axes(svg, { x: X, y: Y, ticksX: TICKS_LIN, ticksY: [], formatX: fx });
+    else axeAmplitude(svg, X, Y, b, TICKS_LIN, fx);
+    centroideBarre(svg, X(m.centroide), b, X, { etendue: [m.centroide - m.etalement, m.centroide + m.etalement] });
+    titrePanneau(svg, b, o.nom, `étendue : ${hz(m.etalement)}`, BLEU);
+  });
+  legende(svg, L - 24, 14, [{ type: 'tiret', couleur: ORANGE, texte: 'centroïde' }, { type: 'intervalle', texte: '± 1 écart type (étendue)' }]);
+}
+
+// Centroïde : l'échelle sombre ↔ clair (le plus sombre et le plus clair en bleu), puis leurs spectres.
+function imprimerCentroide() {
+  const svg = placer(S('svg', { width: L, height: HT }), 0, 0);
+  demo.append(svg);
+  const ordre = [...sons].sort((a, b) => a.valeurs.centroide - b.valeurs.centroide), deux = [ordre[0], ordre[ordre.length - 1]];
+  const X = echelle(400, 3200, 14, L - 14, true), y = 30;
+  S('line', { x1: X.r0, x2: X.r1, y1: y, y2: y, class: 'trait' }, svg);
+  for (const f of [500, 1000, 2000]) {
+    S('line', { x1: X(f), x2: X(f), y1: y, y2: y + 4, class: 'trait' }, svg);
+    T(svg, X(f), y + 17, f >= 1000 ? `${f / 1000} kHz` : `${f} Hz`);
+  }
+  for (const [x, texte, ancre] of [[X.r0, 'sombre', 'start'], [X.r1, 'clair', 'end']]) T(svg, x, y - 12, texte, 'indice', ancre).style.fill = NOIR;
+  for (const s of [...ordre.filter((s) => !deux.includes(s)), ...deux]) {
+    const actif = deux.includes(s);
+    S('circle', { cx: X(s.valeurs.centroide), cy: y, r: actif ? 6 : 4.5, fill: actif ? BLEU : GRIS, 'fill-opacity': actif ? 1 : 0.75 }, svg);
+  }
+  deux.forEach((son, i) => {
+    const h = 92 + i * 170, b = { g: 46, d: L - 22, h, b: h + 92 };
+    const sp = spectre(svg, son.h, b, BLEU, son.cle);
+    sp.barres();
+    sp.centroide(sp.fx(son.valeurs.centroide));
+    titrePanneau(svg, b, son.nom, `centroïde : ${hz(son.valeurs.centroide)}`, BLEU, h - 20);
+  });
+}
+
+// ─── Versions imprimées (asymétrie, kurtosis) ──────────────────────────────
+// Les choix côte à côte (asymétrie : rose, blanc, bleu seulement), sans commandes : nom à gauche et valeur à droite au-dessus de chaque
+// tracé, dans sa couleur ; légende commune en haut à droite ; graduations d'amplitude sur le premier.
+function panneaux(n, gauche, droite, ecart) {
+  const l = (droite - gauche - ecart * (n - 1)) / n;
+  return Array.from({ length: n }, (_, i) => ({ g: gauche + i * (l + ecart), d: gauche + i * (l + ecart) + l, h: 84, b: HT - 24 }));
+}
+function titrePanneau(svg, b, nom, valeur, coul, y = b.h - 38) {
+  const t = T(svg, b.g, y, nom, 'indice', 'start');
+  const v = T(svg, b.d, y, valeur, 'indice', 'end');
+  for (const e of [t, v]) { e.setAttribute('font-size', 14); e.style.fill = coul; }
+  v.style.fontWeight = 700;
+}
+const BRUITS_IMPR = ['rose', 'blanc', 'bleu']; // asymétrie positive, nulle, négative
+function imprimerAsymetrie() {
+  const bruits = BRUITS.filter((b) => BRUITS_IMPR.includes(b.cle));
+  const svg = placer(S('svg', { width: L, height: HT }), 0, 0);
+  demo.append(svg);
+  const fs = Array.from({ length: (F_HAUT - F_BAS) / PAS_F + 1 }, (_, i) => F_BAS + i * PAS_F);
+  const boites = panneaux(bruits.length, 50, L - 22, 28);
+  bruits.forEach((br, i) => {
+    const b = boites[i], coul = br.couleur, a = fs.map((f) => (f / 1000) ** br.alpha), m = moments(fs, a);
+    const somme = a.reduce((p, q) => p + q, 0), dessous = fs.reduce((p, f, k) => p + (f < m.centroide ? a[k] : 0), 0) / somme;
+    const X = echelle(0, F_HAUT, b.g, b.d), Y = echelle(-40, 40, b.b, b.h);
+    aireCourbe(svg, fs.filter((f, k) => f < 400 || k % 10 === 0).map((f) => [X(f), Y(20 * br.alpha * Math.log10(f / 1000))]), b, coul, coul, 0.22);
+    // Pas de graduation à +40 dB : la barre partagée du premier bruit la toucherait presque.
+    axes(svg, { x: X, y: Y, ticksX: [0, 5000, 10000, 15000, 20000], ticksY: i ? [] : [-40, 0],
+      formatX: (f) => (!f ? '0' : f < F_HAUT ? `${f / 1000}k` : i === bruits.length - 1 ? '20 kHz' : ''), // sinon « 20k 0 »
+      formatY: (v) => (v ? fDb(v).replace(' dB', '') : '0 dB') });
+    centroideBarre(svg, X(m.centroide), b, X, { dessous, coul }, [i ? b.g - 8 : 4, b.d + 8], b.d - b.g);
+    titrePanneau(svg, b, br.nom, nb(Math.abs(m.asymetrie) < 0.005 ? 0 : m.asymetrie, 2), coul);
+  });
+  legende(svg, L - 22, 14, [{ type: 'tiret', couleur: ORANGE, texte: 'centroïde' },
+    { type: 'aire', couleur: GRIS, opacite: 0.55, texte: 'part sous le centroïde' }, { type: 'aire', couleur: GRIS, opacite: 0.12, texte: 'au-dessus' }]);
+}
+function imprimerKurtosis() {
+  const svg = placer(S('svg', { width: L, height: HT }), 0, 0);
+  demo.append(svg);
+  const fs = Array.from({ length: F_LIN / PAS_F + 1 }, (_, i) => i * PAS_F), vis = fs.map((f, k) => k).filter((k) => fs[k] <= F_AFF);
+  const boites = panneaux(FORMES_K.length, 40, L - 24, 32);
+  FORMES_K.forEach((o, i) => {
+    const b = boites[i], lin = fs.map(o.amp), m = moments(fs, lin), c = m.centroide, e = m.etalement;
+    const g = fs.map((f) => Math.exp(-0.5 * ((f - c) / e) ** 2));
+    const kg = lin.reduce((p, q) => p + q, 0) / g.reduce((p, q) => p + q, 0), haut = Math.max(...lin, kg);
+    const X = echelle(0, F_AFF, b.g, b.d), Y = echelle(0, haut * 1.08, b.b, b.h);
+    aireCourbe(svg, vis.map((k) => [X(fs[k]), Y(lin[k])]), b, BLEU, '#a5d8ff', 0.55);
+    S('path', { d: chemin(vis.map((k) => [X(fs[k]), Y(g[k] * kg)])), fill: 'none', stroke: NOIR, 'stroke-width': 1.5, 'stroke-dasharray': '2 4' }, svg);
+    const fx = (f) => (f === F_AFF && i < FORMES_K.length - 1 ? '' : fmtLin(f)); // sinon « 5 kHz 0 »
+    if (i) axes(svg, { x: X, y: Y, ticksX: TICKS_LIN, ticksY: [], formatX: fx });
+    else axeAmplitude(svg, X, Y, b, TICKS_LIN, fx);
+    centroideBarre(svg, X(c), b, X);
+    titrePanneau(svg, b, o.nom, `kurtosis : ${nb(m.kurtosis, 1)}`, BLEU);
+  });
+  legende(svg, L - 24, 14, [{ type: 'tiret', couleur: ORANGE, texte: 'centroïde' }, { type: 'pointille', texte: 'gaussienne de même étendue (kurtosis 3)' }]);
+}
+
 // ─── Mise en route ─────────────────────────────────────────────────────────
 let rendre = () => {}, arreterTout = () => {};
 
@@ -712,6 +843,17 @@ ajuster(demo, L, HT, { surMasque: () => { lecteur.arreter(); arreterTout(); rend
     const valeurs = new Map(desc.sons.map((s) => [s.cle, s]));
     sons = INSTRUMENTS.filter((c) => meta.has(c) && valeurs.has(c) && courbes.sons[c]).map((c) => ({
       cle: c, nom: meta.get(c).nom, fichier: meta.get(c).fichier, valeurs: valeurs.get(c), h: courbes.sons[c].harmoniques, courbe: courbes.sons[c] }));
+    const IMPRIMER = { asymetrie: imprimerAsymetrie, kurtosis: imprimerKurtosis, etalement: imprimerEtendue, centroide: imprimerCentroide, flux: imprimerFlux };
+    if (IMPRESSION && IMPRIMER[VUE]) {
+      demo.replaceChildren();
+      IMPRIMER[VUE]();
+      document.fonts?.ready.then(() => { // légendes mesurées avec la vraie police
+        demo.replaceChildren();
+        IMPRIMER[VUE]();
+        figurePrete();
+      });
+      return;
+    }
     rendre = VUE === 'pente' ? vuePente() : VUE === 'centroide' ? vueCentroide()
       : VUE === 'asymetrie' ? vueAsymetrie() : VUE === 'kurtosis' ? vueKurtosis()
       : VUE === 'etalement' ? vueEtendue()

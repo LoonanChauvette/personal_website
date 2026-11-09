@@ -13,7 +13,7 @@ const TICKS = [100, 250, 500, 1000, 2000, 4000, 8000];
 const fmtF = (f) => (f >= 8000 ? `${f / 1000} kHz` : f >= 1000 ? `${f / 1000}k` : String(f));
 const fDb = (v) => (v === 0 ? '0 dB' : String(v));
 
-/** cadre : { g, d, h, b } (gauche, droite, haut, bas du tracé), dbMin et ticksDb facultatifs.
+/** cadre : { g, d, h, b } (gauche, droite, haut, bas du tracé), dbMin, ticksDb et ticksF facultatifs.
  *  → éléments de légende. */
 export function tracerSpectreBruit(g, cle, sp, cadre, coul) {
   const dbMin = cadre.dbMin ?? DB_MIN;
@@ -32,7 +32,7 @@ export function tracerSpectreBruit(g, cle, sp, cadre, coul) {
   }
   S('path', { d: chemin(visibles(sp.db)), fill: 'none', stroke: coul, 'stroke-width': 1, 'stroke-linejoin': 'round' }, g);
   // Axes par-dessus le spectre et le bruit (sinon le remplissage gris couvre l'axe des x).
-  const finir = (items) => { axes(g, { x: X, y: Y, ticksX: TICKS, ticksY: cadre.ticksDb || [-100, -50, 0], formatX: fmtF, formatY: fDb }); return items; };
+  const finir = (items) => { axes(g, { x: X, y: Y, ticksX: cadre.ticksF || TICKS, ticksY: cadre.ticksDb || [-100, -50, 0], formatX: fmtF, formatY: fDb }); return items; };
   if (!parBande) return finir([{ type: 'ligne', couleur: coul, texte: 'spectre' }, { type: 'plein', couleur: '#ced4da', texte: 'énergie non harmonique' }]);
   for (const [bas, haut, max, arith, geo] of sp.bandes) {
     const [p1, p2] = (cle === 'crete' ? [max, arith] : [arith, geo]).map((v) => Math.max(dbMin, v));

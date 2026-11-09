@@ -14,7 +14,7 @@
 //   <base href="https://SITE/q/"> <link rel="stylesheet" href="…/q/excali/excali.css">
 //   <script src="…/q/excali/rough.js"></script> <div id="demo" class="demo"></div>
 //   <script type="application/json" id="config">{"id": "c7phonation"}</script>
-import { ajuster, axes, choix, echelle, H, placer, S } from './excali/excali.js';
+import { ajuster, axes, choix, echelle, figurePrete, H, IMPRESSION, placer, S, T } from './excali/excali.js';
 
 const L = 444, HT = 324;
 const HAUT_GLOTTE = 60, HAUT_SVG = HAUT_GLOTTE + 4 + 44;
@@ -36,79 +36,120 @@ const etat = { son: 2 };
 let lecture = null; // { son, a }
 
 const demo = document.getElementById('demo');
-const choisir = (i) => { etat.son = i; modes.valeur(i); basculer(SONS[i]); };
-// Une glotte (sans les étiquettes ni la flèche) par bouton, centrée sur lui ; assez étroite pour que
-// deux voisines ne se touchent pas (centres des boutons à 77 px au plus près).
-const DECOUPE = { l: 162, y: 71, h: 140 };
-const LARG_GLOTTE = HAUT_GLOTTE * DECOUPE.l / DECOUPE.h;
-const glottes = placer(S('svg', { width: L, height: HAUT_GLOTTE }), 0, 0);
-demo.append(glottes);
-const vues = SONS.map((s, i) => {
-  const v = S('svg', { y: 0, width: LARG_GLOTTE, height: HAUT_GLOTTE,
-    viewBox: `${s.cx - DECOUPE.l / 2} ${DECOUPE.y} ${DECOUPE.l} ${DECOUPE.h}` }, glottes);
-  S('image', { href: 'images/glotte-phonation.png', width: 1055, height: 244, 'pointer-events': 'none' }, v);
-  // Le clic tombe sur ce rectangle : l'image, même rognée, capterait les clics des colonnes voisines.
-  S('rect', { x: s.cx - DECOUPE.l / 2, y: DECOUPE.y, width: DECOUPE.l, height: DECOUPE.h, fill: 'transparent' }, v);
-  v.style.overflow = 'hidden'; // excali.css met overflow: visible sur tous les svg
-  v.style.cursor = 'pointer';
-  v.addEventListener('click', () => choisir(i));
-  return v;
-});
-const ligne = placer(H('div', null, null, demo), 0, HAUT_GLOTTE + 4);
-const modes = choix(ligne, SONS.map((s, i) => ({ texte: s.nom, valeur: i, titre: `Écouter : ${s.nom.toLowerCase()}` })), etat.son,
-  (i) => { etat.son = i; basculer(SONS[i]); }, { compact: true, egal: false });
-modes.style.width = L + 'px';
-modes.style.justifyContent = 'space-between'; // la rangée occupe toute la largeur du tracé
-// Centre chaque glotte sur son bouton (mesuré : la largeur des boutons dépend de la police).
-const CENTRES = [35, 114, 191, 273, 382]; // avant mesure
-function alignerGlottes() {
-  vues.forEach((v, i) => {
-    const b = modes.boutons[i];
-    const c = b.offsetWidth ? b.offsetLeft + b.offsetWidth / 2 : CENTRES[i];
-    v.setAttribute('x', c - LARG_GLOTTE / 2);
+const DECOUPE_IMPR = { l: 162, y: 71, h: 140 }; // même découpe que les glottes interactives
+const chargerSons = () => Promise.all(SONS.map(async (s) => {
+  const r = await fetch(s.fichier);
+  if (!r.ok) throw new Error(`Son introuvable : ${s.fichier} (${r.status})`);
+  s.image = spectrogramme(lireWav(await r.arrayBuffer()));
+}));
+if (IMPRESSION) imprimer(); else interactif();
+
+function interactif() {
+  const choisir = (i) => { etat.son = i; modes.valeur(i); basculer(SONS[i]); };
+  // Une glotte (sans les étiquettes ni la flèche) par bouton, centrée sur lui ; assez étroite pour que
+  // deux voisines ne se touchent pas (centres des boutons à 77 px au plus près).
+  const DECOUPE = { l: 162, y: 71, h: 140 };
+  const LARG_GLOTTE = HAUT_GLOTTE * DECOUPE.l / DECOUPE.h;
+  const glottes = placer(S('svg', { width: L, height: HAUT_GLOTTE }), 0, 0);
+  demo.append(glottes);
+  const vues = SONS.map((s, i) => {
+    const v = S('svg', { y: 0, width: LARG_GLOTTE, height: HAUT_GLOTTE,
+      viewBox: `${s.cx - DECOUPE.l / 2} ${DECOUPE.y} ${DECOUPE.l} ${DECOUPE.h}` }, glottes);
+    S('image', { href: 'images/glotte-phonation.png', width: 1055, height: 244, 'pointer-events': 'none' }, v);
+    // Le clic tombe sur ce rectangle : l'image, même rognée, capterait les clics des colonnes voisines.
+    S('rect', { x: s.cx - DECOUPE.l / 2, y: DECOUPE.y, width: DECOUPE.l, height: DECOUPE.h, fill: 'transparent' }, v);
+    v.style.overflow = 'hidden'; // excali.css met overflow: visible sur tous les svg
+    v.style.cursor = 'pointer';
+    v.addEventListener('click', () => choisir(i));
+    return v;
   });
-}
-alignerGlottes();
-requestAnimationFrame(alignerGlottes);
-if (document.fonts) document.fonts.ready.then(alignerGlottes);
-const svg = placer(S('svg', { width: L, height: HT - HAUT_SVG }), 0, HAUT_SVG);
-demo.append(svg);
-const image = S('image', { x: x(0), y: y(F_MAX), height: y(0) - y(F_MAX), preserveAspectRatio: 'none' }, svg);
-image.style.cursor = 'pointer';
-image.addEventListener('click', () => basculer(SONS[etat.son]));
-axes(S('g', {}, svg), { x, y, ticksX: [0, 0.2, 0.4, 0.6, 0.8, 1, 1.2], ticksY: [0, 1000, 2000, 3000, 4000],
-  titreX: 'Temps (s)', titreY: 'kHz', formatX: (v) => v.toFixed(1), formatY: (v) => v / 1000 });
-const curseur = S('line', { y1: y(F_MAX), y2: y(0), stroke: BLEU, 'stroke-width': 2, visibility: 'hidden' }, svg);
-
-function basculer(son) {
-  if (lecture?.son === son) { arreter(); rendre(); return; }
-  arreter();
-  const a = new Audio(son.fichier);
-  lecture = { son, a };
-  a.addEventListener('ended', () => { if (lecture?.a === a) { lecture = null; rendre(); } });
-  a.play().catch(() => { lecture = null; rendre(); });
-  rendre();
-  suivre();
-}
-function arreter() { if (lecture) { lecture.a.pause(); lecture = null; } }
-
-function suivre() {
-  const t = lecture ? lecture.a.currentTime - AMORCE : -1;
-  if (lecture && t >= 0 && lecture.son === SONS[etat.son]) {
-    curseur.setAttribute('x1', x(Math.min(t, T_MAX)));
-    curseur.setAttribute('x2', x(Math.min(t, T_MAX)));
-    curseur.setAttribute('visibility', 'visible');
-  } else curseur.setAttribute('visibility', 'hidden');
-  if (lecture) requestAnimationFrame(suivre);
-}
-
-function rendre() {
-  const s = SONS[etat.son];
-  if (s.image) {
-    image.setAttribute('href', s.image.url);
-    image.setAttribute('width', x(s.image.duree) - x(0));
+  const ligne = placer(H('div', null, null, demo), 0, HAUT_GLOTTE + 4);
+  const modes = choix(ligne, SONS.map((s, i) => ({ texte: s.nom, valeur: i, titre: `Écouter : ${s.nom.toLowerCase()}` })), etat.son,
+    (i) => { etat.son = i; basculer(SONS[i]); }, { compact: true, egal: false });
+  modes.style.width = L + 'px';
+  modes.style.justifyContent = 'space-between'; // la rangée occupe toute la largeur du tracé
+  // Centre chaque glotte sur son bouton (mesuré : la largeur des boutons dépend de la police).
+  const CENTRES = [35, 114, 191, 273, 382]; // avant mesure
+  function alignerGlottes() {
+    vues.forEach((v, i) => {
+      const b = modes.boutons[i];
+      const c = b.offsetWidth ? b.offsetLeft + b.offsetWidth / 2 : CENTRES[i];
+      v.setAttribute('x', c - LARG_GLOTTE / 2);
+    });
   }
-  suivre();
+  alignerGlottes();
+  requestAnimationFrame(alignerGlottes);
+  if (document.fonts) document.fonts.ready.then(alignerGlottes);
+  const svg = placer(S('svg', { width: L, height: HT - HAUT_SVG }), 0, HAUT_SVG);
+  demo.append(svg);
+  const image = S('image', { x: x(0), y: y(F_MAX), height: y(0) - y(F_MAX), preserveAspectRatio: 'none' }, svg);
+  image.style.cursor = 'pointer';
+  image.addEventListener('click', () => basculer(SONS[etat.son]));
+  axes(S('g', {}, svg), { x, y, ticksX: [0, 0.2, 0.4, 0.6, 0.8, 1, 1.2], ticksY: [0, 1000, 2000, 3000, 4000],
+    titreX: 'Temps (s)', titreY: 'kHz', formatX: (v) => v.toFixed(1), formatY: (v) => v / 1000 });
+  const curseur = S('line', { y1: y(F_MAX), y2: y(0), stroke: BLEU, 'stroke-width': 2, visibility: 'hidden' }, svg);
+
+  function basculer(son) {
+    if (lecture?.son === son) { arreter(); rendre(); return; }
+    arreter();
+    const a = new Audio(son.fichier);
+    lecture = { son, a };
+    a.addEventListener('ended', () => { if (lecture?.a === a) { lecture = null; rendre(); } });
+    a.play().catch(() => { lecture = null; rendre(); });
+    rendre();
+    suivre();
+  }
+  function arreter() { if (lecture) { lecture.a.pause(); lecture = null; } }
+
+  function suivre() {
+    const t = lecture ? lecture.a.currentTime - AMORCE : -1;
+    if (lecture && t >= 0 && lecture.son === SONS[etat.son]) {
+      curseur.setAttribute('x1', x(Math.min(t, T_MAX)));
+      curseur.setAttribute('x2', x(Math.min(t, T_MAX)));
+      curseur.setAttribute('visibility', 'visible');
+    } else curseur.setAttribute('visibility', 'hidden');
+    if (lecture) requestAnimationFrame(suivre);
+  }
+
+  function rendre() {
+    const s = SONS[etat.son];
+    if (s.image) {
+      image.setAttribute('href', s.image.url);
+      image.setAttribute('width', x(s.image.duree) - x(0));
+    }
+    suivre();
+  }
+
+  ajuster(demo, L, HT, { surMasque: () => { arreter(); rendre(); }, surAffiche: () => { alignerGlottes(); rendre(); } });
+
+  chargerSons().then(rendre).catch((e) => { demo.textContent = e.message; });
+}
+
+// Version imprimée : les cinq spectrogrammes sur deux rangées (3 + 2), chacun sous sa glotte et son
+// nom ; même échelle de temps et de fréquence (fréquences sur la colonne de gauche, temps sous le
+// premier tracé de la rangée du bas).
+function imprimer() {
+  const G = 34, D = L - 6, ECART = 14, COLS = 3, LARG = (D - G - ECART * (COLS - 1)) / COLS;
+  const HG = 34, LG = HG * DECOUPE_IMPR.l / DECOUPE_IMPR.h, RANG = 150, H0 = 42, H1 = 132;
+  const svg = placer(S('svg', { width: L, height: HT }), 0, 0);
+  demo.append(svg);
+  ajuster(demo, L, HT);
+  chargerSons().then(() => {
+    SONS.forEach((s, i) => {
+      const col = i % COLS, rang = Math.floor(i / COLS), g0 = G + col * (LARG + ECART), h = rang * RANG;
+      const x = echelle(0, T_MAX, g0, g0 + LARG), y = echelle(0, F_MAX, h + H1, h + H0);
+      const v = S('svg', { x: g0, y: h, width: LG, height: HG,
+        viewBox: `${s.cx - DECOUPE_IMPR.l / 2} ${DECOUPE_IMPR.y} ${DECOUPE_IMPR.l} ${DECOUPE_IMPR.h}` }, svg);
+      S('image', { href: 'images/glotte-phonation.png', width: 1055, height: 244 }, v);
+      v.style.overflow = 'hidden';
+      T(svg, g0 + LG + 6, h + HG / 2 + 5, s.nom, 'graduation', 'start').setAttribute('font-size', 14);
+      S('image', { x: x(0), y: y(F_MAX), width: x(s.image.duree) - x(0), height: y(0) - y(F_MAX), preserveAspectRatio: 'none', href: s.image.url }, svg);
+      const temps = rang === 1 && col === 0;
+      axes(S('g', {}, svg), { x, y, ticksX: temps ? [0, 0.5, 1] : [], ticksY: col ? [] : [0, 2000, 4000],
+        titreX: temps ? 'Temps (s)' : null, titreY: col ? null : 'kHz', formatX: (t) => t.toFixed(1).replace(/\.0$/, ''), formatY: (f) => f / 1000 });
+    });
+    figurePrete();
+  }).catch((e) => { demo.textContent = e.message; });
 }
 
 // WAV PCM 16 bits mono ; l'amorce (zéros en tête) n'est pas affichée.
@@ -180,17 +221,3 @@ function fft(re, im) {
   }
 }
 
-ajuster(demo, L, HT, { surMasque: () => { arreter(); rendre(); }, surAffiche: () => { alignerGlottes(); rendre(); } });
-
-(async () => {
-  try {
-    await Promise.all(SONS.map(async (s) => {
-      const r = await fetch(s.fichier);
-      if (!r.ok) throw new Error(`Son introuvable : ${s.fichier} (${r.status})`);
-      s.image = spectrogramme(lireWav(await r.arrayBuffer()));
-    }));
-    rendre();
-  } catch (e) {
-    demo.textContent = e.message;
-  }
-})();

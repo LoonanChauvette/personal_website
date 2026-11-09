@@ -4,6 +4,18 @@
 // Ne jamais appeler preventDefault sur ← → (navigation des diapositives Excalidraw).
 const SVGNS = 'http://www.w3.org/2000/svg';
 
+// Version imprimée (PDF étudiant) : « "impression": true » dans la configuration de l'élément, ou
+// ?impression dans l'adresse de la page autonome (figures/<id>.html). La figure montre alors
+// tous ses états d'un coup, sans commandes ; figurePrete() signale la fin du tracé à la capture.
+export const IMPRESSION = (() => {
+  try { if (JSON.parse(document.getElementById('config')?.textContent || '{}').impression) return true; } catch { /* config illisible */ }
+  return new URLSearchParams(location.search).has('impression');
+})();
+if (IMPRESSION) document.documentElement.classList.add('impression');
+export function figurePrete() {
+  (document.fonts?.ready || Promise.resolve()).then(() => requestAnimationFrame(() => { document.documentElement.dataset.pret = '1'; }));
+}
+
 export function S(tag, attrs = {}, parent = null) {
   const e = document.createElementNS(SVGNS, tag);
   for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null) e.setAttribute(k, v);

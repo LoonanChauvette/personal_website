@@ -14,7 +14,7 @@
 //   <base href="https://SITE/q/"> <link rel="stylesheet" href="…/q/excali/excali.css">
 //   <script src="…/q/excali/rough.js"></script> <div id="demo" class="demo"></div>
 //   <script type="application/json" id="config">{"id": "c7bruit"}</script>
-import { ajuster, bouton, choix, ECART_COMMANDES, H, placer, S, T } from './excali/excali.js';
+import { ajuster, bouton, choix, ECART_COMMANDES, figurePrete, H, IMPRESSION, placer, S, T } from './excali/excali.js';
 import { creerLecteur } from './correlats-donnees.js';
 import { tracerSpectreBruit } from './spectre-bruit.js';
 
@@ -37,6 +37,7 @@ const nb = (v, d) => v.toFixed(d).replace('-', '−'); // point décimal, comme 
 const valeur = (cle, v) => (cle === 'platitude' ? nb(v, 3) : `${nb(v, 1)} dB`);
 
 const demo = document.getElementById('demo');
+if (IMPRESSION) demo.hidden = true; // commandes et tracé interactifs remplacés par imprimer()
 const ligne1 = placer(H('div', null, null, demo), 0, 0);
 const ligne2 = placer(H('div', null, null, demo), 0, 48);
 ligne2.style.display = 'flex';
@@ -88,9 +89,8 @@ function echelle(g) {
 }
 
 // Légende alignée à droite au-dessus du tracé.
-function legende(g, items) {
+function legende(g, items, y = Y_LEGENDE) {
   let x = CADRE.d;
-  const y = Y_LEGENDE;
   for (const it of [...items].reverse()) {
     const t = T(g, x, y + 4, it.texte, 'indice', 'end');
     t.setAttribute('font-size', 13);
@@ -103,13 +103,45 @@ function legende(g, items) {
   }
 }
 
-ajuster(demo, L, HT, { surMasque: () => { lecteur.arreter(); rendre(); }, surAffiche: () => rendre() }); // légendes remesurées
+// Version imprimée : le son le plus tonal et le plus bruité en colonnes (nom en tête), une rangée
+// par descripteur (nom à gauche, valeur de chaque son en bleu au-dessus de son spectre) ; même
+// échelle partout, fréquences sous la dernière rangée seulement, sans légende (la diapositive
+// explique les tracés).
+const NOMS_IMPR = { rapport_bruit: 'Ratio de bruit', platitude: 'Platitude spectrale', crete: 'Facteur de crête' };
+function imprimer() {
+  const page = placer(H('div', 'demo', null, document.body), 0, 0);
+  const g = placer(S('svg', { width: L, height: HT }), 0, 0);
+  page.append(g);
+  const deux = [donnees.sons[0], donnees.sons[donnees.sons.length - 1]], larg = (L - 26 - 40 - 24) / 2;
+  const HAUT = 22, BAS = 20, RANG = (HT - HAUT - BAS) / 3;
+  const gauche = (i) => 40 + i * (larg + 24);
+  deux.forEach((s, i) => {
+    const t = T(g, gauche(i) + larg / 2, 15, s.nom, 'indice', 'middle');
+    t.setAttribute('font-size', 14); t.style.fill = NOIR; t.style.fontWeight = 700;
+  });
+  ['rapport_bruit', 'platitude', 'crete'].forEach((cle, k) => {
+    const y = HAUT + k * RANG, dernier = k === 2;
+    const n = T(g, 2, y + 16, NOMS_IMPR[cle], 'indice', 'start');
+    n.setAttribute('font-size', 13); n.style.fill = NOIR;
+    deux.forEach((s, i) => {
+      tracerSpectreBruit(g, cle, s.spectre, { g: gauche(i), d: gauche(i) + larg, h: y + 31, b: y + RANG - 8, dbMin: -80,
+        ticksDb: i ? [] : [-80, 0], ticksF: !dernier ? [] : i ? [100, 1000, 10000] : [100, 1000] }, BLEU);
+      const v = T(g, gauche(i) + larg, y + 16, valeur(cle, s[cle]), 'indice', 'end');
+      v.setAttribute('font-size', 13); v.style.fill = BLEU;
+    });
+  });
+  ajuster(page, L, HT);
+  figurePrete();
+}
+
+if (!IMPRESSION) ajuster(demo, L, HT, { surMasque: () => { lecteur.arreter(); rendre(); }, surAffiche: () => rendre() }); // légendes remesurées
 
 (async () => {
   try {
     const r = await fetch(conf.donnees || 'donnees/bruit-sons.json', { cache: 'no-cache' });
     if (!r.ok) throw new Error(`Données introuvables (${r.status})`);
     donnees = await r.json();
+    if (IMPRESSION) { await document.fonts?.ready; imprimer(); return; }
     choix(ligne1, donnees.descripteurs.map((d) => ({ texte: NOMS[d.cle] || d.nom, valeur: d.cle, titre: d.definition })), etat.cle,
       (v) => { etat.cle = v; rendre(); }, { compact: true });
     jouer = bouton(ligne2, '', () => { lecteur.jouer(donnees.sons[etat.son], rendre); rendre(); }, { largeur: 34, jouer: true, titre: 'Écouter' });

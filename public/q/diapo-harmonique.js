@@ -23,7 +23,7 @@
 //   <base href="https://SITE/q/"> <link rel="stylesheet" href="…/q/excali/excali.css">
 //   <script src="…/q/excali/rough.js"></script> <div id="demo" class="demo"></div>
 //   <script type="application/json" id="config">{"id": "c7impairs"}</script>
-import { ajuster, axes, bouton, chemin, choix, echelle, H, placer, R, S, T } from './excali/excali.js';
+import { ajuster, axes, bouton, chemin, choix, echelle, figurePrete, H, IMPRESSION, placer, R, S, T } from './excali/excali.js';
 import { creerLecteur } from './correlats-donnees.js';
 import { ampsImpairs, corde, droitePente, harmoniques, inharmonicite, moyenneVoisines, NH } from './harmonique-calculs.js';
 
@@ -360,31 +360,45 @@ function vueInharmonicite() {
   demo.append(svg);
   return () => {
     jouer.lecture(son.enCours());
-    const p = corde(B(), F0_CORDE, N_SON), f1 = p[0].f;
-    const ih = inharmonicite(p.map((x) => x.f), p.map((x) => x.a), f1);
     svg.replaceChildren();
-    const b = { g: 8, d: L - 8, h: 22, b: HT - Y0 - 24 }, hMax = 10.6;
-    const X = echelle(0, hMax, b.g, b.d), Y = echelle(0, 1, b.b, b.h + 8);
-    // Multiples de F0 : tirets gris et étiquettes, comme la figure d'origine.
-    for (let h = 1; h < hMax; h++) {
-      S('line', { x1: X(h), x2: X(h), y1: b.h, y2: b.b, stroke: GRIS, 'stroke-width': 1, 'stroke-dasharray': '4 4' }, svg);
-      T(svg, X(h), b.h - 6, h === 1 ? 'F0' : `${h}F0`, 'indice').setAttribute('font-size', 11);
-    }
-    S('line', { x1: b.g, x2: b.d, y1: b.b, y2: b.b, class: 'trait' }, svg);
-    T(svg, b.d, b.b + 17, 'fréquence', 'indice', 'end').setAttribute('font-size', 12);
-    const val = T(svg, b.g, b.b + 18, `Inharmonicité : ${nb(ih, 2)} %`, 'indice', 'start');
-    val.setAttribute('font-size', 15);
-    val.setAttribute('font-weight', 700);
-    val.style.fill = BLEU;
-    S('title', {}, val).textContent = `Écart moyen des partiels à h × F0, pondéré par l'énergie ; raideur B = ${B().toExponential(1)}`;
-    // Partiels : barres bleues ; flèche du multiple de F0 au partiel quand l'écart se voit.
-    p.slice(0, N_TRACE).forEach(({ f, a }, i) => {
-      const x = X(f / f1), x0 = X(i + 1), y = Y(a);
-      if (x > b.d) return;
-      S('line', { x1: x, x2: x, y1: b.b, y2: y, stroke: BLEU, 'stroke-width': 3, 'stroke-linecap': 'round' }, svg);
-      if (x - x0 > 7) fleche(svg, x0, x, y - 8, NOIR);
-    });
+    tracerCorde(svg, B(), { g: 8, d: L - 8, h: 22, b: HT - Y0 - 24 });
   };
+}
+
+// Partiels d'une corde de raideur B dans la boîte b ; etiquettes : noms des multiples de F0 au-dessus.
+function tracerCorde(svg, B, b, { etiquettes = true, frequence = true } = {}) {
+  const p = corde(B, F0_CORDE, N_SON), f1 = p[0].f;
+  const ih = inharmonicite(p.map((x) => x.f), p.map((x) => x.a), f1);
+  const hMax = 10.6;
+  const X = echelle(0, hMax, b.g, b.d), Y = echelle(0, 1, b.b, b.h + 8);
+  // Multiples de F0 : tirets gris et étiquettes, comme la figure d'origine.
+  for (let h = 1; h < hMax; h++) {
+    S('line', { x1: X(h), x2: X(h), y1: b.h, y2: b.b, stroke: GRIS, 'stroke-width': 1, 'stroke-dasharray': '4 4' }, svg);
+    if (etiquettes) T(svg, X(h), b.h - 6, h === 1 ? 'F0' : `${h}F0`, 'indice').setAttribute('font-size', 11);
+  }
+  S('line', { x1: b.g, x2: b.d, y1: b.b, y2: b.b, class: 'trait' }, svg);
+  if (frequence) T(svg, b.d, b.b + 17, 'fréquence', 'indice', 'end').setAttribute('font-size', 12);
+  const val = T(svg, b.g, b.b + 18, `Inharmonicité : ${nb(ih, 2)} %`, 'indice', 'start');
+  val.setAttribute('font-size', 15);
+  val.setAttribute('font-weight', 700);
+  val.style.fill = BLEU;
+  S('title', {}, val).textContent = `Écart moyen des partiels à h × F0, pondéré par l'énergie ; raideur B = ${B.toExponential(1)}`;
+  // Partiels : barres bleues ; flèche du multiple de F0 au partiel quand l'écart se voit.
+  p.slice(0, N_TRACE).forEach(({ f, a }, i) => {
+    const x = X(f / f1), x0 = X(i + 1), y = Y(a);
+    if (x > b.d) return;
+    S('line', { x1: x, x2: x, y1: b.b, y2: y, stroke: BLEU, 'stroke-width': 3, 'stroke-linecap': 'round' }, svg);
+    if (x - x0 > 7) fleche(svg, x0, x, y - 8, NOIR);
+  });
+}
+
+// Version imprimée : corde harmonique (B = 0) au-dessus d'une corde raide (curseur à 0.7 : au-delà,
+// les flèches des partiels aigus se touchent), sans commandes.
+function imprimerInharmonicite() {
+  const svg = placer(S('svg', { width: L, height: HT }), 0, 0);
+  demo.append(svg);
+  tracerCorde(svg, 0, { g: 8, d: L - 8, h: 20, b: 74 }, { frequence: false });
+  tracerCorde(svg, B_MAX * 0.7 ** 2, { g: 8, d: L - 8, h: 106, b: 160 }, { etiquettes: false });
 }
 
 // ─── Mise en route ─────────────────────────────────────────────────────────
@@ -405,6 +419,11 @@ ajuster(demo, L, HT, { surMasque: () => { lecteur.arreter(); arreterTout(); rend
       const valeurs = new Map(desc.sons.map((s) => [s.cle, s]));
       sons = INSTRUMENTS.filter((c) => meta.has(c) && valeurs.has(c) && courbes.sons[c]).map((c) => ({
         cle: c, nom: meta.get(c).nom, fichier: meta.get(c).fichier, valeurs: valeurs.get(c), h: courbes.sons[c].harmoniques }));
+    }
+    if (IMPRESSION && VUE === 'inharmonicite') {
+      imprimerInharmonicite();
+      figurePrete();
+      return;
     }
     rendre = VUE === 'deviation' ? vueDeviation() : VUE === 'inharmonicite' ? vueInharmonicite() : vueImpairs();
     rendre();

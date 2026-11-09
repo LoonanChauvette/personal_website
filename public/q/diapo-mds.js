@@ -38,7 +38,7 @@
 // corrélat acoustique le plus fort sur la carte affichée (correlats.js, même calcul que la
 // diapositive des corrélats), avec r ; en gris si r n'est pas significatif (p ≥ 0.05).
 import { apiGarde, nombreEntier } from './commun.js';
-import { ajuster, bouton, choix, ECART_COMMANDES, H, placer, R, S, T } from './excali/excali.js';
+import { ajuster, bouton, choix, ECART_COMMANDES, figurePrete, H, IMPRESSION, placer, R, S, T } from './excali/excali.js';
 import { analyser } from './correlats.js';
 import { COULEURS_DIMENSIONS as COULEURS } from './dimensions.js';
 import { aligner, mds, pasGuttman, stress } from './mds.js';
@@ -122,6 +122,13 @@ bRecalc.setAttribute('aria-label', 'Recalculer');
 const icRecalc = S('svg', { class: 'icone', width: 18, height: 18, viewBox: '0 0 24 24', 'aria-hidden': 'true' }, bRecalc);
 R('path', icRecalc, ['M 19 9 A 8 8 0 1 0 20 15'], { cle: 'rafraichir-arc', strokeWidth: 1.8, roughness: 0.7 });
 R('polygon', icRecalc, [[[20, 12], [14, 7], [22, 5]]], { cle: 'rafraichir-pointe', fill: '#1e1e1e', fillStyle: 'solid', strokeWidth: 1, roughness: 0.5 });
+// Version imprimée : sans commandes (la source reste en pied), carte centrée, solution finale
+// sans animation, étiquettes écartées les unes des autres.
+if (IMPRESSION) {
+  barre.hidden = true;
+  bRecalc.hidden = true;
+  placer(carte, 0, (HD - 28 - H_) / 2);
+}
 
 const ui = { carte, source: sourceUi };
 const donnees = { classe: null, reference: null, erreurClasse: null, descripteurs: null };
@@ -213,7 +220,7 @@ let axeVertical = [0, 1, 2].includes(conf.vertical) ? conf.vertical : 1; // D2 �
 let rotation = vueCible(axeVertical);
 let virage = 0; // animation du changement d'axe vertical
 let glissement = null; // rotation à la souris en cours
-let rotationAuto = true; // la 3D tourne d'elle-même jusqu'au premier glissement
+let rotationAuto = !IMPRESSION; // la 3D tourne d'elle-même jusqu'au premier glissement (imprimée : vue type, fixe)
 
 function visible() {
   return !document.hidden && window.innerWidth > 0 && window.innerHeight > 0;
@@ -479,7 +486,7 @@ function axes(s, v) {
     });
     nommer(exterieures[0][0][0] < exterieures[1][0][0] ? exterieures[0] : exterieures[1], k);
     // Sous le stress (le bas de la carte porte les noms des dimensions) ; caché par le nom survolé.
-    if (survol === null || v.sons.length <= BEAUCOUP) T(s, ZONE.x1, 30, 'Glisser pour tourner', 'indice', 'end');
+    if (!IMPRESSION && (survol === null || v.sons.length <= BEAUCOUP)) T(s, ZONE.x1, 30, 'Glisser pour tourner', 'indice', 'end');
   }
 }
 
@@ -542,6 +549,10 @@ function tracer(v, X) {
   if (v.dim === 1) [...E.keys()].sort((a, b) => E[a][0] - E[b][0]).forEach((i, k) => rang1D.set(i, k % (nombreux ? 3 : 2)));
   // 3D : du plus loin au plus proche (les plus proches recouvrent).
   const ordre = [...E.keys()].sort((a, b) => E[a][2] - E[b][2]);
+  // Imprimée : boîtes des étiquettes déjà posées et des points (une étiquette ne couvre aucun point).
+  const places = IMPRESSION ? E.map(([x, y]) => [x - 5, y - 5, 10, 10]) : [];
+  const recouvrement = (b) => places.reduce((t, q) => t + Math.max(0, Math.min(b[0] + b[2], q[0] + q[2]) - Math.max(b[0], q[0]))
+    * Math.max(0, Math.min(b[1] + b[3], q[1] + q[3]) - Math.max(b[1], q[1])), 0);
   for (const i of ordre) {
     const son = v.sons[i];
     const [x, y, z] = E[i];
@@ -559,8 +570,21 @@ function tracer(v, X) {
     const nom = nombreux ? son.abrege || son.cle : nomDe(son);
     // Nom centré sur le point, sauf au bord de la carte (il resterait coupé).
     const demi = nom.length * (nombreux ? 3.4 : 4.2);
-    const ancre = x + demi > L ? 'end' : x - demi < 0 ? 'start' : 'middle';
-    T(g, ancre === 'end' ? Math.max(x + 6, L - 1) : ancre === 'start' ? Math.min(x - 6, 1) : x, ty, nom, nombreux ? 'graduation' : 'lecture-carte', ancre);
+    let ancre = x + demi > L ? 'end' : x - demi < 0 ? 'start' : 'middle';
+    let tx = ancre === 'end' ? Math.max(x + 6, L - 1) : ancre === 'start' ? Math.min(x - 6, 1) : x;
+    if (IMPRESSION && v.dim > 1) { // au-dessus, dessous, à droite, à gauche : la première place libre
+      const dw = nom.length * (nombreux ? 4.4 : 5) + 2; // demi-largeur mesurée large (Nunito 13 px)
+      const boite = (bx, by, a) => [a === 'middle' ? bx - dw : a === 'end' ? bx - 2 * dw : bx, by - 11, 2 * dw, 13];
+      const essais = [[tx, ty, ancre], [x, y + r + 15, 'middle'], [x + r + 4, y + 4, 'start'], [x - r - 4, y + 4, 'end'],
+        [x + r + 2, y - r - 4, 'start'], [x - r - 2, y - r - 4, 'end'], [x + r + 2, y + r + 13, 'start'], [x - r - 2, y + r + 13, 'end'],
+        [x, y - r - 19, 'middle']];
+      // La première place libre ; sinon la moins recouverte (amas de points).
+      const couts = essais.map(([bx, by, a]) => recouvrement(boite(bx, by, a)));
+      const libre = essais[couts.indexOf(0) >= 0 ? couts.indexOf(0) : couts.indexOf(Math.min(...couts))];
+      [tx, ty, ancre] = libre;
+      places.push(boite(tx, ty, ancre));
+    }
+    T(g, tx, ty, nom, nombreux ? 'graduation' : 'lecture-carte', ancre);
   }
   chiffres.forEach(([x, y, e]) => pastille(s, x, y, e));
   ui.carte.replaceChildren(s);
@@ -697,8 +721,8 @@ async function afficher({ rejouer = false } = {}) {
   cSource.valeur(src);
   cDim.valeur(dim);
   cAxe.valeur(axeVertical);
-  axeVerticalUi.hidden = dim !== 3;
-  etendueUi.hidden = src !== 'reference' || !SOUS.length;
+  axeVerticalUi.hidden = dim !== 3 || IMPRESSION;
+  etendueUi.hidden = src !== 'reference' || !SOUS.length || IMPRESSION;
   cTous.valeur(tous);
   let g;
   try {
@@ -721,11 +745,13 @@ async function afficher({ rejouer = false } = {}) {
     const v = preparer(g, cle);
     vue = v;
     survol = null;
-    if (visible()) animer(v);
+    if (visible() && !IMPRESSION) animer(v);
     else {
       v.courant = v.final;
+      v.stressCourant = v.stressFinal;
       majTexte(v);
       tracer(v, v.final);
+      if (IMPRESSION) figurePrete();
     }
   } catch (e) {
     vue = null;
