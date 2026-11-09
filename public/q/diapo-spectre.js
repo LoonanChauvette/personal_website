@@ -395,12 +395,13 @@ function vueCentroide() {
   const jouerS = bouton(reglage, '', () => { if (synth.enCours()) synth.arreter(); else synth.jouer(etat.p); rendre(); }, { largeur: 34, jouer: true, titre: 'Écouter (en continu)' });
   const aigu = H('span', 'indice-html', 'aigus', null);
   const grave = H('span', 'indice-html', 'graves', reglage);
-  curseur(reglage, { largeur: 186, min: -24, max: -3, valeur: etat.p, cle: 'pente', action: (p) => { etat.p = p; synth.regler(p); rendre(); } });
+  curseur(reglage, { largeur: 160, min: -24, max: -3, valeur: etat.p, cle: 'pente', action: (p) => { etat.p = p; synth.regler(p); rendre(); } });
   reglage.append(aigu);
+  // Largeur fixe (« 9999 Hz ») sur une ligne : la valeur ne déplace pas le curseur.
   const valS = H('span', null, '', reglage);
-  valS.style.marginLeft = 'auto';
-  valS.style.color = BLEU;
+  Object.assign(valS.style, { marginLeft: 'auto', color: BLEU, whiteSpace: 'nowrap', minWidth: '4.2em', textAlign: 'right', fontVariantNumeric: 'tabular-nums' });
   for (const e of [grave, aigu]) e.style.position = 'static';
+  for (const e of reglage.children) e.style.flexShrink = '0';
   reglage.style.width = L + 'px';
   const svg = placer(S('svg', { width: L, height: HT - 80 }), 0, 80);
   demo.append(svg);
