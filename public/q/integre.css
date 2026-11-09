@@ -205,3 +205,20 @@ html.integre .question-texte {
   overflow-wrap: anywhere;
 }
 html.integre .question-texte.long { font-size: 0.7em; }
+
+/* Série sans titres de lignes : chaque case porte le nom de sa sous-question (« B et C »). */
+html.integre .serie-grille.matrice .serie-rangee.avec-nom,
+html.integre .serie-resultats.matrice .serie-bloc.avec-nom {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 1.5vw;
+  align-items: center;
+}
+html.integre .serie-nom {
+  font-size: 0.7em;
+  white-space: nowrap;
+}
+/* Sous-questions numérotées (énoncés sur la diapositive) : le numéro, puis les réponses. */
+html.integre .serie-liste.numeros .serie-rangee {
+  grid-template-columns: max-content minmax(0, 1fr);
+}

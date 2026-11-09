@@ -662,6 +662,11 @@ function controleSerie(q) {
       rangee.style.gridColumn = String(Math.floor(i / nLignes) + 2);
       rangee.style.gridRow = String((i % nLignes) + 2);
       rangee.setAttribute('aria-label', `${tCol[Math.floor(i / nLignes)] || ''} ${nomDe(sq, i)}`.trim());
+      // Sans titres de lignes, chaque case nomme sa sous-question (ex. « B et C » sous « Diffèrent sur… »).
+      if (!tLig.length) {
+        rangee.classList.add('avec-nom');
+        rangee.appendChild(element('div', 'serie-nom', nomDe(sq, i)));
+      }
       rangee.appendChild(commande(sq, true));
       grille.appendChild(rangee);
     });
@@ -669,8 +674,11 @@ function controleSerie(q) {
   } else {
     // Un groupe par colonne quand la série a des titres de colonnes ; sinon un seul groupe.
     const groupes = tCol.length ? Array.from({ length: colonnes }, (_, c) => sous.slice(c * nLignes, (c + 1) * nLignes)) : [sous];
-    const longs = sous.some((sq, i) => nomDe(sq, i).length > 26);
-    const liste = element('div', `serie-liste ${longs ? 'empile' : 'cote-a-cote'}`);
+    // Dans une diapositive, sous-questions numérotées : l'énoncé est imprimé sur la diapositive,
+    // la ligne ne garde que son numéro (1, 2…) à côté des réponses.
+    const numeros = !!DIAPO && !tCol.length && sous.every((sq) => sq.etiquette);
+    const longs = !numeros && sous.some((sq, i) => nomDe(sq, i).length > 26);
+    const liste = element('div', `serie-liste ${longs ? 'empile' : 'cote-a-cote'}${numeros ? ' numeros' : ''}`);
     let i = 0;
     groupes.forEach((membres, c) => {
       const groupe = element('section', 'serie-groupe');
@@ -685,7 +693,8 @@ function controleSerie(q) {
         const rangee = element('div', 'serie-rangee');
         const nom = element('div', 'serie-libelle');
         if (!tCol.length && sq.etiquette) nom.appendChild(element('span', 'serie-num', sq.etiquette));
-        nom.appendChild(element('span', 'serie-texte', nomDe(sq, i)));
+        if (numeros) rangee.setAttribute('aria-label', `${sq.etiquette}. ${nomDe(sq, i)}`);
+        else nom.appendChild(element('span', 'serie-texte', nomDe(sq, i)));
         rangee.append(nom, commande(sq, false));
         groupe.appendChild(rangee);
         i += 1;
