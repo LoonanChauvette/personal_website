@@ -595,7 +595,7 @@ button.principal {
   line-height: 28px;
 }
 .theme-excali .grille.choix .grille-groupe {
-  grid-template-columns: 28px repeat(var(--n), 64px);
+  grid-template-columns: 24px repeat(var(--n), 71px); /* « A 100 % » tient dans sa case */
   justify-content: center;
   align-content: center;
   row-gap: 22px;
@@ -605,6 +605,7 @@ button.principal {
   color: var(--encre);
 }
 .theme-excali .grille.choix .grille-case {
+  white-space: nowrap;
   height: 28px;
   line-height: 28px;
 }

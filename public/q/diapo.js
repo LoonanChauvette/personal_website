@@ -332,11 +332,11 @@ function grilleChoix(q) {
       const k = Number((sous.comptes || {})[v]) || 0;
       const bonne = bonnes.has(v);
       const caseV = el('div', `grille-case${bonne ? ' bonne' : ''}`);
-      caseV.append(el('b', 'grille-lettre', v), document.createTextNode(total ? ` ${nombreEntier((100 * k) / total)} %` : ' -'));
+      caseV.append(el('b', 'grille-lettre', v), document.createTextNode(total ? ` ${nombreEntier((100 * k) / total)}\u202f%` : ' -'));
       caseV.title = `Question ${sq.etiquette || sq.cle}, ${v} : ${nombreEntier(k)} réponse${k === 1 ? '' : 's'}${bonne ? ' (bonne réponse)' : ''}`;
       if (bonne) {
         const f = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        const l = n > 4 ? 44 : 64;
+        const l = n > 4 ? 44 : 71; // largeur de colonne (diapo.css, .grille.choix)
         f.setAttribute('width', l);
         f.setAttribute('height', 28);
         R('rectangle', f, [3, 2, l - 6, 24], { cle: 'g' + sq.cle + v, stroke: 'none', fill: '#b2f2bb', hachureGap: 4, fillWeight: 1.2 });
