@@ -21,5 +21,12 @@
       "source": "/demo/:path*",
       "destination": "https://teaching-demos.vercel.app/demo/:path*"
     }
+  ],
+  "redirects": [
+    {
+      "source": "/hearing-loss-simulator",
+      "destination": "/hearing-loss-simulator/",
+      "permanent": true
+    }
   ]
 }
