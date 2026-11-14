@@ -1,0 +1,1 @@
+import{t as e}from"../chunks/DK3Fl9T5.js";import{E as t,M as n,W as r,X as i,j as a,q as o,v as s}from"../chunks/z8nYvVer.js";var c=e({prerender:()=>!0,ssr:()=>!1,trailingSlash:()=>l}),l=`always`;function u(e,c){var l=n();s(`12qhfyh`,e=>{r(()=>{o.title=`Hearing Loss Simulator`})});var u=i(l);t(u,()=>c.children),a(e,l)}export{u as component,c as universal};
