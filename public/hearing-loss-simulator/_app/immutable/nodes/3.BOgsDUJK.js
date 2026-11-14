@@ -777,9 +777,10 @@ import{$ as e,A as t,G as n,H as r,J as i,M as a,O as o,P as s,Q as c,R as l,S a
 		which broadens the filter at that frequency by B = 10^(0.01·OHC), about 2 at 30 dB HL, 3 at 50 dB HL and at most 3.8.</p> <p> <code class="svelte-1q1r64t">docs/model-cards/broadening.md</code>.</p> <h3 class="svelte-1q1r64t">Limitations</h3> <ul></ul></section> <section id="jitter" class="svelte-1q1r64t"><h2 class="svelte-1q1r64t">Temporal jitter <span class="status svelte-1q1r64t">(available, in front of every model)</span></h2> <p>Ageing and some hearing losses reduce the phase locking of auditory nerve fibres to the temporal fine structure of
 		low-frequency sounds, often with a near-normal audiogram. Pichora-Fuller et al. simulated this by jittering speech
 		in time, reading it with a randomly varying delay <!>. The toolbar's
-		Jitter toggle applies the 3D Tune-In toolkit's version of it in front of any model: the sound below 1.6 kHz is read
-		at offsets given by Gaussian noise low-passed at 500 Hz, independently in each ear. The amount is the RMS of the
-		delay (0.25 ms by default, set in Options ▸ Filter broadening and jitter settings); it is not derived from the
+		Jitter toggle does this in front of any model: the sound below 1.2 kHz, separated by a linear-phase filter, is read at
+		delays given by Gaussian noise low-passed at 500 Hz (the 3D Tune-In toolkit's jitter source), independently in each
+		ear; higher frequencies are untouched. The amount is the RMS of the delay (0.1 ms by default, set in Options ▸ Filter
+		broadening and jitter settings); it is not derived from the
 		audiogram. See <code class="svelte-1q1r64t">docs/model-cards/jitter.md</code>.</p></section> <section class="svelte-1q1r64t"><h2 class="svelte-1q1r64t">Roadmap</h2> <ul><li>Hearing aid: further prescriptions (CAM2 <!>, DSL v5 after a licensing
 			check <!>), and directional microphones and noise reduction, which need a
 			spatial scene.</li> <li>Cochlear-implant simulation: noise/sine vocoders and the SPIRAL vocoder <!>. Vocoders only
