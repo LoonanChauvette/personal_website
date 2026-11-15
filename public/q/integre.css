@@ -239,3 +239,9 @@ html.integre .serie-liste.numeros .serie-rangee {
 html.integre .serie-controle .touche .lettre {
   line-height: 1;
 }
+/* Lettres centrées sur leur encre : la boîte du texte est rognée à la hauteur des capitales
+   (sinon l'espace sous la ligne de base les remonte d'environ 2 px). Pas de police web : la
+   police système de l'appareil, quelle qu'elle soit. Navigateur sans text-box : comme avant. */
+html.integre .touche .lettre {
+  text-box: trim-both cap alphabetic;
+}
