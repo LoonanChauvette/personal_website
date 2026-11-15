@@ -122,7 +122,9 @@ function consigne(type) {
 function grilleLettres(q, multiple) {
   const envoi = envoyerSous;
   const options = optionsDe(q.type, q.gabarit);
-  const avecTextes = DIAPO || !(q.gabarit && q.gabarit.masquer_texte);
+  // q.lettres : sous-question numérotée d'une série dans une diapositive, dont les options sont
+  // imprimées à côté de leurs lettres : lettres seules, sur une ligne.
+  const avecTextes = !q.lettres && (DIAPO || !(q.gabarit && q.gabarit.masquer_texte));
   // Liste verticale : lettres alignées, libellé éventuel à droite de la lettre.
   const grille = element('div', 'liste-options');
   // Libellés très courts (« D1 », « D2 »…) : ils remplacent les lettres, boutons sur une ligne.
@@ -621,9 +623,9 @@ function controleSerie(q) {
   const nomDe = (sq, i) => sq.texte || tLig[i % nLignes] || sq.etiquette || sq.cle;
 
   // Commande d'une sous-question (son propre « Envoyer » retiré : envoi commun).
-  function commande(sq, court) {
+  function commande(sq, court, lettres = false) {
     const { cle, type, etiquette: _e, texte: _t, ...gab } = sq;
-    const souq = { id: q.id, tour: q.tour, type, gabarit: gab, statut: q.statut, court };
+    const souq = { id: q.id, tour: q.tour, type, gabarit: gab, statut: q.statut, court, lettres };
     const local = reponseLocale;
     reponseLocale = reponses[cle] !== undefined ? { reponse: reponses[cle], envoye: true } : null;
     const envoyerOrig = envoyerSous;
@@ -707,7 +709,7 @@ function controleSerie(q) {
         if (!tCol.length && sq.etiquette) nom.appendChild(element('span', 'serie-num', sq.etiquette));
         if (numeros) rangee.setAttribute('aria-label', `${sq.etiquette}. ${nomDe(sq, i)}`);
         else nom.appendChild(element('span', 'serie-texte', nomDe(sq, i)));
-        rangee.append(nom, commande(sq, false));
+        rangee.append(nom, commande(sq, false, numeros));
         groupe.appendChild(rangee);
         i += 1;
       }
