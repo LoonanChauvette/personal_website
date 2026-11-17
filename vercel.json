@@ -20,12 +20,25 @@
     {
       "source": "/demo/:path*",
       "destination": "https://teaching-demos.vercel.app/demo/:path*"
+    },
+    {
+      "source": "/slides/",
+      "destination": "https://excalidraw-wrapper.vercel.app/slides/"
+    },
+    {
+      "source": "/slides/:path*",
+      "destination": "https://excalidraw-wrapper.vercel.app/slides/:path*"
     }
   ],
   "redirects": [
     {
       "source": "/hearing-loss-simulator",
       "destination": "/hearing-loss-simulator/",
+      "permanent": true
+    },
+    {
+      "source": "/slides",
+      "destination": "/slides/",
       "permanent": true
     }
   ]
