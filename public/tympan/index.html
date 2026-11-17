@@ -1,0 +1,148 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Tympanogram input</title><style>
+:root{--fg:#18181b;--muted:#71717a;--faint:#a1a1aa;--border:#e4e4e7;--subtle:#f4f4f5;--right:#dc2626;--left:#2563eb;
+--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;--mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;color-scheme:light}
+html{background:#fff;color:var(--fg)}
+body{margin:0;font-family:var(--sans);-webkit-user-select:none;user-select:none}
+.page{padding:40px 24px}
+.back{display:block;font-size:12px;color:var(--muted);text-decoration:none;margin:0 auto 16px;width:360px}.back:hover{color:var(--fg)}
+.w{width:360px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+button{font:inherit;color:var(--fg)}
+.seg{display:inline-flex;align-self:flex-start;border:1px solid var(--border);border-radius:8px;padding:2px;gap:2px}
+.seg button{border:0;background:transparent;padding:3px 10px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;color:var(--muted);display:flex;align-items:center;gap:6px}
+.seg button.on{background:var(--subtle);color:var(--fg)}
+.dot{width:7px;height:7px;border-radius:50%}
+.plots{display:flex;gap:6px;align-items:flex-start}
+svg{display:block;touch-action:none;outline:none}
+#graph{cursor:crosshair;border-radius:6px}
+#graph text{pointer-events:none}
+#tube{cursor:ns-resize}
+svg.kb:focus{outline:2px solid var(--faint);outline-offset:2px}
+.fields{display:flex;justify-content:space-between}
+.field{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted);flex:none}
+.pill{flex:none}
+.field small{color:var(--faint);font-size:10px}
+.pill{display:flex;align-items:center;border:1px solid var(--border);border-radius:9px;padding:2px}
+.num{width:50px;text-align:center;color:var(--fg);font:600 13px var(--mono);font-variant-numeric:tabular-nums;outline:none;border-radius:6px;padding:4px 0}
+.num:focus-visible{background:var(--subtle)}
+.ic{width:26px;height:26px;border-radius:7px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;touch-action:none}
+.ic:hover{background:var(--subtle)}.ic:active{background:var(--border)}
+.ic svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+</style></head><body><div class="page">
+<div class="w">
+ <div class="seg" id="ears"><button data-ear="R" class="on"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.6" fill="none" stroke="var(--right)" stroke-width="1.8"/></svg>Right</button><button data-ear="L"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="var(--left)" stroke-width="1.8" stroke-linecap="round"/></svg>Left</button></div>
+ <div class="plots"><svg id="graph" width="300" height="176" viewBox="0 0 300 176" tabindex="0" aria-label="Tympanogram: press to place the peak; arrow keys adjust"></svg><svg id="tube" width="54" height="176" viewBox="0 0 54 176" aria-label="Ear canal volume"></svg></div>
+ <div class="fields" id="fields"></div>
+</div></div>
+<script>
+const MONO='ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace',NS='http://www.w3.org/2000/svg';
+const P={min:-400,max:200,step:10},Y={min:0,max:2.5,step:0.05},E={min:0,max:3,step:0.05};
+const snap=(r,v)=>+(Math.max(r.min,Math.min(r.max,Math.round((v-r.min)/r.step)*r.step+r.min))).toFixed(2);
+const range=r=>{const a=[];for(let i=0;i<=Math.round((r.max-r.min)/r.step);i++)a.push(+(r.min+i*r.step).toFixed(2));return a};
+const fP=v=>(v<0?'−':v>0?'+':'')+Math.abs(v),fY=v=>v.toFixed(2);
+const ears={R:{tpp:-10,ytm:0.85,tw:100,ecv:1.10},L:{tpp:-60,ytm:0.65,tw:130,ecv:0.95}},COL={R:'var(--right)',L:'var(--left)'};let ear='R';
+function el(tag,a,parent){const e=document.createElementNS(NS,tag);for(const k in a)e.setAttribute(k,a[k]);parent.append(e);return e}
+const svgPt=(s,e)=>{const p=s.createSVGPoint();p.x=e.clientX;p.y=e.clientY;return p.matrixTransform(s.getScreenCTM().inverse())};
+function dragOn(s,fn){s.addEventListener('pointerdown',e=>{e.preventDefault();s.classList.remove('kb');s.focus({preventScroll:true});s.setPointerCapture(e.pointerId);fn(svgPt(s,e));
+ const mv=ev=>fn(svgPt(s,ev)),up=()=>{s.removeEventListener('pointermove',mv);s.removeEventListener('pointerup',up)};s.addEventListener('pointermove',mv);s.addEventListener('pointerup',up)})}
+const lbl=(parent,x,y,t,anchor='middle')=>{const e=el('text',{x,y,'text-anchor':anchor,'font-size':9,fill:'#a1a1aa','font-family':MONO},parent);e.textContent=t;return e};
+
+/* graph: both ears, active ear on top */
+const g=document.getElementById('graph'),X0=40,X1=292,YB=152,YT=8,LX=YB+14;
+const px=p=>X0+(p-P.min)/(P.max-P.min)*(X1-X0),py=c=>YB-(c-Y.min)/(Y.max-Y.min)*(YB-YT);
+const ip=x=>P.min+(x-X0)/(X1-X0)*(P.max-P.min),iy=y=>Y.min+(YB-y)/(YB-YT)*(Y.max-Y.min);
+const W={min:30,max:400,step:10},OTHER={R:'L',L:'R'};
+el('rect',{x:X0,y:0,width:X1-X0,height:YB+1},el('clipPath',{id:'plot'},el('defs',{},g)));
+el('rect',{x:px(-100),y:py(1.6),width:px(50)-px(-100),height:py(0.3)-py(1.6),fill:'#f4f4f5',rx:3},g);
+el('line',{x1:px(0),x2:px(0),y1:YT,y2:YB,stroke:'#e4e4e7'},g);
+const xl=[-400,-200,0,200].map(p=>[px(p),lbl(g,px(p),LX+3,p,p===-400?'start':p===200?'end':'middle'),String(p).length*5.5]);
+const yl=[0,1,2].map(c=>[py(c),lbl(g,X0-8,py(c)+3,c,'end')]);
+el('line',{x1:X0,x2:X1,y1:YB,y2:YB,stroke:'#d4d4d8'},g);el('line',{x1:X0,x2:X0,y1:YT,y2:YB,stroke:'#d4d4d8'},g);
+const L={};for(const k of['R','L']){const grp=el('g',{},g);
+ L[k]={g:grp,flank:el('path',{fill:'none','stroke-width':5,opacity:.25,'stroke-linecap':'round','clip-path':'url(#plot)'},grp),
+  curve:el('path',{fill:'none','stroke-width':2,'stroke-linejoin':'round','clip-path':'url(#plot)'},grp),
+  mark:k==='R'?el('circle',{r:4,fill:'#fff','stroke-width':1.8},grp):el('path',{fill:'none','stroke-width':1.8,'stroke-linecap':'round'},grp)};
+ L[k].curve.style.stroke=COL[k];L[k].flank.style.stroke=COL[k];L[k].mark.style.stroke=COL[k]}
+const topG=el('g',{},g);
+const guide=el('path',{fill:'none',stroke:'#d4d4d8','stroke-dasharray':'2 3'},topG),twLine=el('path',{fill:'none',stroke:'#a1a1aa'},topG);
+const mkTag=(anchor)=>{const t=el('g',{},topG),r=el('rect',{height:15,rx:3},t),x=el('text',{'font-size':10,fill:'#fff','text-anchor':'middle','font-family':MONO,'font-weight':600},t);
+ return(cx,cy,s,show=true,col='#18181b')=>{t.style.display=show?'':'none';if(!show)return 0;r.style.fill=col;x.textContent=s;const w=s.length*6.1+8;if(anchor==='end')cx-=w/2;r.setAttribute('width',w);r.setAttribute('x',cx-w/2);r.setAttribute('y',cy-7.5);x.setAttribute('x',cx);x.setAttribute('y',cy+3.5);return w}};
+const tagX=mkTag(),tagY=mkTag('end'),tagW=mkTag();
+const yAt=(s,p)=>s.ytm/(1+((p-s.tpp)/(s.tw/2))**2);
+let hover=null,active=null;   // {ear, kind}
+function drawGraph(){
+ g.append(L[OTHER[ear]].g,L[ear].g,topG);
+ const st=active||hover;
+ for(const k of['R','L']){const s=ears[k],o=L[k],x=px(s.tpp),y=py(s.ytm);let d='';
+  for(let p=P.min;p<=P.max;p+=3)d+=(d?'L':'M')+px(p).toFixed(1)+','+py(yAt(s,p)).toFixed(1);
+  o.curve.setAttribute('d',d);o.g.style.opacity=k===ear?1:.5;
+  const big=st&&st.ear===k&&st.kind==='peak',r=big?5.5:4;
+  if(k==='R'){o.mark.setAttribute('cx',x);o.mark.setAttribute('cy',y);o.mark.setAttribute('r',r)}
+  else{const h=r-0.6;o.mark.setAttribute('d',`M${x-h},${y-h}L${x+h},${y+h}M${x+h},${y-h}L${x-h},${y+h}`)}
+  if(st&&st.ear===k&&st.kind==='width'){let fl='';for(const side of[-1,1]){let seg='';for(let f=0.12;f<=0.9;f+=0.04){const p=s.tpp+side*(s.tw/2)*Math.sqrt(1/f-1);seg+=(seg?'L':'M')+px(p).toFixed(1)+','+py(s.ytm*f).toFixed(1)}fl+=seg}o.flank.setAttribute('d',fl)}else o.flank.setAttribute('d','')}
+ const s=ears[ear],x=px(s.tpp),y=py(s.ytm),col=COL[ear]==='var(--right)'?'#dc2626':'#2563eb';
+ guide.setAttribute('d',`M${X0},${y}H${x-7}M${x},${y+7}V${YB}`);
+ const cx=Math.max(X0+14,Math.min(X1-14,x)),wx=tagX(cx,LX,fP(s.tpp));
+ xl.forEach(([lx,t,lw])=>t.style.opacity=Math.abs(lx-cx)<wx/2+lw/2+4?0:1);
+ tagY(X0-4,y,fY(s.ytm));yl.forEach(([ly,t])=>t.style.opacity=Math.abs(ly-y)<12?0:1);
+ const showW=st&&st.kind==='width';
+ if(showW){const w=ears[st.ear],hy=py(w.ytm/2),a=px(Math.max(P.min,w.tpp-w.tw/2)),b=px(Math.min(P.max,w.tpp+w.tw/2));
+  twLine.setAttribute('d',`M${a},${hy}H${b}M${a},${hy-4}V${hy+4}M${b},${hy-4}V${hy+4}`);tagW((a+b)/2,Math.min(YB-10,hy+13),'TW '+w.tw,true,'#18181b')}
+ else{twLine.setAttribute('d','');tagW(0,0,'',false)}}
+function hit(q){const order=[ear,OTHER[ear]];
+ for(const k of order){const s=ears[k];if(Math.hypot(q.x-px(s.tpp),q.y-py(s.ytm))<11)return{ear:k,kind:'peak'}}
+ for(const k of order){const s=ears[k],f=iy(q.y)/s.ytm;if(f>0.1&&f<0.92){const off=(s.tw/2)*Math.sqrt(1/f-1);if(Math.min(Math.abs(q.x-px(s.tpp-off)),Math.abs(q.x-px(s.tpp+off)))<9)return{ear:k,kind:'width'}}}
+ return{ear,kind:'place'}}
+const CUR={peak:'grab',width:'ew-resize',place:'crosshair'},same=(a,b)=>a&&b&&a.ear===b.ear&&a.kind===b.kind;
+g.addEventListener('pointermove',e=>{if(active)return;const h=hit(svgPt(g,e));if(!same(h,hover)){hover=h;g.style.cursor=CUR[h.kind];drawGraph()}});
+g.addEventListener('pointerleave',()=>{if(!active&&hover){hover=null;drawGraph()}});
+g.addEventListener('pointerdown',e=>{e.preventDefault();g.classList.remove('kb');g.focus({preventScroll:true});g.setPointerCapture(e.pointerId);
+ const q0=svgPt(g,e);active=hit(q0);if(active.ear!==ear)setEar(active.ear);
+ const s=ears[ear];g.style.cursor=active.kind==='width'?'ew-resize':'grabbing';
+ const f=Math.max(0.1,Math.min(0.92,iy(q0.y)/s.ytm)),k=Math.sqrt(1/f-1);
+ const mv=ev=>{const q=svgPt(g,ev);if(active.kind==='width')update({tw:snap(W,2*Math.abs(ip(q.x)-s.tpp)/k)});else update({tpp:snap(P,ip(q.x)),ytm:snap(Y,iy(q.y))})};
+ if(active.kind==='place'){mv(e);active.kind='peak'}
+ const up=ev=>{g.removeEventListener('pointermove',mv);g.removeEventListener('pointerup',up);g.removeEventListener('pointercancel',up);active=null;hover=hit(svgPt(g,ev));g.style.cursor=CUR[hover.kind];drawGraph()};
+ g.addEventListener('pointermove',mv);g.addEventListener('pointerup',up);g.addEventListener('pointercancel',up)});
+g.addEventListener('keydown',e=>{g.classList.add('kb');const s=ears[ear],k={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,1],ArrowDown:[0,-1]}[e.key];if(!k)return;e.preventDefault();
+ update({tpp:snap(P,s.tpp+k[0]*P.step),ytm:snap(Y,s.ytm+k[1]*Y.step)})});
+
+/* ECV: one slim tube per ear, same baseline as the graph */
+const t=document.getElementById('tube'),TT=8,TB=152,ty=v=>TB-(v-E.min)/(E.max-E.min)*(TB-TT),ity=y=>E.min+(TB-y)/(TB-TT)*(E.max-E.min);
+const tubes={};[['R',4],['L',20]].forEach(([k,x0])=>{const x1=x0+12,tp=`M${x0},2 V${TB-2} Q${x0},${TB+4} ${x0+6},${TB+4} Q${x1},${TB+4} ${x1},${TB-2} V2`;
+ const cp=el('clipPath',{id:'tc'+k},el('defs',{},t));el('path',{d:tp+'Z'},cp);
+ const grp=el('g',{},t),fill=el('rect',{x:x0-2,width:16,'clip-path':`url(#tc${k})`,opacity:.2},grp),men=el('line',{x1:x0,x2:x1,'stroke-width':2},grp);
+ el('path',{d:tp,fill:'none',stroke:'#71717a','stroke-width':1.1},grp);fill.style.fill=COL[k];men.style.stroke=COL[k];
+
+ tubes[k]={grp,fill,men}});
+for(let i=0;i<=6;i++){const y=ty(i/2);el('line',{x1:34,x2:i%2?37:40,y1:y,y2:y,stroke:'#a1a1aa'},t);if(i%2===0)lbl(t,43,y+3,i/2,'start')}
+function drawTube(){for(const k of['R','L']){const y=ty(ears[k].ecv),o=tubes[k];o.fill.setAttribute('y',y);o.fill.setAttribute('height',176-y);o.men.setAttribute('y1',y);o.men.setAttribute('y2',y);o.grp.style.opacity=k===ear?1:.5}}
+let tubeEar=null;
+t.addEventListener('pointerdown',e=>{tubeEar=svgPt(t,e).x<18?'R':'L';if(tubeEar!==ear)setEar(tubeEar)},true);
+dragOn(t,q=>update({ecv:snap(E,ity(q.y))}));
+
+/* compact stepper field */
+const ICON={m:'<svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>',p:'<svg viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></svg>'};
+function repeater(fn,first=350){let tm=null,n=0;const tick=()=>{fn();n++;tm=setTimeout(tick,n<4?180:n<10?110:60)};return{start(){n=0;tm=setTimeout(tick,first)},stop(){clearTimeout(tm);const w=n>0;n=0;return w}}}
+function holdBtn(b,fn){const r=repeater(fn,400);b.addEventListener('pointerdown',e=>{e.preventDefault();fn();r.start()});['pointerup','pointerleave','pointercancel'].forEach(v=>b.addEventListener(v,()=>r.stop()));b.addEventListener('click',e=>{if(e.detail===0)fn()})}
+function field(label,unit,vals,fmt,onChange){
+ const f=document.createElement('div');f.className='field';f.innerHTML=`<span>${label} <small>${unit}</small></span>`;document.getElementById('fields').append(f);
+ const pill=document.createElement('div');pill.className='pill';f.append(pill);
+ const m=document.createElement('button');m.className='ic';m.innerHTML=ICON.m;m.setAttribute('aria-label',label+' minus');m.tabIndex=-1;
+ const p=document.createElement('button');p.className='ic';p.innerHTML=ICON.p;p.setAttribute('aria-label',label+' plus');p.tabIndex=-1;
+ const v=document.createElement('span');v.className='num';v.tabIndex=0;v.setAttribute('role','spinbutton');v.setAttribute('aria-label',label);
+ pill.append(m,v,p);
+ let i=0;const show=()=>{v.textContent=fmt(vals[i]);v.setAttribute('aria-valuenow',vals[i])};
+ const go=d=>{const j=Math.max(0,Math.min(vals.length-1,i+d));if(j===i)return;i=j;show();onChange(vals[i])};
+ holdBtn(m,()=>go(-1));holdBtn(p,()=>go(1));
+ v.addEventListener('keydown',e=>{const k={ArrowUp:1,ArrowRight:1,ArrowDown:-1,ArrowLeft:-1}[e.key];if(k){e.preventDefault();go(k)}});
+ return{set(x){const j=vals.indexOf(x);if(j>=0){i=j;show()}}}}
+const fp=field('Pressure','daPa',range(P),fP,v=>update({tpp:v},'tpp'));
+const fy=field('Compliance','mL',range(Y),fY,v=>update({ytm:v},'ytm'));
+const fe=field('ECV','mL',range(E),fY,v=>update({ecv:v},'ecv'));
+
+function setEar(k){ear=k;document.querySelectorAll('#ears button').forEach(x=>x.classList.toggle('on',x.dataset.ear===k));render()}
+document.getElementById('ears').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setEar(b.dataset.ear)});
+function render(src){const s=ears[ear];drawGraph();drawTube();if(src!=='tpp')fp.set(s.tpp);if(src!=='ytm')fy.set(s.ytm);if(src!=='ecv')fe.set(s.ecv)}
+function update(patch,src){Object.assign(ears[ear],patch);render(src)}
+render();requestAnimationFrame(()=>render());
+</script></body></html>

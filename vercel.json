@@ -40,6 +40,11 @@
       "source": "/slides",
       "destination": "/slides/",
       "permanent": true
+    },
+    {
+      "source": "/tympan",
+      "destination": "/tympan/",
+      "permanent": true
     }
   ]
 }
