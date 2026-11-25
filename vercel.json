@@ -37,6 +37,11 @@
       "permanent": true
     },
     {
+      "source": "/hearing-loss-simulator/science",
+      "destination": "/hearing-loss-simulator/science/",
+      "permanent": true
+    },
+    {
       "source": "/slides",
       "destination": "/slides/",
       "permanent": true
